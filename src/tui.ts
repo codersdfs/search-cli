@@ -1262,6 +1262,10 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
+    // ponytail: guard single-letter bindings behind !searchInput.focused
+    // so typing a repo name containing t/g/r/s/l/o/d/c doesn't trigger actions
+    if (!searchInput.focused) {
+
     if (key.name === "g") {
       toggleGraph();
       return;
@@ -1385,6 +1389,8 @@ export async function launchBrowser(): Promise<void> {
       showOverlay("topics");
       return;
     }
+
+    } 
 
     // Ctrl+E — export
     if (key.ctrl && key.name === "e") {
