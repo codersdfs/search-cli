@@ -23,6 +23,7 @@ import { formatLines, pipeExec, type FormatLine } from "./pipe.ts";
 import { runWatch } from "./watch.ts";
 import { runInitWizard } from "./init.ts";
 import { readFileSync } from "fs";
+import { join } from "path";
 import { launchBrowser } from "./tui.ts";
 import type { SearchOptions } from "./types.ts";
 
@@ -79,7 +80,16 @@ function parseArgs(args: string[]): CLIFlags {
       case "--version": case "-v": flags.version = true; break;
       case "--help": case "-h": flags.help = true; break;
       case "init": flags.init = true; break;
-      case "--limit": flags.limit = parseInt(args[++i]) || 50; break;
+      case "--limit": {
+        const parsed = parseInt(args[++i]);
+        if (isNaN(parsed) || parsed < 1 || parsed > 100) {
+          console.error(`Invalid limit: must be 1-100. Using default 50.`);
+          flags.limit = 50;
+        } else {
+          flags.limit = parsed;
+        }
+        break;
+      }
       case "--sort": flags.sort = args[++i] as SearchOptions["sort"]; break;
       case "--token": flags.token = args[++i]; break;
       case "--since": flags.since = args[++i]; break;
@@ -100,7 +110,7 @@ async function main() {
 
   // Version
   if (flags.version) {
-    const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
+    const pkg = JSON.parse(readFileSync(join(import.meta.dir!, "..", "package.json"), "utf-8"));
     console.log(`search-cli v${pkg.version}`);
     return;
   }
@@ -145,7 +155,7 @@ Options:
   if (flags.completion) {
     const shell = flags.completion;
     try {
-      const content = readFileSync(`completions/search-cli.${shell}`, "utf-8");
+      const content = readFileSync(join(import.meta.dir!, "..", "completions", `search-cli.${shell}`), "utf-8");
       console.log(content);
     } catch {
       console.error(`Completions not available for shell: ${shell}`);

@@ -29,6 +29,7 @@ import {
   TextRenderable,
   InputRenderable,
   SelectRenderable,
+  ScrollBoxRenderable,
 } from "@opentui/core";
 import type { Repo, SearchOptions, SortStrategy } from "./types.ts";
 import { parseQuery, applyFlagFilters, validateQuery, suggestFor } from "./query.ts";
@@ -36,9 +37,9 @@ import { GitHubSearchProvider, type Logger } from "./provider.ts";
 import { rankRepos } from "./ranking.ts";
 import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending.ts";
 import { loadConfig } from "./config.ts";
-import { buildHelpText } from "./help.ts";
+import { buildHelpSections, HELP_KEYS_COLUMN } from "./help.ts";
 import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors.ts";
-import { appendHistory, readHistory, deleteHistoryEntry, clearHistory } from "./history.ts";
+import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history.ts";
 import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks.ts";
 import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches.ts";
 import { saveSession, restoreSession } from "./session.ts";
@@ -51,6 +52,7 @@ import { StatusManager } from "./status.ts";
 import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications.ts";
 import { formatShare, copyToClipboard, type ShareFormat } from "./share.ts";
 import { nextTip } from "./tips.ts";
+import { openUrl } from "./open-url.ts";
 
 // ─── Theme ────────────────────────────────────────────────────────────
 const colors = {
@@ -130,6 +132,7 @@ export async function launchBrowser(): Promise<void> {
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
+  let quitArmed = false;
 
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
@@ -264,7 +267,26 @@ export async function launchBrowser(): Promise<void> {
   root.add(body);
 
   // ── Overlay system ──────────────────────────────────────────────────
-  function hideAllOverlays() {
+
+  // Hide main content so overlays can take 100% of the content area
+  function hideMainContent() {
+    trendingTabBox.visible = false;
+    searchBox.visible = false;
+    toolbarText.visible = false;
+    body.visible = false;
+  }
+
+  function showMainContent() {
+    if (currentMode === "trending") {
+      trendingTabBox.visible = true;
+    } else {
+      searchBox.visible = true;
+      toolbarText.visible = true;
+    }
+    body.visible = true;
+  }
+
+  function showOverlay(type: typeof currentOverlay) {
     helpBox.visible = false;
     historyBox.visible = false;
     bookmarksBox.visible = false;
@@ -274,13 +296,15 @@ export async function launchBrowser(): Promise<void> {
     compareBox.visible = false;
     notifsBox.visible = false;
     shareBox.visible = false;
-    currentOverlay = "none";
-  }
 
-  function showOverlay(type: typeof currentOverlay) {
-    hideAllOverlays();
-    if (type === "none") return;
+    if (type === "none") {
+      currentOverlay = "none";
+      showMainContent();
+      renderer.requestRender();
+      return;
+    }
     currentOverlay = type;
+    hideMainContent();
     if (type === "help") { helpBox.visible = true; }
     else if (type === "history") { historyBox.visible = true; }
     else if (type === "bookmarks") { bookmarksBox.visible = true; }
@@ -293,7 +317,8 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
   }
 
-  // ── Help overlay ────────────────────────────────────────────
+  // ── Help overlay (OpenTUI components) ────────────────────────
+  const helpSections = buildHelpSections();
   const helpBox = new BoxRenderable(renderer, {
     visible: false,
     flexGrow: 1,
@@ -301,12 +326,48 @@ export async function launchBrowser(): Promise<void> {
     border: true,
     borderColor: colors.border,
   });
-  const helpTextEl = new TextRenderable(renderer, {
-    content: buildHelpText(),
-    color: colors.text,
+  const helpScroll = new ScrollBoxRenderable(renderer, {
+    flexGrow: 1,
     backgroundColor: colors.bg,
+    scrollY: true,
+    scrollX: false,
+    paddingX: 0,
+    viewportOptions: { backgroundColor: colors.bg },
+    contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
+    scrollbarOptions: {
+      backgroundColor: colors.bg,
+      foregroundColor: colors.muted,
+      width: 1,
+    },
   });
-  helpBox.add(helpTextEl);
+  for (const section of helpSections) {
+    const sectionBox = new BoxRenderable(renderer, {
+      border: true,
+      borderColor: colors.border,
+      title: section.title,
+      titleColor: (colors as Record<string, string>)[section.titleColor] ?? section.titleColor,
+      flexDirection: "column",
+      paddingY: 0,
+      marginLeft: 1,
+      marginRight: 1,
+      marginTop: 1,
+    });
+    for (const row of section.rows) {
+      const keys = row.keys.padEnd(HELP_KEYS_COLUMN);
+      sectionBox.add(new TextRenderable(renderer, {
+        content: `  ${keys} ${row.action}`,
+        color: colors.text,
+      }));
+    }
+    if (section.note) {
+      sectionBox.add(new TextRenderable(renderer, {
+        content: `  ${section.note}`,
+        color: colors.muted,
+      }));
+    }
+    helpScroll.add(sectionBox);
+  }
+  helpBox.add(helpScroll);
   root.add(helpBox);
 
   // ── History overlay ─────────────────────────────────────────
@@ -1448,18 +1509,8 @@ function formatToolbar(sort: SortStrategy, limit: number): string {
   return ` sort: ${sortLabel}   limit: ${limit}   (s=cycle sort  l=cycle limit)`;
 }
 
-function openUrl(url: string): void {
-  try {
-    const p = process.platform;
-    if (p === "win32") Bun.spawn(["cmd", "/c", "start", "", url]);
-    else if (p === "darwin") Bun.spawn(["open", url]);
-    else Bun.spawn(["xdg-open", url]);
-  } catch {
-    // non-critical
-  }
-}
-
 function cleanup(): void {
+  try { rotateHistory(); } catch { /* non-critical */ }
   process.exit(0);
 }
 

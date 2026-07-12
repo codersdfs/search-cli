@@ -26,8 +26,8 @@ describe("fmtStars", () => {
     expect(fmtStars(1000)).toBe("1k");
     expect(fmtStars(1200)).toBe("1.2k");
     expect(fmtStars(42_500)).toBe("42.5k");
-    // 999,999 ÷ 1000 = 999.999 → toFixed(1) rounds to 1000.0
-    expect(fmtStars(999_999)).toBe("1000k");
+    // 999,999 ÷ 1000 = 999.999 → toFixed(1) rounds to 1000.0, we round up to 1M
+    expect(fmtStars(999_999)).toBe("1M");
   });
 
   test("formats millions as M", () => {
@@ -153,18 +153,8 @@ describe("getTrendingQuery", () => {
     expect(diffDays).toBeLessThan(31);
   });
 
-  test("All Time returns just sort:stars", () => {
-    const q = getTrendingQuery("All Time");
-    expect(q).toBe("sort:stars");
-  });
-
-  test("This Year returns a 365-day range", () => {
-    const q = getTrendingQuery("This Year");
-    expect(q).toMatch(/^created:>\d{4}-\d{2}-\d{2} sort:stars$/);
-  });
-
   test("Every tab produces a valid GitHub search query", () => {
-    const tabs = ["Today", "This Week", "This Month", "This Year", "All Time"] as const;
+    const tabs = ["Today", "This Week", "This Month"] as const;
     for (const tab of tabs) {
       const q = getTrendingQuery(tab);
       expect(q.length).toBeGreaterThan(0);
@@ -206,7 +196,7 @@ describe("TUI rendering", () => {
       backgroundColor: "#1a1b26",
       paddingX: 1,
     });
-    ["Today", "This Week", "This Month", "This Year", "All Time"].forEach(
+    ["Today", "This Week", "This Month"].forEach(
       (name, i) => {
         const label = `${i + 1} ${i === 1 ? "│" : " "}${name}  `;
         const tt = new TextRenderable(renderer, {

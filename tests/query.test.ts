@@ -76,11 +76,11 @@ describe("validateQuery", () => {
   it("passes valid queries", () => {
     expect(() => validateQuery(parseQuery("cli language:Rust"))).not.toThrow();
   });
-  it("rejects fork + archived", () => {
-    expect(() => validateQuery(parseQuery("cli fork:true archived:true"))).toThrow(/fork/);
+  it("allows fork + archived (valid GitHub combination)", () => {
+    expect(() => validateQuery(parseQuery("cli fork:true archived:true"))).not.toThrow();
   });
-  it("rejects user + org", () => {
-    expect(() => validateQuery(parseQuery("cli user:a org:b"))).toThrow(/user/);
+  it("allows user + org (user: acts as author, not owner)", () => {
+    expect(() => validateQuery(parseQuery("cli user:a org:b"))).not.toThrow();
   });
 });
 

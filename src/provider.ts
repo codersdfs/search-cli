@@ -89,15 +89,22 @@ export class GitHubSearchProvider implements SearchProvider {
             },
           });
 
-          rateLimitRemaining = Number(res.headers.get("x-ratelimit-remaining") ?? NaN);
-          if (res.status === 403 && rateLimitRemaining === 0) {
-            if (this.tokens.length > 0 && attempt < this.tokens.length) {
-              // Token exhausted, try next
-              continue;
+          const remainingStr = res.headers.get("x-ratelimit-remaining");
+          rateLimitRemaining = remainingStr !== null ? Number(remainingStr) : undefined;
+          if (res.status === 403) {
+            if (remainingStr === "0" || remainingStr === null) {
+              // Rate limited
+              if (this.tokens.length > 0 && attempt < this.tokens.length) {
+                continue;
+              }
+              this.logger.warn("[github] rate limit exceeded");
+              rateLimited = true;
+              throw new RateLimitError(!!token);
             }
-            this.logger.warn("[github] rate limit exceeded");
-            rateLimited = true;
-            throw new RateLimitError(!!token);
+            // Non-rate-limit 403 (e.g. private repo, permissions)
+            const body = await res.text().catch(() => "");
+            this.logger.error(`[github] non-rate-limit 403: ${body.slice(0, 200)}`);
+            throw new NetworkError();
           }
           if (!res.ok) {
             const body = await res.text().catch(() => "");
@@ -105,7 +112,23 @@ export class GitHubSearchProvider implements SearchProvider {
             throw new NetworkError();
           }
 
-          const env = (await res.json()) as GitHubSearchEnvelope;
+          // Validate response is valid JSON before trusting the cast
+          const raw = await res.text();
+          let parsed: any;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            const snippet = raw.slice(0, 200);
+            this.logger.error(`[github] invalid JSON response: ${snippet}`);
+            throw new ParseError("GitHub API", snippet.includes("<!DOCTYPE")
+              ? "GitHub returned an HTML page (maintenance or CAPTCHA?)"
+              : "Invalid JSON response");
+          }
+          if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) {
+            this.logger.error(`[github] unexpected response shape: ${JSON.stringify(parsed).slice(0, 200)}`);
+            throw new ParseError("GitHub API", "Unexpected response shape — missing items array");
+          }
+          const env = parsed as GitHubSearchEnvelope;
           totalCount = env.total_count;
           const repos = normalizeEnvelope(env);
           all.push(...repos);
