@@ -3,7 +3,7 @@
 > Browse, search, and trend GitHub repos from your terminal. No browser needed.
 
 <p align="center">
-  <img src="demo.svg" alt="search-cli demo" width="100%">
+  <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="search-cli demo" width="100%">
 </p>
 
 ---
