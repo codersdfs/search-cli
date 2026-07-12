@@ -173,7 +173,7 @@ The `SearchProvider` interface is the extension point for alternative backends (
 ## Install from source
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/search-cli.git
+git clone https://github.com/codersdfs/search-cli.git
 cd search-cli
 bun install
 bun start              # Launch TUI
