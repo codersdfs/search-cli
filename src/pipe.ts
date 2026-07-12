@@ -2,6 +2,7 @@
  * Pipe-friendly format modifiers — output repo data as lines for shell piping.
  */
 import type { Repo } from "./types.ts";
+import { openUrl } from "./open-url.ts";
 
 export type FormatLine = "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
 
@@ -56,10 +57,4 @@ export async function pipeExec(repos: Repo[], target: string): Promise<void> {
   }
 }
 
-async function openUrl(url: string): Promise<void> {
-  const p = process.platform;
-  const args = p === "win32" ? ["cmd", "/c", "start", "", url]
-    : p === "darwin" ? ["open", url]
-    : ["xdg-open", url];
-  Bun.spawn(args);
-}
+

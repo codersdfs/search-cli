@@ -186,12 +186,9 @@ export function applyFlagFilters(
 export function validateQuery(query: ParsedQuery): void {
   const has = (key: string) => query.qualifiers.some((q) => q.key === key && !q.negated);
 
-  if (has("fork") && has("archived")) {
-    throw new Error("Cannot combine `fork:` and `archived:` filters (a fork can still be archived, but the combination is usually unintended).");
-  }
-  if (has("user") && has("org")) {
-    throw new Error("Cannot combine `user:` and `org:` filters (a repo belongs to one or the other).");
-  }
+  // ponytail: removed fork+archived and user+org validation — both are valid
+  // GitHub search queries (a fork can be archived; user: acts as author/committer
+  // not owner, so user+org is a valid scoping query).
   if (has("visibility") && has("private")) {
     throw new Error("Cannot combine `visibility:` and `private:` filters.");
   }
@@ -244,7 +241,8 @@ export function buildSearchUrl(query: ParsedQuery, options: SearchOptions): stri
   const q = buildGitHubQuery(query);
   const { sort, order } = githubSortParam(options.sort);
   const perPage = Math.min(Math.max(options.limit, 1), 100); // GitHub max page size
-  const params = new URLSearchParams({ q: q || " ", per_page: String(perPage) });
+  // ponytail: per_page is set by appendPage in provider, not here
+  const params = new URLSearchParams({ q: q || " " });
   if (sort) params.set("sort", sort);
   if (order) params.set("order", order);
   return `https://api.github.com/search/repositories?${params.toString()}`;
