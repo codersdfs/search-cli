@@ -11,11 +11,19 @@ export function formatJson(repos: Repo[]): string {
   return JSON.stringify(repos, null, 2);
 }
 
+function csvEscape(val: unknown): string {
+  const str = String(val ?? "");
+  if (str.includes('"') || str.includes(",") || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 /** Format repos as CSV string. */
 export function formatCsv(repos: Repo[]): string {
   const header = "rank,full_name,stars,forks,language,url";
   const rows = repos.map((r, i) =>
-    `${i + 1},"${r.fullName}",${r.stars},${r.forks},"${r.language ?? ""}","${r.url}"`,
+    `${i + 1},${csvEscape(r.fullName)},${r.stars},${r.forks},${csvEscape(r.language ?? "")},${csvEscape(r.url)}`,
   );
   return [header, ...rows].join("\n");
 }

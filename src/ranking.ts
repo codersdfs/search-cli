@@ -27,9 +27,11 @@ export function rankRepos(repos: Repo[], strategy: SortStrategy): Repo[] {
       break;
     case "best-match":
     default:
-      // GitHub already returns best-match order; keep it but apply a stable
-      // tie-breaker so the output is reproducible.
-      copy.sort((a, b) => b.score - a.score || b.stars - a.stars || a.id - b.id);
+      // GitHub already returns best-match order; preserve it unchanged.
+      // Re-sorting by score would be redundant for first-page results and
+      // misleading for paginated (page 2 repos would intermix with page 1).
+      // ponytail: if deterministic output is needed, sort by id:
+      // copy.sort((a, b) => a.id - b.id);
       break;
   }
   return copy;

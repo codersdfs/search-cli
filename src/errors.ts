@@ -27,8 +27,8 @@ export class NetworkError extends SearchCliError {
 export class RateLimitError extends SearchCliError {
   constructor(public readonly hasToken: boolean, resetSeconds?: number) {
     const msg = hasToken
-      ? `⚠ API rate limit exceeded. Resets in ${resetSeconds ?? "?"}s. [r]etry [c]hange token`
-      : "⚠ Rate limited (10/min). Set GITHUB_TOKEN for 30/min, or wait. [r]etry";
+      ? `⚠ API rate limit exceeded (5,000/hr). Resets in ${resetSeconds ?? "?"}s. [r]etry [c]hange token`
+      : "⚠ Rate limited (60/hr). Set GITHUB_TOKEN for 5,000/hr. [r]etry";
     super(msg, msg);
     this.name = "RateLimitError";
   }

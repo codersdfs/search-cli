@@ -1,6 +1,6 @@
 {
   "name": "github-search-cli",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Terminal-native GitHub browser — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
   "type": "module",
   "bin": {

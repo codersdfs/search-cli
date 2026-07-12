@@ -19,7 +19,9 @@ import {
   t,
 } from "@opentui/core";
 import type { Repo } from "./types.ts";
-import { NetworkError, ParseError } from "./errors.ts";
+import { openUrl } from "./open-url.ts";
+import { NetworkError } from "./errors.ts";
+import type { GitHubSearchEnvelope } from "./normalizer.ts";
 
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
@@ -80,12 +82,12 @@ function rankColor(rank: number): string {
 }
 
 // ─── Tab definitions ──────────────────────────────────────────────────
-export const TAB_NAMES = ["Today", "This Week", "This Month", "This Year", "All Time"] as const;
+export const TAB_NAMES = ["Today", "This Week", "This Month"] as const;
 export type TabName = (typeof TAB_NAMES)[number];
 
-/** Map TabName to GitHub trending ?since= parameter.
- *  Note: GitHub trending only offers daily/weekly/monthly.
- *  "This Year" and "All Time" fall back to monthly.
+/** Map TabName to GitHub API date range.
+ *  We use the search API with `created:>DATE&sort=stars` so only
+ *  daily/weekly/monthly ranges are meaningful.
  */
 export function tabSince(tab: TabName): "daily" | "weekly" | "monthly" {
   switch (tab) {
@@ -109,64 +111,53 @@ export interface TrendingRepo {
 // ─── Mock data ────────────────────────────────────────────────────────
 
 /**
- * Fetch real trending repos from github.com/trending.
- * Parses the HTML to extract owner, name, description, language, total stars,
- * and — crucially — stars gained in the period (daily/weekly/monthly).
+ * Fetch trending repos from the GitHub search API instead of HTML scraping.
+ * Uses `created:>DATE&sort=stars` queries since the API doesn't expose a
+ * dedicated trending endpoint.
+ *
+ * Note: `starsToday` is always 0 because the API doesn't provide period growth.
+ * The growth indicator is hidden when 0.
  */
 export async function fetchTrendingRepos(since: "daily" | "weekly" | "monthly"): Promise<TrendingRepo[]> {
-  const url = `https://github.com/trending?since=${since}`;
+  const now = Date.now();
+  const msPerDay = 86_400_000;
+  const days = since === "daily" ? 1 : since === "weekly" ? 7 : 30;
+  const date = new Date(now - days * msPerDay).toISOString().slice(0, 10);
+
+  const url = `https://api.github.com/search/repositories?q=created:>${date}&sort=stars&order=desc&per_page=25`;
   let res: Response;
   try {
-    res = await fetch(url, { headers: { "User-Agent": "search-cli/1.0" } });
+    res = await fetch(url, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "search-cli",
+      },
+    });
   } catch {
     throw new NetworkError();
   }
-  if (!res.ok) throw new ParseError("GitHub trending", `HTTP ${res.status}`);
-  const html = await res.text();
+  if (!res.ok) throw new NetworkError();
+  const data = (await res.json()) as GitHubSearchEnvelope;
 
-  const repos: TrendingRepo[] = [];
-  const articles = html.split('<article class="Box-row">');
-  // first element is everything before the first article
-
-  for (let i = 1; i < articles.length; i++) {
-    const block = articles[i];
-    const rank = i; // 1-based
-
-    // Owner/name from the h2 anchor
-    const h2 = block.match(/<h2[^>]*>[\s\S]*?<a[^>]*href="\/([^"/]+)\/([^"/]+?)"/);
-    if (!h2) continue;
-    const owner = h2[1];
-    const name = h2[2];
-
-    // Description from <p>
-    const p = block.match(/<p[^>]*>([\s\S]*?)<\/p>/);
-    const description = p ? p[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim() : "";
-
-    // Language
-    const lang = block.match(/programmingLanguage"[^>]*>([^<]+)</);
-    const language = lang ? lang[1].trim() : "";
-
-    // Total stars (text after star SVG and before </a>)
-    const stargazerBlock = block.match(/stargazers[^>]*>[\s\S]*?<\/svg>\s*([\d,]+)\s*<\/a>/);
-    const stars = stargazerBlock ? parseInt(stargazerBlock[1].replace(/,/g, "")) : 0;
-
-    // Stars gained this period (e.g. "8,795 stars this week")
-    const periodS = block.match(new RegExp(`([\\d,]+)\\s+stars\\s+this\\s+${since === "daily" ? "day" : since === "weekly" ? "week" : "month"}`));
-    const starsToday = periodS ? parseInt(periodS[1].replace(/,/g, "")) : 0;
-
-    repos.push({ rank, owner, name, stars, starsToday, language, description });
-  }
-
-  return repos;
+  return data.items.map((item, i) => ({
+    rank: i + 1,
+    owner: item.owner?.login ?? "?",
+    name: item.name,
+    stars: item.stargazers_count,
+    starsToday: 0, // API doesn't provide period growth
+    language: item.language ?? "",
+    description: item.description ?? "",
+  }));
 }
 
 
 
 // ─── Number formatting ────────────────────────────────────────────────
 
-/** 1234 → "1.2k", 1234567 → "1.2M" */
+/** 1234 → "1.2k", 1234567 → "1.2M", 999999 → "1M" */
 export function fmtStars(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 999_500) return "1M"; // ponytail: round 999500+ up before showing 1000k
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
 }
@@ -237,8 +228,6 @@ export function getTrendingQuery(tab: TabName): string {
     Today: 1,
     "This Week": 7,
     "This Month": 30,
-    "This Year": 365,
-    "All Time": 0,
   };
   const days = ranges[tab];
   if (days === 0) return "sort:stars";
@@ -517,8 +506,8 @@ export async function launchTrending(): Promise<void> {
       return;
     }
 
-    // Number keys 1-5 switch tabs
-    if (/^[1-5]$/.test(name)) {
+    // Number keys 1-3 switch tabs
+    if (/^[1-3]$/.test(name)) {
       switchTab(parseInt(name, 10) - 1);
       return;
     }
@@ -567,19 +556,6 @@ export async function launchTrending(): Promise<void> {
   renderer.requestRender();
   // Fetch real trending data on launch
   loadTab(selectedTab);
-}
-
-// ── Utilities ─────────────────────────────────────────────────────────
-
-function openUrl(url: string): void {
-  try {
-    const p = process.platform;
-    if (p === "win32") Bun.spawn(["cmd", "/c", "start", "", url]);
-    else if (p === "darwin") Bun.spawn(["open", url]);
-    else Bun.spawn(["xdg-open", url]);
-  } catch {
-    // non-critical
-  }
 }
 
 // ── Auto-run ──────────────────────────────────────────────────────────

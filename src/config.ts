@@ -6,6 +6,7 @@
  *   2. $XDG_CONFIG_HOME/search-cli/config.json
  *   3. ~/.config/search-cli/config.json
  */
+import type { Config } from "./types.ts";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -23,8 +24,6 @@ export function cacheDir(): string {
   const base = xdg ? join(xdg, "search-cli") : join(homedir(), ".cache", "search-cli");
   return base;
 }
-import type { Config } from "./types.ts";
-
 const DEFAULTS: Config = {
   defaultSort: "best-match",
   defaultLimit: 50,

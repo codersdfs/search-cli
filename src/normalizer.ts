@@ -37,26 +37,26 @@ export interface GitHubSearchEnvelope {
 
 /** Convert a single GitHub API item into a {@link Repo}. */
 export function normalizeRepo(item: GitHubApiItem): Repo {
-  const owner = item.owner?.login ?? item.full_name.split("/")[0] ?? "";
+  const owner = item.owner?.login ?? item.full_name?.split("/")[0] ?? "";
   return {
-    id: item.id,
-    fullName: item.full_name,
-    name: item.name,
+    id: item.id ?? 0,
+    fullName: item.full_name ?? "",
+    name: item.name ?? "",
     owner,
-    description: item.description,
-    url: item.html_url,
-    stars: item.stargazers_count,
-    forks: item.forks_count,
-    watchers: item.watchers_count,
-    language: item.language,
+    description: item.description ?? null,
+    url: item.html_url ?? "",
+    stars: item.stargazers_count ?? 0,
+    forks: item.forks_count ?? 0,
+    watchers: item.watchers_count ?? 0,
+    language: item.language ?? null,
     topics: item.topics ?? [],
-    archived: item.archived,
-    isFork: item.fork,
-    private: item.private,
-    createdAt: item.created_at,
-    updatedAt: item.updated_at,
-    pushedAt: item.pushed_at,
-    score: item.score,
+    archived: item.archived ?? false,
+    isFork: item.fork ?? false,
+    private: item.private ?? false,
+    createdAt: item.created_at ?? "",
+    updatedAt: item.updated_at ?? "",
+    pushedAt: item.pushed_at ?? "",
+    score: item.score ?? 0,
   };
 }
 

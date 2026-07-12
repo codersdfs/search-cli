@@ -12,8 +12,10 @@ export function saveSession(state: SessionState): void {
   mkdirSync(stateDir(), { recursive: true });
   try {
     writeFileSync(SESSION_FILE, JSON.stringify(state));
-  } catch {
-    // non-critical
+  } catch (err) {
+    if (process.env.DEBUG) {
+      console.error(`[search-cli] Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
 
