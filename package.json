@@ -1,0 +1,55 @@
+{
+  "name": "search-cli",
+  "version": "0.6.0",
+  "description": "Terminal-native GitHub browser — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
+  "type": "module",
+  "bin": {
+    "search-cli": "bin/search-cli.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "completions/",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "build": "bun run scripts/build.ts",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "dev": "bun run --watch src/tui.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "engines": {
+    "bun": ">=1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codersdfs/search-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codersdfs/search-cli/issues"
+  },
+  "homepage": "https://github.com/codersdfs/search-cli#readme",
+  "keywords": [
+    "github",
+    "cli",
+    "search",
+    "trending",
+    "terminal",
+    "tui",
+    "browser",
+    "developer-tools",
+    "opentui"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}
