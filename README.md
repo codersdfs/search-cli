@@ -3,7 +3,7 @@
 > The terminal home for GitHub discovery — search, trending, bookmarks, and deep-dive repo exploration, all without touching a browser.
 
 ```bash
-npx search-cli           # TUI browser
+npx github-search-cli    # TUI browser
 search-cli "language:Rust stars:>1000" --json   # CLI mode
 search-cli --version
 ```
@@ -30,8 +30,8 @@ search-cli --version
 
 ```bash
 # Requires Bun (https://bun.sh)
-npm install -g search-cli
-# or: bun install -g search-cli
+npm install -g github-search-cli
+# or: bun install -g github-search-cli
 
 # Launch the interactive TUI browser
 search-cli
