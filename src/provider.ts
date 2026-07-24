@@ -1,19 +1,10 @@
-/**
- * Search provider: talks to the GitHub REST search API.
- *
- * This is the only layer that performs network I/O. It implements the
- * {@link SearchProvider} interface so alternative backends (a local index, a
- * different forge, or an AI-powered source) can be swapped in without touching
- * the CLI, query, ranking, or output layers.
- */
+/** Search provider: talks to the GitHub REST search API. */
 import type { ParsedQuery, SearchOptions, SearchProvider, SearchResponse } from "./types.ts";
 import { buildSearchUrl } from "./query.ts";
 import { normalizeEnvelope, type GitHubSearchEnvelope } from "./normalizer.ts";
 import { NetworkError, RateLimitError, ParseError } from "./errors.ts";
 import { MemoryCache } from "./cache.ts";
 
-/** A minimal logger so the CLI can surface outgoing queries, errors, and
- *  rate-limit events without coupling to a specific logging framework. */
 export interface Logger {
   debug(msg: string): void;
   info(msg: string): void;

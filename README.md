@@ -174,7 +174,7 @@ CLI → QueryBuilder → Provider → Normalizer → Ranking → TUI / stdout
 | Provider | `src/provider.ts` | GitHub REST API with caching + token rotation |
 | Types | `src/types.ts` | Shared interfaces |
 
-The `SearchProvider` interface is the extension point for alternative backends (GitLab, local index, AI retriever).
+The `SearchProvider` interface is the extension point for alternative backends (GitLab, local index, etc.).
 
 ---
 

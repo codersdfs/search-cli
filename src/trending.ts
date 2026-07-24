@@ -1,12 +1,5 @@
 #!/usr/bin/env bun
-/**
- * trending.ts — "Trending Repositories" view for the GitHub repo browser CLI.
- *
- * Polished terminal UI built with OpenTUI. Tokyo Night palette.
- *
- * Run directly:    bun run src/trending.ts
- * Or import:       import { launchTrending } from "./trending.ts";
- */
+/** trending.ts — "Trending Repositories" view for the GitHub repo browser CLI. */
 import {
   createCliRenderer,
   BoxRenderable,

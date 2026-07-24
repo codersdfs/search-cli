@@ -1,20 +1,5 @@
 #!/usr/bin/env bun
-/**
- * CLI entry point — routes between TUI browser and non-interactive modes.
- *
- * Usage:
- *   search-cli                    Launch interactive TUI
- *   search-cli "query" --json     Search + JSON output
- *   search-cli "query" --csv      Search + CSV output
- *   search-cli "query" --markdown Search + Markdown table
- *   search-cli "query" --count    Just the result count
- *   search-cli --trending --json  Trending repos as JSON
- *   search-cli init               Setup wizard
- *   search-cli --watch "query"    Periodic watch mode
- *   search-cli --completion bash  Print shell completion
- *   search-cli --version          Print version
- *   search-cli --help             Print help
- */
+/** CLI entry point — routes between TUI browser and non-interactive modes. */
 import { parseQuery, applyFlagFilters } from "./query.ts";
 import { GitHubSearchProvider } from "./provider.ts";
 import { rankRepos } from "./ranking.ts";

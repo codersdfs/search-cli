@@ -1,9 +1,4 @@
-/**
- * Topic explorer — browse popular GitHub topics.
- * 
- * ponytail: fetch flat topic list via search API, no hierarchy.
- * Selecting a topic triggers a search.
- */
+/** Topic explorer — browse popular GitHub topics. */
 export interface TopicItem {
   name: string;
   description: string;

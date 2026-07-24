@@ -1,12 +1,4 @@
-/**
- * Core domain types shared across the CLI.
- *
- * The architecture is intentionally split into layers:
- *   CLI -> QueryBuilder -> SearchProvider -> Normalizer -> Ranking -> Output
- * Each layer depends only on the types defined here, so an AI layer can be
- * slotted in later (e.g. a query rewriter before QueryBuilder, or a reranker
- * after Ranking) without touching the rest of the code.
- */
+/** Core domain types shared across the CLI. */
 
 /** A single parsed search qualifier (e.g. `language:Rust`). */
 export interface Qualifier {
@@ -140,7 +132,7 @@ export interface Config {
   bookmarkFile?: string;
 }
 
-/** Abstract search provider. New sources (GitLab, local index, AI, ...) can
+/** Abstract search provider. New sources (GitLab, local index, etc.) can
  *  implement this interface without changing any other layer. */
 export interface SearchProvider {
   readonly name: string;

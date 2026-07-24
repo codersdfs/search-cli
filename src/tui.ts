@@ -6,7 +6,7 @@
  * Pipeline: user query → provider → normalizer → ranking → rendered in TUI
  *
  * Layout:
- *   ┌─ search-cli  [s]sort  [l]limit  [r]refresh  [q]quit ─────┐
+ *   ┌─ search-cli  [s]sort  [l]limit  [r]refresh  [q]uit ─────┐
  *   │ > [query input ........................................]   │
  *   │ sort: best-match  limit: 50                               │
  *   ├─── Results ────────────────┬─── Details ──────────────────┤
@@ -127,17 +127,18 @@ export async function launchBrowser(): Promise<void> {
   let trendingPeriod = "this week";
   let graphFullscreen = false;
   let chartCommitData: number[] = [];
-  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" = "none";
+  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" | "leader" | "readme" = "none";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
+  let showHome = false;
 
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
-      " search-cli — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit",
+      " search-cli — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
     backgroundColor: colors.surface,
     color: colors.muted,
     height: 1,
@@ -196,7 +197,6 @@ export async function launchBrowser(): Promise<void> {
     value: "",
   });
   searchBox.add(searchInput);
-  root.add(searchBox);
 
   // ── Toolbar (sort + limit indicator) ────────────────────────────────
   const toolbarText = new TextRenderable(renderer, {
@@ -266,10 +266,21 @@ export async function launchBrowser(): Promise<void> {
   body.add(detailBox);
   root.add(body);
 
+  // ── Home screen ────────────────────────────────────────────────────
+  // Simple centered search input on startup
+  const homeBox = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    visible: false,
+  });
+  root.add(homeBox);
+
   // ── Overlay system ──────────────────────────────────────────────────
 
   // Hide main content so overlays can take 100% of the content area
   function hideMainContent() {
+    homeBox.visible = false;
     trendingTabBox.visible = false;
     searchBox.visible = false;
     toolbarText.visible = false;
@@ -277,6 +288,7 @@ export async function launchBrowser(): Promise<void> {
   }
 
   function showMainContent() {
+    homeBox.visible = false;
     if (currentMode === "trending") {
       trendingTabBox.visible = true;
     } else {
@@ -296,6 +308,8 @@ export async function launchBrowser(): Promise<void> {
     compareBox.visible = false;
     notifsBox.visible = false;
     shareBox.visible = false;
+    leaderBox.visible = false;
+    readmeBox.visible = false;
 
     if (type === "none") {
       currentOverlay = "none";
@@ -314,6 +328,8 @@ export async function launchBrowser(): Promise<void> {
     else if (type === "compare") { compareBox.visible = true; }
     else if (type === "notifications") { notifsBox.visible = true; }
     else if (type === "share") { shareBox.visible = true; }
+    else if (type === "leader") { leaderBox.visible = true; }
+    else if (type === "readme") { readmeBox.visible = true; }
     renderer.requestRender();
   }
 
@@ -635,6 +651,251 @@ export async function launchBrowser(): Promise<void> {
     savedSelect.setSelectedIndex(0);
   }
 
+  // ── Leader menu overlay (Space key) ─────────────────────────────
+  const leaderBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    border: true,
+    borderColor: colors.blue,
+    title: " Menu ",
+    titleColor: colors.blue,
+    flexDirection: "column",
+  });
+  const leaderSelect = new SelectRenderable(renderer, {
+    options: [{ name: "(empty)", description: "", value: null }],
+    showDescription: true,
+    showSelectionIndicator: true,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    textColor: colors.text,
+    selectedBackgroundColor: colors.selectionBg,
+    selectedTextColor: colors.selectionText,
+    itemSpacing: 0,
+  });
+  const leaderFooter = new TextRenderable(renderer, {
+    content: "  ↑↓ select  Enter run  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+    height: 1,
+    paddingX: 1,
+  });
+  leaderBox.add(leaderSelect);
+  leaderBox.add(leaderFooter);
+  root.add(leaderBox);
+
+  interface LeaderItem { name: string; description: string; action: () => void; }
+
+  function showLeaderMenu() {
+    const items: LeaderItem[] = [];
+
+    if (currentMode === "search") {
+      items.push(
+        { name: "  Sort", description: `Cycle sort (current: ${currentSort})`, action: () => changeSort() },
+        { name: "  Limit", description: `Cycle result limit (current: ${currentLimit})`, action: () => changeLimit() },
+        { name: "  Refresh", description: "Re-run current search", action: () => { if (currentQueryInput) doSearch(currentQueryInput); } },
+        { name: "  Toggle trending", description: "Browse GitHub trending repos", action: () => loadTrending() },
+        { name: "  Deep-dive", description: "Languages, contributors, README excerpt", action: () => { showOverlay("none"); triggerDeepDive(); } },
+        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
+        { name: "  Activity graph", description: "Toggle commit chart fullscreen", action: () => toggleGraph() },
+        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
+        { name: "  Compare", description: "Add/remove repo to comparison", action: () => toggleCompareOnSelected() },
+      );
+    }
+
+    if (currentMode === "trending") {
+      items.push(
+        { name: "  Refresh", description: "Reload trending repos", action: () => loadTrending() },
+        { name: "  Search mode", description: "Switch to query search", action: () => showSearchMode() },
+        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
+        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
+      );
+    }
+
+    // Common items (always available when repos exist)
+    const hasRepo = (() => {
+      const opt = resultsSelect.getSelectedOption();
+      return opt?.value && typeof (opt.value as any)?.fullName === "string";
+    })();
+
+    items.push(
+      { name: "  Open in browser", description: "Open selected repo in browser", action: () => openUrlIfSelected() },
+      { name: "  History", description: "Search history", action: () => { refreshHistory(); showOverlay("history"); } },
+      { name: "  Saved searches", description: "Load a saved search", action: () => { refreshSavedSearches(); showOverlay("saved"); } },
+      { name: "  Export", description: "Export results to JSON/CSV/Markdown", action: () => showOverlay("export") },
+      { name: "  Share repo", description: "Copy repo link to clipboard", action: () => showShareIfRepo() },
+      { name: "  Notifications", description: "View alerts", action: () => { refreshNotifications(); showOverlay("notifications"); } },
+      { name: "  Topics", description: "Browse popular GitHub topics", action: () => { refreshTopics(); showOverlay("topics"); } },
+      { name: "  Compare view", description: "Show side-by-side comparison", action: () => { refreshCompare(); showOverlay("compare"); } },
+      { name: "  Bookmarks panel", description: "Browse saved repos", action: () => { refreshBookmarks(); showOverlay("bookmarks"); } },
+      { name: "  Save search", description: "Save current query", action: () => saveCurrentSearch() },
+      { name: "  Help", description: "Keybindings reference", action: () => showOverlay("help") },
+    );
+
+    leaderSelect.options = items.map((it) => ({
+      name: it.name,
+      description: it.description,
+      value: it,
+    }));
+    leaderSelect.setSelectedIndex(0);
+    showOverlay("leader");
+  }
+
+  function openUrlIfSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (repo) openUrl(repo.url);
+    else setStatus("No repo selected");
+  }
+
+  function toggleBookmarkOnSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (repo) {
+      const added = toggleBookmark(repo);
+      setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
+    }
+  }
+
+  function toggleCompareOnSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) return;
+    const idx = compareList.findIndex((r) => r.fullName === repo.fullName);
+    if (idx >= 0) {
+      compareList.splice(idx, 1);
+      setStatus(`Removed ${repo.fullName} from comparison`);
+    } else {
+      compareList.push(repo);
+      setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
+    }
+  }
+
+  function showShareIfRepo() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) { setStatus("No repo selected to share"); return; }
+    showOverlay("share");
+  }
+
+  function saveCurrentSearch() {
+    if (currentQueryInput) {
+      const name = currentQueryInput.length > 40
+        ? currentQueryInput.slice(0, 37) + "..."
+        : currentQueryInput;
+      saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
+      setStatus(`Saved as "${name}"`);
+    } else {
+      setStatus("No search to save");
+    }
+  }
+
+  function triggerDeepDive() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) return;
+    deepDiveActive = !deepDiveActive;
+    if (deepDiveActive) {
+      detailText.content = "  Loading deep-dive...";
+      renderer.requestRender();
+      fetchDeepDive(repo, githubToken)
+        .then((data) => {
+          detailText.content = buildDeepDiveText(data);
+          renderer.requestRender();
+        })
+        .catch(() => {
+          detailText.content = "  Failed to load deep-dive";
+          renderer.requestRender();
+        });
+    } else {
+      updateDetail(repo);
+      renderer.requestRender();
+    }
+  }
+
+  // ── README viewer overlay ────────────────────────────────────
+  const readmeBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    border: true,
+    borderColor: colors.green,
+    title: " README ",
+    titleColor: colors.green,
+  });
+  const readmeScroll = new ScrollBoxRenderable(renderer, {
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    scrollY: true,
+    scrollX: false,
+    paddingX: 1,
+    viewportOptions: { backgroundColor: colors.bg },
+    contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
+    scrollbarOptions: {
+      backgroundColor: colors.bg,
+      foregroundColor: colors.muted,
+      width: 1,
+    },
+  });
+  const readmeText = new TextRenderable(renderer, {
+    content: "",
+    color: colors.text,
+    backgroundColor: colors.bg,
+  });
+  readmeScroll.add(readmeText);
+  readmeBox.add(readmeScroll);
+  const readmeFooter = new TextRenderable(renderer, {
+    content: "  ↑↓/jk scroll  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+    height: 1,
+    paddingX: 1,
+  });
+  readmeBox.add(readmeFooter);
+  root.add(readmeBox);
+
+  async function showReadme() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) {
+      setStatus("No repo selected");
+      return;
+    }
+    readmeText.content = `  Loading README for ${repo.fullName}...`;
+    showOverlay("readme");
+    try {
+      const headers: Record<string, string> = { "User-Agent": "search-cli/1.0" };
+      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
+      let text = "";
+      for (const path of [
+        `${repo.owner}/${repo.name}/main/README.md`,
+        `${repo.owner}/${repo.name}/master/README.md`,
+        `${repo.owner}/${repo.name}/main/README.rst`,
+      ]) {
+        const r = await fetch(`https://raw.githubusercontent.com/${path}`, { headers });
+        if (r.ok) { text = await r.text(); break; }
+      }
+      if (!text) {
+        readmeText.content = `  (no README found for ${repo.fullName})`;
+      } else {
+        // ponytail: just strip markdown formatting, show full text
+        const stripped = text
+          .replace(/```[\s\S]*?```/g, "[code block]")
+          .replace(/#{1,6}\s/g, "")
+          .replace(/\*\*(.+?)\*\*/g, "$1")
+          .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+          .replace(/`([^`]+)`/g, "$1")
+          .split("\n")
+          .map((l) => l.trimEnd())
+          .join("\n");
+        readmeText.content = stripped;
+      }
+    } catch {
+      readmeText.content = "  Failed to load README";
+    }
+    renderer.requestRender();
+  }
+
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
@@ -857,6 +1118,7 @@ export async function launchBrowser(): Promise<void> {
 
   async function loadTrending() {
     currentMode = "trending";
+    if (showHome) toggleHome(false);
     isLoading = true;
     searchBox.visible = false;
     toolbarText.visible = false;
@@ -893,8 +1155,24 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
   }
 
+  function toggleHome(on: boolean) {
+    showHome = on;
+    homeBox.visible = on;
+    body.visible = !on;
+    if (on) {
+      currentMode = "search";
+      toolbarText.visible = false;
+      trendingTabBox.visible = false;
+      searchBox.visible = true;
+      searchInput.focus();
+      setStatus("Type a GitHub query and press Enter");
+    }
+    renderer.requestRender();
+  }
+
   function showSearchMode() {
     currentMode = "search";
+    homeBox.visible = false;
     trendingTabBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
@@ -996,8 +1274,10 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Wire events ────────────────────────────────────────────────────
 
-  // Enter in search input → search (resets to search mode)
+  // Enter in search input → hide home, show results
   searchInput.on("enter", () => {
+    if (searchInput.value.trim() === "" || isLoading) return;
+    if (showHome) toggleHome(false);
     showSearchMode();
     doSearch(searchInput.value);
   });
@@ -1031,9 +1311,28 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
+      // Leader menu: Enter dispatches action
+      if (currentOverlay === "leader") {
+        if (key.name === "enter" || key.name === "return") {
+          const sel = leaderSelect.getSelectedOption();
+          const item = sel?.value as LeaderItem | undefined;
+          if (item) {
+            showOverlay("none");
+            item.action();
+            renderer.requestRender();
+          }
+        }
+        return;
+      }
+
+      // README viewer: scrollable, Esc/q already handled above
+      if (currentOverlay === "readme") {
+        return;
+      }
+
       // History overlay
       if (currentOverlay === "history") {
-        if (key.ctrl && key.name === "d") {
+        if (key.name === "d") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
             deleteHistoryEntry((sel.value as any).index);
@@ -1050,7 +1349,6 @@ export async function launchBrowser(): Promise<void> {
           renderer.requestRender();
           return;
         }
-        // SelectRenderable handles ↑↓; Enter runs the search
         if (key.name === "enter" || key.name === "return") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
@@ -1067,7 +1365,7 @@ export async function launchBrowser(): Promise<void> {
           }
           return;
         }
-        return; // all other keys ignored in history overlay
+        return;
       }
 
       // Bookmarks overlay
@@ -1160,19 +1458,13 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
-      // Compare overlay: Esc closes
+      // Compare overlay: Esc/q closes
       if (currentOverlay === "compare") {
         return;
       }
 
       // Notifications overlay
       if (currentOverlay === "notifications") {
-        if (key.ctrl && key.name === "c") {
-          dismissAll();
-          refreshNotifications();
-          renderer.requestRender();
-          return;
-        }
         if (key.name === "d") {
           const notifs = getNotifications();
           if (notifs.length > 0) {
@@ -1180,6 +1472,12 @@ export async function launchBrowser(): Promise<void> {
             refreshNotifications();
             setStatus("Notification dismissed");
           }
+          renderer.requestRender();
+          return;
+        }
+        if (key.ctrl && key.name === "c") {
+          dismissAll();
+          refreshNotifications();
           renderer.requestRender();
           return;
         }
@@ -1213,89 +1511,28 @@ export async function launchBrowser(): Promise<void> {
         renderer.requestRender();
         return;
       }
+
+      return;
     }
 
     // ── Main view handling (no overlay active) ────────────────────────
 
-    // Always allow q to quit
+    // q quits
     if (key.name === "q") {
       saveSession({ mode: currentMode, query: currentQueryInput, sort: currentSort, limit: currentLimit, trendingTab });
       cleanup();
       return;
     }
 
-    // '?' / Ctrl+H toggle help overlay
+    // Space opens leader menu
+    if (key.name === "space") {
+      showLeaderMenu();
+      return;
+    }
+
+    // '?' / Ctrl+H toggle help overlay (fast path)
     if (key.name === "?" || (key.name === "h" && key.ctrl)) {
-      refreshHistory(); // refresh in background
       showOverlay("help");
-      return;
-    }
-
-    // Ctrl+R — search history overlay
-    if (key.ctrl && key.name === "r") {
-      refreshHistory();
-      showOverlay("history");
-      return;
-    }
-
-    // Ctrl+S — save current search
-    if (key.ctrl && key.name === "s") {
-      if (currentQueryInput) {
-        const name = currentQueryInput.length > 40
-          ? currentQueryInput.slice(0, 37) + "..."
-          : currentQueryInput;
-        saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
-        setStatus(`✓ Saved as "${name}"`);
-      } else {
-        setStatus("No search to save");
-      }
-      renderer.requestRender();
-      return;
-    }
-
-    // Ctrl+O — saved searches panel
-    if (key.ctrl && key.name === "o") {
-      refreshSavedSearches();
-      showOverlay("saved");
-      return;
-    }
-
-    // Ctrl+N — notifications panel
-    if (key.ctrl && key.name === "n") {
-      refreshNotifications();
-      showOverlay("notifications");
-      return;
-    }
-
-    // Ctrl+P — share repo
-    if (key.ctrl && key.name === "p") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) {
-        setStatus("No repo selected to share");
-        renderer.requestRender();
-        return;
-      }
-      showOverlay("share");
-      return;
-    }
-
-    // 'b' — toggle bookmark on selected repo
-    if (key.name === "b" && !key.shift) {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (repo) {
-        const added = toggleBookmark(repo);
-        setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
-        renderer.requestRender();
-      }
-      return;
-    }
-
-    // 'B' (shift+b) — open bookmarks panel
-    if (key.name === "b" && key.shift) {
-      refreshBookmarks();
-      showOverlay("bookmarks");
       return;
     }
 
@@ -1317,27 +1554,11 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    // '/' focuses search, switches to search mode
+    // '/' focuses search
     if (key.name === "/") {
-      showSearchMode();
-      return;
-    }
-
-    // ponytail: guard single-letter bindings behind !searchInput.focused
-    // so typing a repo name containing t/g/r/s/l/o/d/c doesn't trigger actions
-    if (!searchInput.focused) {
-
-    if (key.name === "g") {
-      toggleGraph();
-      return;
-    }
-
-    if (key.name === "t") {
-      if (currentMode === "trending") {
-        showSearchMode();
-      } else {
-        loadTrending();
-      }
+      searchInput.focus();
+      if (!showHome) showSearchMode();
+      renderer.requestRender();
       return;
     }
 
@@ -1353,38 +1574,7 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    if (key.name === "r") {
-      if (currentMode === "trending") {
-        loadTrending();
-      } else {
-        doSearch(searchInput.value || currentQueryInput);
-      }
-      return;
-    }
-
-    if (key.name === "s") {
-      if (currentMode === "search") changeSort();
-      return;
-    }
-
-    if (key.name === "l") {
-      if (currentMode === "search") {
-        changeLimit();
-      } else if (currentMode === "trending") {
-        const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
-      }
-      return;
-    }
-
-    if (key.name === "o") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (repo) openUrl(repo.url);
-      return;
-    }
-
-    // Left/right/h arrows switch trending tabs
+    // Left/right arrows (and h/l) switch trending tabs
     if (key.name === "left" || key.name === "h") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
@@ -1392,75 +1582,16 @@ export async function launchBrowser(): Promise<void> {
       }
       return;
     }
-
-    // ── P2: Power Tool keys ───────────────────────────────────────────
-
-    // 'd' — toggle deep-dive on selected repo
-    if (key.name === "d") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) return;
-      deepDiveActive = !deepDiveActive;
-      if (deepDiveActive) {
-        detailText.content = "  Loading deep-dive...";
-        renderer.requestRender();
-        fetchDeepDive(repo, githubToken)
-          .then((data) => {
-            detailText.content = buildDeepDiveText(data);
-            renderer.requestRender();
-          })
-          .catch(() => {
-            detailText.content = "  Failed to load deep-dive";
-            renderer.requestRender();
-          });
-      } else {
-        updateDetail(repo);
-        renderer.requestRender();
+    if (key.name === "right" || key.name === "l") {
+      if (currentMode === "trending") {
+        const idx = TAB_NAMES.indexOf(trendingTab);
+        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
       }
       return;
     }
 
-    // 'c' — toggle compare list for selected repo
-    if (key.name === "c" && !key.shift) {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) return;
-      const idx = compareList.findIndex((r) => r.fullName === repo.fullName);
-      if (idx >= 0) {
-        compareList.splice(idx, 1);
-        setStatus(`Removed ${repo.fullName} from comparison`);
-      } else {
-        compareList.push(repo);
-        setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
-      }
-      renderer.requestRender();
-      return;
-    }
-
-    // 'C' (Shift+c) — show comparison view
-    if (key.name === "c" && key.shift) {
-      refreshCompare();
-      showOverlay("compare");
-      return;
-    }
-
-    // 'E' (Shift+e) — topic explorer
-    if (key.name === "e" && key.shift) {
-      refreshTopics();
-      showOverlay("topics");
-      return;
-    }
-
-    } 
-
-    // Ctrl+E — export
-    if (key.ctrl && key.name === "e") {
-      showOverlay("export");
-      return;
-    }
-
-    // PageDown / Ctrl+F — next page
-    if (key.name === "pagedown" || (key.ctrl && key.name === "f")) {
+    // PageDown — next page (search mode)
+    if (key.name === "pagedown") {
       if (currentMode === "search" && currentQueryInput) {
         currentPage++;
         doSearch(currentQueryInput, true);
@@ -1468,8 +1599,8 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    // PageUp / Ctrl+B — scroll to top of results
-    if (key.name === "pageup" || (key.ctrl && key.name === "b")) {
+    // PageUp — scroll to top of results
+    if (key.name === "pageup") {
       if (currentRepos.length > 0) {
         resultsSelect.setSelectedIndex(0);
         updateDetail(currentRepos[0]);
@@ -1485,8 +1616,12 @@ export async function launchBrowser(): Promise<void> {
     loadTrending();
   } else {
     searchInput.value = currentQueryInput;
+    if (currentQueryInput) {
+      doSearch(currentQueryInput);
+    } else {
+      toggleHome(true);
+    }
     searchInput.focus();
-    if (currentQueryInput) doSearch(currentQueryInput);
   }
   renderer.requestRender();
 }
@@ -1506,7 +1641,7 @@ function formatStars(n: number): string {
 
 function formatToolbar(sort: SortStrategy, limit: number): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
-  return ` sort: ${sortLabel}   limit: ${limit}   (s=cycle sort  l=cycle limit)`;
+  return ` sort: ${sortLabel}   limit: ${limit}`;
 }
 
 function cleanup(): void {

@@ -1,9 +1,4 @@
-/**
- * Result normalizer: convert a raw GitHub API item into our stable {@link Repo}
- * shape. Keeping this isolated means a different provider (or a cached/offline
- * source) only needs to produce the same `Repo` struct for the rest of the
- * pipeline to work unchanged.
- */
+/** Result normalizer: convert a raw GitHub API item into our stable Repo shape. */
 import type { Repo } from "./types.ts";
 
 /** The subset of the GitHub "search repositories" item we care about. */
@@ -35,7 +30,6 @@ export interface GitHubSearchEnvelope {
   items: GitHubApiItem[];
 }
 
-/** Convert a single GitHub API item into a {@link Repo}. */
 export function normalizeRepo(item: GitHubApiItem): Repo {
   const owner = item.owner?.login ?? item.full_name?.split("/")[0] ?? "";
   return {
@@ -60,7 +54,6 @@ export function normalizeRepo(item: GitHubApiItem): Repo {
   };
 }
 
-/** Normalize a full GitHub search envelope into {@link Repo} list. */
 export function normalizeEnvelope(env: GitHubSearchEnvelope): Repo[] {
   return (env.items ?? []).map(normalizeRepo);
 }

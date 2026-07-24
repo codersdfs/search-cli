@@ -6,7 +6,6 @@ import type { Repo } from "./types.ts";
 
 export type ExportFormat = "json" | "csv" | "markdown" | "text";
 
-/** Format repos as JSON string. */
 export function formatJson(repos: Repo[]): string {
   return JSON.stringify(repos, null, 2);
 }

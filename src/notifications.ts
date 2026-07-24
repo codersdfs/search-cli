@@ -1,8 +1,4 @@
-/**
- * Notification center — ephemeral alerts for rate limits, watch changes, etc.
- * 
- * ponytail: in-memory + last-session persistence. Skip 24h auto-clean.
- */
+/** Notification center — ephemeral alerts for rate limits, watch changes, etc. */
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { stateDir } from "./config.ts";

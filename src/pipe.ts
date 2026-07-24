@@ -6,32 +6,26 @@ import { openUrl } from "./open-url.ts";
 
 export type FormatLine = "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
 
-/** Format repos as one URL per line. */
 export function formatUrls(repos: Repo[]): string {
   return repos.map((r) => r.url).join("\n");
 }
 
-/** Format repos as one owner/repo per line. */
 export function formatNames(repos: Repo[]): string {
   return repos.map((r) => r.fullName).join("\n");
 }
 
-/** Format repos as one git@github.com URL per line. */
 export function formatSshUrls(repos: Repo[]): string {
   return repos.map((r) => `git@github.com:${r.fullName}.git`).join("\n");
 }
 
-/** Format repos as ready-to-paste git clone commands. */
 export function formatCloneCommands(repos: Repo[]): string {
   return repos.map((r) => `git clone git@github.com:${r.fullName}.git`).join("\n");
 }
 
-/** Format repos as GitHub repo IDs, one per line. */
 export function formatIds(repos: Repo[]): string {
   return repos.map((r) => String(r.id)).join("\n");
 }
 
-/** Format repos in the given line format. */
 export function formatLines(repos: Repo[], format: FormatLine): string {
   switch (format) {
     case "urls": return formatUrls(repos);

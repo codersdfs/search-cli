@@ -1,10 +1,4 @@
-/**
- * In-memory LRU cache with TTL for API responses.
- * 
- * ponytail: in-memory only. Disk cache adds ~70 lines for marginal benefit
- * (re-cache on restart rather than re-fetch). Add disk layer if cache-miss
- * rate after restart becomes a problem.
- */
+/** In-memory LRU cache with TTL for API responses. */
 import type { CacheEntry } from "./types.ts";
 
 const MAX_SIZE = 50;
@@ -14,7 +8,6 @@ export class MemoryCache<T> {
 
   constructor(private defaultTtlMs: number = 300_000) {}
 
-  /** Build a normalized cache key. */
   static key(...parts: string[]): string {
     return parts.join("::").toLowerCase().replace(/\s+/g, " ");
   }

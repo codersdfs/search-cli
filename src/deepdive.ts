@@ -1,10 +1,4 @@
-/**
- * Repo deep-dive — fetch and format rich repo details.
- * 
- * ponytail: single fetch-all function, no section tab navigation.
- * Shows: summary, languages bar, top contributors, README excerpt.
- * Skip: releases (YAGNI), dependency graph (auth-gated).
- */
+/** Repo deep-dive — fetch and format rich repo details. */
 import type { Repo } from "./types.ts";
 import { NetworkError } from "./errors.ts";
 

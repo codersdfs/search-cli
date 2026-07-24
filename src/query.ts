@@ -1,12 +1,4 @@
-/**
- * Query layer: parse a raw user query into structured qualifiers/keywords and
- * build the GitHub search syntax string.
- *
- * This layer is deliberately free of any I/O. It only transforms strings into
- * the {@link ParsedQuery} shape and then into a GitHub `q` parameter. Keeping it
- * pure makes it trivially unit-testable and lets a future AI query-rewriter sit
- * in front of it without side effects.
- */
+/** Query layer: parse a raw user query into structured qualifiers/keywords and build the GitHub search syntax string. */
 import type { ParsedQuery, Qualifier, SearchOptions, SortStrategy } from "./types.ts";
 
 /** Qualifier keys we explicitly understand and can also accept as CLI flags. */

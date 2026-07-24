@@ -1,8 +1,4 @@
-/**
- * Watch mode — periodically re-run a search and show changes.
- * 
- * ponytail: simple poll + diff. No notifications (P4 cross-ref).
- */
+/** Watch mode — periodically re-run a search and show changes. */
 import type { ParsedQuery, SearchOptions, Repo } from "./types.ts";
 import { GitHubSearchProvider } from "./provider.ts";
 import { parseQuery, applyFlagFilters } from "./query.ts";
