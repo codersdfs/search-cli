@@ -1,7 +1,7 @@
-# search-cli zsh completion
-# Source: source <(search-cli --completion zsh)
+# ghfind zsh completion
+# Source: source <(ghfind --completion zsh)
 
-_search_cli() {
+_ghfind() {
   local -a opts
   opts=(
     '--json[JSON output]'
@@ -24,4 +24,4 @@ _search_cli() {
   _arguments "${opts[@]}" '*:query:'
 }
 
-compdef _search_cli search-cli
+compdef _ghfind ghfind

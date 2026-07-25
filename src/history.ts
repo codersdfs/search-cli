@@ -3,8 +3,8 @@
  */
 import { existsSync, mkdirSync, readFileSync, appendFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
-import type { HistoryEntry } from "./types.ts";
-import { stateDir } from "./config.ts";
+import type { HistoryEntry } from "./types";
+import { stateDir } from "./config";
 
 const HISTORY_FILE = join(stateDir(), "history.jsonl");
 const MAX_ENTRIES = 500;

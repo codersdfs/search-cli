@@ -1,5 +1,5 @@
-import { describe, it, expect } from "bun:test";
-import { rankRepos, compositeScore } from "../src/ranking.ts";
+import { describe, it, expect } from "vitest";
+import { rankRepos, compositeScore } from "../src/search.ts";
 import type { Repo } from "../src/types.ts";
 
 function makeRepo(over: Partial<Repo>): Repo {

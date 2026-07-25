@@ -3,8 +3,8 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import type { Bookmark, Repo } from "./types.ts";
-import { stateDir } from "./config.ts";
+import type { Bookmark, Repo } from "./types";
+import { stateDir } from "./config";
 
 const BOOKMARK_FILE = join(stateDir(), "bookmarks.json");
 

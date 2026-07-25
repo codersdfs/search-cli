@@ -1,12 +1,12 @@
 /**
- * `search-cli init` wizard — interactive one-time config setup.
+ * `ghfind init` wizard — interactive one-time config setup.
  * 
  * ponytail: simple stdin prompts, no curses/readline UI.
  */
 import { createInterface } from "readline";
-import { saveConfig } from "./config.ts";
-import { listThemes } from "./themes.ts";
-import type { Config, SortStrategy } from "./types.ts";
+import { saveConfig } from "./config";
+import { listThemes } from "./themes";
+import type { Config, SortStrategy } from "./types";
 
 function ask(query: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -20,7 +20,7 @@ function ask(query: string): Promise<string> {
 
 export async function runInitWizard(): Promise<void> {
   console.log("");
-  console.log("  search-cli setup wizard");
+  console.log("  ghfind setup wizard");
   console.log("  ──────────────────────");
   console.log("");
 
@@ -50,6 +50,6 @@ export async function runInitWizard(): Promise<void> {
   saveConfig(config);
   const { configPath } = await import("./config.ts");
   console.log(`  ✓ Config saved to ${configPath()}`);
-  console.log("  Run 'search-cli' to start browsing!");
+  console.log("  Run 'ghfind' to start browsing!");
   console.log("");
 }

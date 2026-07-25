@@ -1,31 +1,18 @@
-#!/usr/bin/env bun
-/**
- * CLI entry point — routes between TUI browser and non-interactive modes.
- *
- * Usage:
- *   search-cli                    Launch interactive TUI
- *   search-cli "query" --json     Search + JSON output
- *   search-cli "query" --csv      Search + CSV output
- *   search-cli "query" --markdown Search + Markdown table
- *   search-cli "query" --count    Just the result count
- *   search-cli --trending --json  Trending repos as JSON
- *   search-cli init               Setup wizard
- *   search-cli --watch "query"    Periodic watch mode
- *   search-cli --completion bash  Print shell completion
- *   search-cli --version          Print version
- *   search-cli --help             Print help
- */
-import { parseQuery, applyFlagFilters } from "./query.ts";
-import { GitHubSearchProvider } from "./provider.ts";
-import { rankRepos } from "./ranking.ts";
-import { formatRepos, type ExportFormat } from "./export.ts";
-import { formatLines, pipeExec, type FormatLine } from "./pipe.ts";
-import { runWatch } from "./watch.ts";
-import { runInitWizard } from "./init.ts";
+#!/usr/bin/env node
+/** CLI entry point — routes between TUI browser and non-interactive modes. */
+import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
+import { formatRepos, type ExportFormat } from "./export";
+import { formatLines, pipeExec, type FormatLine } from "./pipe";
+import { runWatch } from "./watch";
+import { runInitWizard } from "./init";
 import { readFileSync } from "fs";
-import { join } from "path";
-import { launchBrowser } from "./tui.ts";
-import type { SearchOptions } from "./types.ts";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { launchBrowser } from "./tui";
+import type { SearchOptions } from "./types";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_DIR = join(__dirname, "..");
 
 interface CLIFlags {
   query: string;
@@ -110,30 +97,30 @@ async function main() {
 
   // Version
   if (flags.version) {
-    const pkg = JSON.parse(readFileSync(join(import.meta.dir!, "..", "package.json"), "utf-8"));
-    console.log(`search-cli v${pkg.version}`);
+    const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+    console.log(`ghfind v${pkg.version}`);
     return;
   }
 
   // Help
   if (flags.help) {
     console.log(`
-search-cli — Interactive GitHub repository browser
+ghfind — Interactive GitHub repository browser
 
 Usage:
-  search-cli                           Launch interactive TUI
-  search-cli <query> --json            Search, output JSON
-  search-cli <query> --csv             Search, output CSV
-  search-cli <query> --markdown        Search, output Markdown table
-  search-cli <query> --count           Just the result count
-  search-cli <query> --format <fmt>    Format lines (urls|names|ssh-urls|clone-commands|ids)
-  search-cli <query> --pipe <target>   Pipe to clone/open
-  search-cli --trending --json         Trending repos as JSON
-  search-cli --watch <query>           Watch mode (poll every Ns)
-  search-cli init                      Run setup wizard
-  search-cli --completion <shell>      Print completion script (bash|zsh|fish)
-  search-cli --version                 Print version
-  search-cli --help                    Print this help
+  ghfind                           Launch interactive TUI
+  ghfind <query> --json            Search, output JSON
+  ghfind <query> --csv             Search, output CSV
+  ghfind <query> --markdown        Search, output Markdown table
+  ghfind <query> --count           Just the result count
+  ghfind <query> --format <fmt>    Format lines (urls|names|ssh-urls|clone-commands|ids)
+  ghfind <query> --pipe <target>   Pipe to clone/open
+  ghfind --trending --json         Trending repos as JSON
+  ghfind --watch <query>           Watch mode (poll every Ns)
+  ghfind init                      Run setup wizard
+  ghfind --completion <shell>      Print completion script (bash|zsh|fish)
+  ghfind --version                 Print version
+  ghfind --help                    Print this help
 
 Options:
   --json, --csv, --markdown, --count   Output format
@@ -155,7 +142,7 @@ Options:
   if (flags.completion) {
     const shell = flags.completion;
     try {
-      const content = readFileSync(join(import.meta.dir!, "..", "completions", `search-cli.${shell}`), "utf-8");
+      const content = readFileSync(join(PKG_DIR, "completions", `ghfind.${shell}`), "utf-8");
       console.log(content);
     } catch {
       console.error(`Completions not available for shell: ${shell}`);
@@ -187,7 +174,7 @@ Options:
 
 async function runNonInteractive(flags: CLIFlags, format?: ExportFormat) {
   const query = flags.query;
-  const provider = new GitHubSearchProvider(undefined, flags.token ? [flags.token] : []);
+  const provider = createGitHubSearch(undefined, flags.token ? [flags.token] : []);
 
   // --watch mode
   if (flags.watch) {

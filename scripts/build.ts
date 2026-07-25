@@ -1,20 +1,19 @@
 /**
- * Build script — compile search-cli for distribution.
- * Usage: bun run scripts/build.ts
+ * Build script — compile ghfind for distribution.
+ * Usage: npm run build
  */
-import { $ } from "bun";
+import { execFileSync } from "child_process";
 
 async function main() {
-  console.log("Building search-cli...");
+  console.log("Building ghfind...");
 
-  // Native binary for the current platform
-  await $`bun build src/cli.ts --compile --target bun --outfile dist/search-cli`.quiet();
+  // ESM bundle via tsup
+  execFileSync("npx", ["tsup", "src/cli.ts", "--format", "esm", "--target", "node20", "--out-dir", "dist", "--external", "@opentui/core"], { stdio: "inherit" });
 
-  // Portable JS bundle (requires bun runtime, @opentui/core as peer dep)
-  await $`bun build src/cli.ts --target bun --outfile dist/search-cli.js --external @opentui/core`.quiet();
-
-  console.log("✓ dist/search-cli (native binary)");
-  console.log("✓ dist/search-cli.js (portable JS)");
+  console.log("✓ dist/cli.js (Node.js ESM bundle)");
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error("Build failed:", err.message);
+  process.exit(1);
+});

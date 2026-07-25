@@ -2,11 +2,10 @@
  * Export — format repos as JSON, CSV, Markdown, or plain text.
  */
 import { writeFileSync } from "fs";
-import type { Repo } from "./types.ts";
+import type { Repo } from "./types";
 
 export type ExportFormat = "json" | "csv" | "markdown" | "text";
 
-/** Format repos as JSON string. */
 export function formatJson(repos: Repo[]): string {
   return JSON.stringify(repos, null, 2);
 }
@@ -58,7 +57,7 @@ export function formatRepos(repos: Repo[], format: ExportFormat): string {
 export function exportToFile(repos: Repo[], format: ExportFormat): string {
   const ext = format === "markdown" ? "md" : format;
   const ts = Date.now();
-  const path = `./search-cli-export-${ts}.${ext}`;
+  const path = `./ghfind-export-${ts}.${ext}`;
   writeFileSync(path, formatRepos(repos, format), "utf-8");
   return path;
 }

@@ -1,7 +1,4 @@
-/**
- * Structured error types with user-facing messages.
- * Every error knows what to tell the user and (optionally) what to do next.
- */
+/** Structured error types with user-facing messages. */
 
 export class SearchCliError extends Error {
   constructor(

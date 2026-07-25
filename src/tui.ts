@@ -1,12 +1,12 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
- * search-cli — interactive GitHub repository browser (OpenTUI)
+ * ghfind — interactive GitHub repository browser (OpenTUI)
  *
  * Full-screen, keyboard-driven browser. This is the only entry point.
  * Pipeline: user query → provider → normalizer → ranking → rendered in TUI
  *
  * Layout:
- *   ┌─ search-cli  [s]sort  [l]limit  [r]refresh  [q]quit ─────┐
+ *   ┌─ ghfind  [s]sort  [l]limit  [r]refresh  [q]uit ────────────────┐
  *   │ > [query input ........................................]   │
  *   │ sort: best-match  limit: 50                               │
  *   ├─── Results ────────────────┬─── Details ──────────────────┤
@@ -31,28 +31,26 @@ import {
   SelectRenderable,
   ScrollBoxRenderable,
 } from "@opentui/core";
-import type { Repo, SearchOptions, SortStrategy } from "./types.ts";
-import { parseQuery, applyFlagFilters, validateQuery, suggestFor } from "./query.ts";
-import { GitHubSearchProvider, type Logger } from "./provider.ts";
-import { rankRepos } from "./ranking.ts";
-import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending.ts";
-import { loadConfig } from "./config.ts";
-import { buildHelpSections, HELP_KEYS_COLUMN } from "./help.ts";
-import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors.ts";
-import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history.ts";
-import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks.ts";
-import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches.ts";
-import { saveSession, restoreSession } from "./session.ts";
-import { fetchDeepDive, buildDeepDiveText } from "./deepdive.ts";
-import { buildComparisonTable } from "./compare.ts";
-import { fetchTopics, type TopicItem } from "./explore.ts";
-import { exportToFile, type ExportFormat } from "./export.ts";
-import { loadTheme } from "./themes.ts";
-import { StatusManager } from "./status.ts";
-import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications.ts";
-import { formatShare, copyToClipboard, type ShareFormat } from "./share.ts";
-import { nextTip } from "./tips.ts";
-import { openUrl } from "./open-url.ts";
+import type { Repo, SearchOptions, SortStrategy } from "./types";
+import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search";
+import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending";
+import { loadConfig } from "./config";
+import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
+import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors";
+import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history";
+import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks";
+import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches";
+import { saveSession, restoreSession } from "./session";
+import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
+import { buildComparisonTable } from "./compare";
+import { fetchTopics, type TopicItem } from "./explore";
+import { exportToFile, type ExportFormat } from "./export";
+import { loadTheme } from "./themes";
+import { StatusManager } from "./status";
+import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications";
+import { formatShare, copyToClipboard, type ShareFormat } from "./share";
+import { nextTip } from "./tips";
+import { openUrl } from "./open-url";
 
 // ─── Theme ────────────────────────────────────────────────────────────
 const colors = {
@@ -127,18 +125,19 @@ export async function launchBrowser(): Promise<void> {
   let trendingPeriod = "this week";
   let graphFullscreen = false;
   let chartCommitData: number[] = [];
-  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" = "none";
+  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" | "leader" | "readme" = "none";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
 
+
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
-      " search-cli — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit",
-    backgroundColor: colors.surface,
+      " ghfind — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
+    backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
   });
@@ -266,6 +265,8 @@ export async function launchBrowser(): Promise<void> {
   body.add(detailBox);
   root.add(body);
 
+
+
   // ── Overlay system ──────────────────────────────────────────────────
 
   // Hide main content so overlays can take 100% of the content area
@@ -296,6 +297,8 @@ export async function launchBrowser(): Promise<void> {
     compareBox.visible = false;
     notifsBox.visible = false;
     shareBox.visible = false;
+    leaderBox.visible = false;
+    readmeBox.visible = false;
 
     if (type === "none") {
       currentOverlay = "none";
@@ -314,6 +317,8 @@ export async function launchBrowser(): Promise<void> {
     else if (type === "compare") { compareBox.visible = true; }
     else if (type === "notifications") { notifsBox.visible = true; }
     else if (type === "share") { shareBox.visible = true; }
+    else if (type === "leader") { leaderBox.visible = true; }
+    else if (type === "readme") { readmeBox.visible = true; }
     renderer.requestRender();
   }
 
@@ -635,10 +640,256 @@ export async function launchBrowser(): Promise<void> {
     savedSelect.setSelectedIndex(0);
   }
 
+  // ── Leader menu overlay (Space key) ─────────────────────────────
+  const leaderBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    border: true,
+    borderColor: colors.border,
+    title: " Menu ",
+    titleColor: colors.blue,
+    flexDirection: "column",
+  });
+  const leaderSelect = new SelectRenderable(renderer, {
+    options: [{ name: "(empty)", description: "", value: null }],
+    showDescription: true,
+    showSelectionIndicator: true,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    textColor: colors.text,
+    selectedBackgroundColor: colors.selectionBg,
+    selectedTextColor: colors.selectionText,
+    itemSpacing: 0,
+  });
+  const leaderFooter = new TextRenderable(renderer, {
+    content: "  ↑↓ select  Enter run  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.bg,
+    height: 1,
+    paddingX: 1,
+  });
+  leaderBox.add(leaderSelect);
+  leaderBox.add(leaderFooter);
+  root.add(leaderBox);
+
+  interface LeaderItem { name: string; description: string; action: () => void; }
+
+  function showLeaderMenu() {
+    const items: LeaderItem[] = [];
+
+    if (currentMode === "search") {
+      items.push(
+        { name: "  Sort", description: `Cycle sort (current: ${currentSort})`, action: () => changeSort() },
+        { name: "  Limit", description: `Cycle result limit (current: ${currentLimit})`, action: () => changeLimit() },
+        { name: "  Refresh", description: "Re-run current search", action: () => { if (currentQueryInput) doSearch(currentQueryInput); } },
+        { name: "  Toggle trending", description: "Browse GitHub trending repos", action: () => loadTrending() },
+        { name: "  Deep-dive", description: "Languages, contributors, README excerpt", action: () => { showOverlay("none"); triggerDeepDive(); } },
+        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
+        { name: "  Activity graph", description: "Toggle commit chart fullscreen", action: () => toggleGraph() },
+        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
+        { name: "  Compare", description: "Add/remove repo to comparison", action: () => toggleCompareOnSelected() },
+      );
+    }
+
+    if (currentMode === "trending") {
+      items.push(
+        { name: "  Refresh", description: "Reload trending repos", action: () => loadTrending() },
+        { name: "  Search mode", description: "Switch to query search", action: () => showSearchMode() },
+        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
+        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
+      );
+    }
+
+    // Common items (always available when repos exist)
+    const hasRepo = (() => {
+      const opt = resultsSelect.getSelectedOption();
+      return opt?.value && typeof (opt.value as any)?.fullName === "string";
+    })();
+
+    items.push(
+      { name: "  Open in browser", description: "Open selected repo in browser", action: () => openUrlIfSelected() },
+      { name: "  History", description: "Search history", action: () => { refreshHistory(); showOverlay("history"); } },
+      { name: "  Saved searches", description: "Load a saved search", action: () => { refreshSavedSearches(); showOverlay("saved"); } },
+      { name: "  Export", description: "Export results to JSON/CSV/Markdown", action: () => showOverlay("export") },
+      { name: "  Share repo", description: "Copy repo link to clipboard", action: () => showShareIfRepo() },
+      { name: "  Notifications", description: "View alerts", action: () => { refreshNotifications(); showOverlay("notifications"); } },
+      { name: "  Topics", description: "Browse popular GitHub topics", action: () => { refreshTopics(); showOverlay("topics"); } },
+      { name: "  Compare view", description: "Show side-by-side comparison", action: () => { refreshCompare(); showOverlay("compare"); } },
+      { name: "  Bookmarks panel", description: "Browse saved repos", action: () => { refreshBookmarks(); showOverlay("bookmarks"); } },
+      { name: "  Save search", description: "Save current query", action: () => saveCurrentSearch() },
+      { name: "  Help", description: "Keybindings reference", action: () => showOverlay("help") },
+    );
+
+    leaderSelect.options = items.map((it) => ({
+      name: it.name,
+      description: it.description,
+      value: it,
+    }));
+    leaderSelect.setSelectedIndex(0);
+    leaderSelect.focus();
+    showOverlay("leader");
+  }
+
+  function openUrlIfSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (repo) openUrl(repo.url);
+    else setStatus("No repo selected");
+  }
+
+  function toggleBookmarkOnSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (repo) {
+      const added = toggleBookmark(repo);
+      setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
+    }
+  }
+
+  function toggleCompareOnSelected() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) return;
+    const idx = compareList.findIndex((r) => r.fullName === repo.fullName);
+    if (idx >= 0) {
+      compareList.splice(idx, 1);
+      setStatus(`Removed ${repo.fullName} from comparison`);
+    } else {
+      compareList.push(repo);
+      setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
+    }
+  }
+
+  function showShareIfRepo() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) { setStatus("No repo selected to share"); return; }
+    showOverlay("share");
+  }
+
+  function saveCurrentSearch() {
+    if (currentQueryInput) {
+      const name = currentQueryInput.length > 40
+        ? currentQueryInput.slice(0, 37) + "..."
+        : currentQueryInput;
+      saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
+      setStatus(`Saved as "${name}"`);
+    } else {
+      setStatus("No search to save");
+    }
+  }
+
+  function triggerDeepDive() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) return;
+    deepDiveActive = !deepDiveActive;
+    if (deepDiveActive) {
+      detailText.content = "  Loading deep-dive...";
+      renderer.requestRender();
+      fetchDeepDive(repo, githubToken)
+        .then((data) => {
+          detailText.content = buildDeepDiveText(data);
+          renderer.requestRender();
+        })
+        .catch(() => {
+          detailText.content = "  Failed to load deep-dive";
+          renderer.requestRender();
+        });
+    } else {
+      updateDetail(repo);
+      renderer.requestRender();
+    }
+  }
+
+  // ── README viewer overlay ────────────────────────────────────
+  const readmeBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    border: true,
+    borderColor: colors.green,
+    title: " README ",
+    titleColor: colors.green,
+  });
+  const readmeScroll = new ScrollBoxRenderable(renderer, {
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    scrollY: true,
+    scrollX: false,
+    paddingX: 1,
+    viewportOptions: { backgroundColor: colors.bg },
+    contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
+    scrollbarOptions: {
+      backgroundColor: colors.bg,
+      foregroundColor: colors.muted,
+      width: 1,
+    },
+  });
+  const readmeText = new TextRenderable(renderer, {
+    content: "",
+    color: colors.text,
+    backgroundColor: colors.bg,
+  });
+  readmeScroll.add(readmeText);
+  readmeBox.add(readmeScroll);
+  const readmeFooter = new TextRenderable(renderer, {
+    content: "  ↑↓/jk scroll  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.bg,
+    height: 1,
+    paddingX: 1,
+  });
+  readmeBox.add(readmeFooter);
+  root.add(readmeBox);
+
+  async function showReadme() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) {
+      setStatus("No repo selected");
+      return;
+    }
+    readmeText.content = `  Loading README for ${repo.fullName}...`;
+    showOverlay("readme");
+    try {
+      const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
+      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
+      let text = "";
+      for (const path of [
+        `${repo.owner}/${repo.name}/main/README.md`,
+        `${repo.owner}/${repo.name}/master/README.md`,
+        `${repo.owner}/${repo.name}/main/README.rst`,
+      ]) {
+        const r = await fetch(`https://raw.githubusercontent.com/${path}`, { headers });
+        if (r.ok) { text = await r.text(); break; }
+      }
+      if (!text) {
+        readmeText.content = `  (no README found for ${repo.fullName})`;
+      } else {
+        // ponytail: just strip markdown formatting, show full text
+        const stripped = text
+          .replace(/```[\s\S]*?```/g, "[code block]")
+          .replace(/#{1,6}\s/g, "")
+          .replace(/\*\*(.+?)\*\*/g, "$1")
+          .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+          .replace(/`([^`]+)`/g, "$1")
+          .split("\n")
+          .map((l) => l.trimEnd())
+          .join("\n");
+        readmeText.content = stripped;
+      }
+    } catch {
+      readmeText.content = "  Failed to load README";
+    }
+    renderer.requestRender();
+  }
+
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
     paddingX: 1,
@@ -698,50 +949,77 @@ export async function launchBrowser(): Promise<void> {
   // ── Graph / Chart ──────────────────────────────────────────────────
 
   /** Unicode blocks for 8 vertical levels within one character cell. */
-  const BLOCKS = [" ", "\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"];
+  // Braille dot encoding: each byte is 8 dots (2 cols × 4 rows per char).
+  // Bit layout (LSB first): 0-2=col0 rows, 3-5=col1 rows, 6=col0 row3, 7=col1 row3.
+  // Unicode offset is 0x2800, so braille code point = 0x2800 + bitmask.
+  function brailleChar(bits: number): string {
+    return bits === 0 ? " " : String.fromCodePoint(0x2800 + bits);
+  }
 
-  function buildChartString(values: number[], width: number, height: number): string[] {
+  function buildChartString(values: number[], termW: number, termH: number): string[] {
     if (values.length === 0) return ["(no data)"];
-    // Sample to fit width
+
+    // Braille resolution: 2 horizontal dots and 4 vertical dots per terminal cell.
+    const dotW = termW * 2;
+    const dotH = termH * 4;
+
+    // Sample values to fit braille dot columns.
     const sampled: number[] = [];
-    for (let i = 0; i < width; i++) {
-      sampled.push(values[Math.floor((i / width) * values.length)]);
+    for (let i = 0; i < dotW; i++) {
+      sampled.push(values[Math.floor((i / dotW) * values.length)]);
     }
     const max = Math.max(...sampled, 1);
-    const norm = sampled.map(v => Math.round((v / max) * (8 * height - 1)));
+    // Map each sample to a dot row (0 = bottom, dotH-1 = top).
+    const dotRows = sampled.map(v => Math.round((v / max) * (dotH - 1)));
 
-    // Build char grid from bottom
-    const grid: string[][] = Array.from({ length: height }, () => Array(width).fill(" "));
-    for (let c = 0; c < width; c++) {
-      const p = norm[c];
-      const full = Math.floor(p / 8);
-      const part = p % 8;
-      for (let r = 0; r < full && r < height; r++) grid[height - 1 - r][c] = "\u2588";
-      if (full < height && part > 0) grid[height - 1 - full][c] = BLOCKS[part];
+    // Build a mask grid: dotGrid[row][col] = true if the silhouette passes through.
+    const dotGrid: boolean[][] = Array.from({ length: dotH }, () => Array(dotW).fill(false));
+
+    // Draw the silhouette line: mark the dot at each column.
+    for (let c = 0; c < dotW; c++) {
+      dotGrid[dotH - 1 - dotRows[c]][c] = true;
     }
-    // Fill vertical gaps between adjacent columns
-    for (let c = 0; c < width - 1; c++) {
-      const r1 = Math.floor(norm[c] / 8);
-      const r2 = Math.floor(norm[c + 1] / 8);
-      const lo = Math.max(0, Math.min(r1, r2));
-      const hi = Math.min(height - 1, Math.max(r1, r2));
+    // Fill gaps between adjacent columns so the line is continuous.
+    for (let c = 0; c < dotW - 1; c++) {
+      const r1 = dotRows[c];
+      const r2 = dotRows[c + 1];
+      const lo = Math.min(r1, r2);
+      const hi = Math.max(r1, r2);
       for (let r = lo; r <= hi; r++) {
-        if (grid[height - 1 - r][c] === " ") grid[height - 1 - r][c] = "\u2588";
+        dotGrid[dotH - 1 - r][c] = true;
       }
     }
 
-    // Build rows with Y-axis labels
+    // Convert 4-row × 2-col blocks of dots into braille characters.
     const lines: string[] = [];
-    const labelRows = [0, Math.floor(height / 4), Math.floor(height / 2), Math.floor(3 * height / 4), height - 1];
-    const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
-    for (let r = 0; r < height; r++) {
-      const idx = labelRows.indexOf(r);
+    for (let tr = 0; tr < termH; tr++) {
+      const chars: string[] = [];
+      for (let tc = 0; tc < termW; tc++) {
+        const r0 = tr * 4;
+        const c0 = tc * 2;
+        let bits = 0;
+        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0]) bits |= 0x01;
+        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0]) bits |= 0x02;
+        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0]) bits |= 0x04;
+        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1]) bits |= 0x08;
+        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1]) bits |= 0x10;
+        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1]) bits |= 0x20;
+        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0]) bits |= 0x40;
+        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1]) bits |= 0x80;
+        chars.push(brailleChar(bits));
+      }
+
+      // Y-axis labels
+      const labelRows = [0, Math.floor(termH / 4), Math.floor(termH / 2), Math.floor(3 * termH / 4), termH - 1];
+      const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
+      const idx = labelRows.indexOf(tr);
       let label = "     ";
       if (idx >= 0) label = String(labelVals[idx]).padStart(4) + " ";
-      lines.push(`${label}\u2524${grid[r].join("")}`);
+      lines.push(`${label}\u2524${chars.join("")}`);
     }
+
     // X-axis
-    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(width)}`);
+    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(termW)}`);
     return lines;
   }
 
@@ -751,9 +1029,9 @@ export async function launchBrowser(): Promise<void> {
     try {
       const [chartRes, repoRes] = await Promise.all([
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
-          { headers: { "User-Agent": "search-cli/1.0" } }),
+          { headers: { "User-Agent": "ghfind/1.0" } }),
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`,
-          { headers: { "User-Agent": "search-cli/1.0" } }).then(r => r.ok ? r.json() : null),
+          { headers: { "User-Agent": "ghfind/1.0" } }).then(r => r.ok ? r.json() : null),
       ]);
 
       let chartSection = "";
@@ -761,7 +1039,7 @@ export async function launchBrowser(): Promise<void> {
         const data = await chartRes.json();
         if (data?.all && data.all.length >= 2) {
           chartCommitData = data.all;
-          const chartW = Math.min(55, chartCommitData.length);
+          const chartW = 60;
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
           chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
@@ -921,7 +1199,7 @@ export async function launchBrowser(): Promise<void> {
     try {
       const parsed = applyFlagFilters(parseQuery(q), {});
       validateQuery(parsed);
-      const provider = new GitHubSearchProvider(logger);
+      const provider = createGitHubSearch(logger);
       const options: SearchOptions = {
         limit: currentLimit,
         sort: currentSort,
@@ -996,8 +1274,9 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Wire events ────────────────────────────────────────────────────
 
-  // Enter in search input → search (resets to search mode)
+  // Enter in search input → show results
   searchInput.on("enter", () => {
+    if (searchInput.value.trim() === "" || isLoading) return;
     showSearchMode();
     doSearch(searchInput.value);
   });
@@ -1031,9 +1310,29 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
+      // Leader menu: Enter dispatches action, up/down navigates
+      if (currentOverlay === "leader") {
+        if (key.name === "enter" || key.name === "return") {
+          const sel = leaderSelect.getSelectedOption();
+          const item = sel?.value as LeaderItem | undefined;
+          if (item) {
+            showOverlay("none");
+            item.action();
+            renderer.requestRender();
+          }
+          return;
+        }
+        // Let up/down/j/k fall through to SelectRenderable
+      }
+
+      // README viewer: scrollable, Esc/q already handled above
+      if (currentOverlay === "readme") {
+        return;
+      }
+
       // History overlay
       if (currentOverlay === "history") {
-        if (key.ctrl && key.name === "d") {
+        if (key.name === "d") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
             deleteHistoryEntry((sel.value as any).index);
@@ -1050,7 +1349,6 @@ export async function launchBrowser(): Promise<void> {
           renderer.requestRender();
           return;
         }
-        // SelectRenderable handles ↑↓; Enter runs the search
         if (key.name === "enter" || key.name === "return") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
@@ -1067,7 +1365,7 @@ export async function launchBrowser(): Promise<void> {
           }
           return;
         }
-        return; // all other keys ignored in history overlay
+        return;
       }
 
       // Bookmarks overlay
@@ -1160,19 +1458,13 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
-      // Compare overlay: Esc closes
+      // Compare overlay: Esc/q closes
       if (currentOverlay === "compare") {
         return;
       }
 
       // Notifications overlay
       if (currentOverlay === "notifications") {
-        if (key.ctrl && key.name === "c") {
-          dismissAll();
-          refreshNotifications();
-          renderer.requestRender();
-          return;
-        }
         if (key.name === "d") {
           const notifs = getNotifications();
           if (notifs.length > 0) {
@@ -1180,6 +1472,12 @@ export async function launchBrowser(): Promise<void> {
             refreshNotifications();
             setStatus("Notification dismissed");
           }
+          renderer.requestRender();
+          return;
+        }
+        if (key.ctrl && key.name === "c") {
+          dismissAll();
+          refreshNotifications();
           renderer.requestRender();
           return;
         }
@@ -1213,89 +1511,38 @@ export async function launchBrowser(): Promise<void> {
         renderer.requestRender();
         return;
       }
+
+      return;
     }
 
     // ── Main view handling (no overlay active) ────────────────────────
 
-    // Always allow q to quit
+    // q quits
     if (key.name === "q") {
+      if (graphFullscreen) {
+        toggleGraph();
+        return;
+      }
       saveSession({ mode: currentMode, query: currentQueryInput, sort: currentSort, limit: currentLimit, trendingTab });
       cleanup();
       return;
     }
 
-    // '?' / Ctrl+H toggle help overlay
+    // Esc exits graph mode
+    if (key.name === "escape" && graphFullscreen) {
+      toggleGraph();
+      return;
+    }
+
+    // Space opens leader menu
+    if (key.name === "space") {
+      showLeaderMenu();
+      return;
+    }
+
+    // '?' / Ctrl+H toggle help overlay (fast path)
     if (key.name === "?" || (key.name === "h" && key.ctrl)) {
-      refreshHistory(); // refresh in background
       showOverlay("help");
-      return;
-    }
-
-    // Ctrl+R — search history overlay
-    if (key.ctrl && key.name === "r") {
-      refreshHistory();
-      showOverlay("history");
-      return;
-    }
-
-    // Ctrl+S — save current search
-    if (key.ctrl && key.name === "s") {
-      if (currentQueryInput) {
-        const name = currentQueryInput.length > 40
-          ? currentQueryInput.slice(0, 37) + "..."
-          : currentQueryInput;
-        saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
-        setStatus(`✓ Saved as "${name}"`);
-      } else {
-        setStatus("No search to save");
-      }
-      renderer.requestRender();
-      return;
-    }
-
-    // Ctrl+O — saved searches panel
-    if (key.ctrl && key.name === "o") {
-      refreshSavedSearches();
-      showOverlay("saved");
-      return;
-    }
-
-    // Ctrl+N — notifications panel
-    if (key.ctrl && key.name === "n") {
-      refreshNotifications();
-      showOverlay("notifications");
-      return;
-    }
-
-    // Ctrl+P — share repo
-    if (key.ctrl && key.name === "p") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) {
-        setStatus("No repo selected to share");
-        renderer.requestRender();
-        return;
-      }
-      showOverlay("share");
-      return;
-    }
-
-    // 'b' — toggle bookmark on selected repo
-    if (key.name === "b" && !key.shift) {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (repo) {
-        const added = toggleBookmark(repo);
-        setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
-        renderer.requestRender();
-      }
-      return;
-    }
-
-    // 'B' (shift+b) — open bookmarks panel
-    if (key.name === "b" && key.shift) {
-      refreshBookmarks();
-      showOverlay("bookmarks");
       return;
     }
 
@@ -1317,27 +1564,11 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    // '/' focuses search, switches to search mode
+    // '/' focuses search
     if (key.name === "/") {
+      searchInput.focus();
       showSearchMode();
-      return;
-    }
-
-    // ponytail: guard single-letter bindings behind !searchInput.focused
-    // so typing a repo name containing t/g/r/s/l/o/d/c doesn't trigger actions
-    if (!searchInput.focused) {
-
-    if (key.name === "g") {
-      toggleGraph();
-      return;
-    }
-
-    if (key.name === "t") {
-      if (currentMode === "trending") {
-        showSearchMode();
-      } else {
-        loadTrending();
-      }
+      renderer.requestRender();
       return;
     }
 
@@ -1353,38 +1584,7 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    if (key.name === "r") {
-      if (currentMode === "trending") {
-        loadTrending();
-      } else {
-        doSearch(searchInput.value || currentQueryInput);
-      }
-      return;
-    }
-
-    if (key.name === "s") {
-      if (currentMode === "search") changeSort();
-      return;
-    }
-
-    if (key.name === "l") {
-      if (currentMode === "search") {
-        changeLimit();
-      } else if (currentMode === "trending") {
-        const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
-      }
-      return;
-    }
-
-    if (key.name === "o") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (repo) openUrl(repo.url);
-      return;
-    }
-
-    // Left/right/h arrows switch trending tabs
+    // Left/right arrows (and h/l) switch trending tabs
     if (key.name === "left" || key.name === "h") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
@@ -1392,75 +1592,16 @@ export async function launchBrowser(): Promise<void> {
       }
       return;
     }
-
-    // ── P2: Power Tool keys ───────────────────────────────────────────
-
-    // 'd' — toggle deep-dive on selected repo
-    if (key.name === "d") {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) return;
-      deepDiveActive = !deepDiveActive;
-      if (deepDiveActive) {
-        detailText.content = "  Loading deep-dive...";
-        renderer.requestRender();
-        fetchDeepDive(repo, githubToken)
-          .then((data) => {
-            detailText.content = buildDeepDiveText(data);
-            renderer.requestRender();
-          })
-          .catch(() => {
-            detailText.content = "  Failed to load deep-dive";
-            renderer.requestRender();
-          });
-      } else {
-        updateDetail(repo);
-        renderer.requestRender();
+    if (key.name === "right" || key.name === "l") {
+      if (currentMode === "trending") {
+        const idx = TAB_NAMES.indexOf(trendingTab);
+        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
       }
       return;
     }
 
-    // 'c' — toggle compare list for selected repo
-    if (key.name === "c" && !key.shift) {
-      const opt = resultsSelect.getSelectedOption();
-      const repo = opt?.value as Repo | undefined;
-      if (!repo) return;
-      const idx = compareList.findIndex((r) => r.fullName === repo.fullName);
-      if (idx >= 0) {
-        compareList.splice(idx, 1);
-        setStatus(`Removed ${repo.fullName} from comparison`);
-      } else {
-        compareList.push(repo);
-        setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
-      }
-      renderer.requestRender();
-      return;
-    }
-
-    // 'C' (Shift+c) — show comparison view
-    if (key.name === "c" && key.shift) {
-      refreshCompare();
-      showOverlay("compare");
-      return;
-    }
-
-    // 'E' (Shift+e) — topic explorer
-    if (key.name === "e" && key.shift) {
-      refreshTopics();
-      showOverlay("topics");
-      return;
-    }
-
-    } 
-
-    // Ctrl+E — export
-    if (key.ctrl && key.name === "e") {
-      showOverlay("export");
-      return;
-    }
-
-    // PageDown / Ctrl+F — next page
-    if (key.name === "pagedown" || (key.ctrl && key.name === "f")) {
+    // PageDown — next page (search mode)
+    if (key.name === "pagedown") {
       if (currentMode === "search" && currentQueryInput) {
         currentPage++;
         doSearch(currentQueryInput, true);
@@ -1468,8 +1609,8 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    // PageUp / Ctrl+B — scroll to top of results
-    if (key.name === "pageup" || (key.ctrl && key.name === "b")) {
+    // PageUp — scroll to top of results
+    if (key.name === "pageup") {
       if (currentRepos.length > 0) {
         resultsSelect.setSelectedIndex(0);
         updateDetail(currentRepos[0]);
@@ -1485,8 +1626,12 @@ export async function launchBrowser(): Promise<void> {
     loadTrending();
   } else {
     searchInput.value = currentQueryInput;
+    if (currentQueryInput) {
+      doSearch(currentQueryInput);
+    } else {
+      showSearchMode();
+    }
     searchInput.focus();
-    if (currentQueryInput) doSearch(currentQueryInput);
   }
   renderer.requestRender();
 }
@@ -1506,7 +1651,7 @@ function formatStars(n: number): string {
 
 function formatToolbar(sort: SortStrategy, limit: number): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
-  return ` sort: ${sortLabel}   limit: ${limit}   (s=cycle sort  l=cycle limit)`;
+  return ` sort: ${sortLabel}   limit: ${limit}`;
 }
 
 function cleanup(): void {
