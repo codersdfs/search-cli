@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { buildDeepDiveText } from "../src/deepdive.ts";
 import type { DeepDiveData } from "../src/deepdive.ts";
 

@@ -13,7 +13,7 @@ export function saveSession(state: SessionState): void {
   try {
     writeFileSync(SESSION_FILE, JSON.stringify(state));
   } catch (err) {
-    if (process.env.DEBUG) {
+    if (process.env.DEBUG)
       console.error(`[search-cli] Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
     }
   }

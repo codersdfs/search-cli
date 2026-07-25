@@ -35,7 +35,7 @@ search-cli "query" --pipe open         # Open each in browser
 search-cli "query" --pipe clone        # Print clone commands
 search-cli --trending --json           # Trending as JSON
 search-cli --watch "query"             # Poll every 300s
-```
+``` 
 
 ### Shell completions
 
@@ -174,7 +174,7 @@ CLI → QueryBuilder → Provider → Normalizer → Ranking → TUI / stdout
 | Provider | `src/provider.ts` | GitHub REST API with caching + token rotation |
 | Types | `src/types.ts` | Shared interfaces |
 
-The `SearchProvider` interface is the extension point for alternative backends (GitLab, local index, etc.).
+The `SearchProvider` interface is the extension point for alternative backends (GitLab, local index, AI retriever).
 
 ---
 

@@ -1,12 +1,12 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
- * search-cli — interactive GitHub repository browser (OpenTUI)
+ * ghfind — interactive GitHub repository browser (OpenTUI)
  *
  * Full-screen, keyboard-driven browser. This is the only entry point.
  * Pipeline: user query → provider → normalizer → ranking → rendered in TUI
  *
  * Layout:
- *   ┌─ search-cli  [s]sort  [l]limit  [r]refresh  [q]uit ─────┐
+ *   ┌─ ghfind  [s]sort  [l]limit  [r]refresh  [q]uit ────────────────┐
  *   │ > [query input ........................................]   │
  *   │ sort: best-match  limit: 50                               │
  *   ├─── Results ────────────────┬─── Details ──────────────────┤
@@ -32,9 +32,7 @@ import {
   ScrollBoxRenderable,
 } from "@opentui/core";
 import type { Repo, SearchOptions, SortStrategy } from "./types.ts";
-import { parseQuery, applyFlagFilters, validateQuery, suggestFor } from "./query.ts";
-import { GitHubSearchProvider, type Logger } from "./provider.ts";
-import { rankRepos } from "./ranking.ts";
+import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search.ts";
 import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending.ts";
 import { loadConfig } from "./config.ts";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help.ts";
@@ -138,7 +136,7 @@ export async function launchBrowser(): Promise<void> {
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
-      " search-cli — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
+      " ghfind — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
     backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
@@ -856,7 +854,7 @@ export async function launchBrowser(): Promise<void> {
     readmeText.content = `  Loading README for ${repo.fullName}...`;
     showOverlay("readme");
     try {
-      const headers: Record<string, string> = { "User-Agent": "search-cli/1.0" };
+      const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
       if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
       let text = "";
       for (const path of [
@@ -1031,9 +1029,9 @@ export async function launchBrowser(): Promise<void> {
     try {
       const [chartRes, repoRes] = await Promise.all([
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
-          { headers: { "User-Agent": "search-cli/1.0" } }),
+          { headers: { "User-Agent": "ghfind/1.0" } }),
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`,
-          { headers: { "User-Agent": "search-cli/1.0" } }).then(r => r.ok ? r.json() : null),
+          { headers: { "User-Agent": "ghfind/1.0" } }).then(r => r.ok ? r.json() : null),
       ]);
 
       let chartSection = "";
@@ -1201,7 +1199,7 @@ export async function launchBrowser(): Promise<void> {
     try {
       const parsed = applyFlagFilters(parseQuery(q), {});
       validateQuery(parsed);
-      const provider = new GitHubSearchProvider(logger);
+      const provider = createGitHubSearch(logger);
       const options: SearchOptions = {
         limit: currentLimit,
         sort: currentSort,

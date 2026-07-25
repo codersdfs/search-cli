@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { unlinkSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 // Set state dir before importing
-const testDir = join(tmpdir(), `search-cli-test-history-${Date.now()}`);
+const testDir = join(tmpdir(), `ghfind-test-history-${Date.now()}`);
 process.env.XDG_STATE_HOME = testDir;
 
 describe("history", () => {
@@ -15,7 +15,7 @@ describe("history", () => {
   });
 
   afterEach(() => {
-    try { unlinkSync(join(testDir, "search-cli", "history.jsonl")); } catch {}
+    try { unlinkSync(join(testDir, "ghfind", "history.jsonl")); } catch {}
   });
 
   it("appends and reads history entries", async () => {

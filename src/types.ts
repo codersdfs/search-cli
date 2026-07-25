@@ -118,7 +118,7 @@ export interface CacheEntry<T> {
   ttlMs: number;
 }
 
-/** Application config, persisted to ~/.config/search-cli/config.json. */
+/** Application config, persisted to ~/.config/ghfind/config.json. */
 export interface Config {
   githubToken?: string;
   githubTokens?: string[];

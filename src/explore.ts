@@ -1,4 +1,8 @@
-/** Topic explorer — browse popular GitHub topics. */
+/**
+ * Topic explorer — browse popular GitHub topics.
+ * 
+ * Selecting a topic triggers a search.
+ */
 export interface TopicItem {
   name: string;
   description: string;

@@ -5,7 +5,7 @@
  * Pure functions are tested directly; TUI smoke-test uses OpenTUI's
  * createTestRenderer to verify the layout renders without crashing.
  */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   fmtStars,
   fmtSigned,

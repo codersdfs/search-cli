@@ -57,7 +57,7 @@ export function formatRepos(repos: Repo[], format: ExportFormat): string {
 export function exportToFile(repos: Repo[], format: ExportFormat): string {
   const ext = format === "markdown" ? "md" : format;
   const ts = Date.now();
-  const path = `./search-cli-export-${ts}.${ext}`;
+  const path = `./ghfind-export-${ts}.${ext}`;
   writeFileSync(path, formatRepos(repos, format), "utf-8");
   return path;
 }

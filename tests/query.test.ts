@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import {
   parseQuery,
   tokenize,
@@ -6,7 +6,7 @@ import {
   validateQuery,
   buildGitHubQuery,
   githubSortParam,
-} from "../src/query.ts";
+} from "../src/search.ts";
 
 describe("tokenize", () => {
   it("splits on spaces but keeps quoted phrases together", () => {
@@ -61,7 +61,6 @@ describe("applyFlagFilters", () => {
     expect(merged.qualifiers).toContainEqual({ key: "language", value: "Rust", negated: false });
     expect(merged.qualifiers).toContainEqual({ key: "stars", value: ">100", negated: false });
     expect(merged.qualifiers).toContainEqual({ key: "org", value: "octocat", negated: false });
-    // original keyword preserved
     expect(merged.keywords).toEqual(["cli"]);
   });
 

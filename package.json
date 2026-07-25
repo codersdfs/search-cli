@@ -1,10 +1,10 @@
 {
   "name": "github-search-cli",
-  "version": "0.7.0",
-  "description": "Terminal-native GitHub browser — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
+  "version": "0.8.0",
+  "description": "Terminal-native GitHub search — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
   "type": "module",
   "bin": {
-    "search-cli": "bin/search-cli.js"
+    "ghfind": "bin/ghfind.js"
   },
   "files": [
     "bin/",
@@ -16,19 +16,27 @@
   ],
   "scripts": {
     "start": "bun run src/cli.ts",
-    "build": "bun run scripts/build.ts",
-    "prepublishOnly": "bun run build",
-    "test": "bun test",
-    "dev": "bun run --watch src/tui.ts"
+    "build": "tsup src/cli.ts --format esm --target node20 --out-dir dist --external @opentui/core",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "dev": "bun run --watch src/tui.ts",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@opentui/core": "^0.4.3"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "prettier": "^3.2.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
   },
   "engines": {
-    "bun": ">=1.0"
+    "node": ">=20.0.0"
   },
   "repository": {
     "type": "git",

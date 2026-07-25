@@ -2,7 +2,7 @@
 import type { Repo } from "./types.ts";
 import { NetworkError } from "./errors.ts";
 
-const USER_AGENT = "search-cli/1.0";
+const USER_AGENT = "ghfind/1.0";
 
 /** Language breakdown: { [lang]: bytes } */
 type LanguageMap = Record<string, number>;

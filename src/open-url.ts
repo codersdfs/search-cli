@@ -1,4 +1,8 @@
-/** Open a URL in the user's default browser — platform-aware. */
+/**
+ * Open a URL in the user's default browser — platform-aware.
+ *
+ * only if the open/xdg-open pattern fails somewhere.
+ */
 
 export function openUrl(url: string): void {
   try {

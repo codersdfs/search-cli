@@ -1,7 +1,7 @@
-# search-cli bash completion
-# Source: source <(search-cli --completion bash)
+# ghfind bash completion
+# Source: source <(ghfind --completion bash)
 
-_search_cli() {
+_ghfind() {
   local cur prev opts
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
@@ -40,4 +40,4 @@ _search_cli() {
   COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
   return 0
 }
-complete -F _search_cli search-cli
+complete -F _ghfind ghfind

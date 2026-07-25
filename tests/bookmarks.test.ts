@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import type { Repo } from "../src/types.ts";
 
-const testDir = join(tmpdir(), `search-cli-test-bookmarks-${Date.now()}`);
+const testDir = join(tmpdir(), `ghfind-test-bookmarks-${Date.now()}`);
 process.env.XDG_STATE_HOME = testDir;
 
 const makeRepo = (name: string, stars = 100): Repo => ({
@@ -39,7 +39,7 @@ describe("bookmarks", () => {
   });
 
   afterEach(() => {
-    try { unlinkSync(join(testDir, "search-cli", "bookmarks.json")); } catch {}
+    try { unlinkSync(join(testDir, "ghfind", "bookmarks.json")); } catch {}
   });
 
   it("adds a bookmark", async () => {

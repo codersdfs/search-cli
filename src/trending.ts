@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /** trending.ts — "Trending Repositories" view for the GitHub repo browser CLI. */
 import {
   createCliRenderer,
@@ -14,7 +14,7 @@ import {
 import type { Repo } from "./types.ts";
 import { openUrl } from "./open-url.ts";
 import { NetworkError } from "./errors.ts";
-import type { GitHubSearchEnvelope } from "./normalizer.ts";
+import type { GitHubSearchEnvelope } from "./search.ts";
 
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
@@ -123,7 +123,7 @@ export async function fetchTrendingRepos(since: "daily" | "weekly" | "monthly"):
     res = await fetch(url, {
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": "search-cli",
+        "User-Agent": "ghfind",
       },
     });
   } catch {
