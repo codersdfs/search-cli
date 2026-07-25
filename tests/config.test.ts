@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "path";
 import { mkdirSync, writeFileSync, unlinkSync, rmdirSync, existsSync } from "fs";
 import { tmpdir } from "os";
@@ -9,7 +9,7 @@ describe("config", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `search-cli-test-${Date.now()}`);
+    tmpDir = join(tmpdir(), `ghfind-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
   });
 
@@ -20,7 +20,7 @@ describe("config", () => {
   });
 
   it("loads defaults when no config file exists", async () => {
-    process.env.SEARCH_CLI_CONFIG = join(tmpDir, "config.json");
+    process.env.GHFIND_CONFIG = join(tmpDir, "config.json");
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
     expect(cfg.defaultSort).toBe("best-match");
@@ -31,7 +31,7 @@ describe("config", () => {
   });
 
   it("reads GITHUB_TOKEN from env", async () => {
-    process.env.SEARCH_CLI_CONFIG = join(tmpDir, "config.json");
+    process.env.GHFIND_CONFIG = join(tmpDir, "config.json");
     process.env.GITHUB_TOKEN = "gh_test_token";
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
@@ -45,7 +45,7 @@ describe("config", () => {
       defaultLimit: 100,
       theme: "dracula",
     }));
-    process.env.SEARCH_CLI_CONFIG = cfgPath;
+    process.env.GHFIND_CONFIG = cfgPath;
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
     expect(cfg.defaultSort).toBe("stars");
@@ -57,7 +57,7 @@ describe("config", () => {
   it("merges partial config with defaults", async () => {
     const cfgPath = join(tmpDir, "config.json");
     writeFileSync(cfgPath, JSON.stringify({ defaultLimit: 25 }));
-    process.env.SEARCH_CLI_CONFIG = cfgPath;
+    process.env.GHFIND_CONFIG = cfgPath;
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
     expect(cfg.defaultLimit).toBe(25);

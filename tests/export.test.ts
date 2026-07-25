@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { formatJson, formatCsv, formatMarkdown, formatText } from "../src/export.ts";
 import type { Repo } from "../src/types.ts";
 

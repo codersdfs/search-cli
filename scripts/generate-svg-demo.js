@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate an SVG screenshot of search-cli matching the actual TUI layout.
+ * Generate an SVG screenshot of ghfind matching the actual TUI layout.
  * Single frame with blinking cursor — honest and accurate.
  *
  * Usage: node scripts/generate-svg-demo.js > demo.svg
@@ -63,7 +63,7 @@ function rx(x, y, w, h, fill, stroke="", r=0) {
 let svg = "";
 
 // ─── Header ──
-svg += tx(PX, PY+WIN_H+14, "search-cli — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit", C.muted);
+svg += tx(PX, PY+WIN_H+14, "ghfind — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit", C.muted);
 
 // ─── Search box (blue border, 3 lines height) ──
 const sbY = PY+WIN_H+1*FH;
@@ -158,7 +158,7 @@ const output = `<?xml version="1.0" encoding="UTF-8"?>
   <circle cx="${PX+10}" cy="${PY+16}" r="5" fill="#f38ba8"/>
   <circle cx="${PX+28}" cy="${PY+16}" r="5" fill="#f9e2af"/>
   <circle cx="${PX+46}" cy="${PY+16}" r="5" fill="#a6e3a1"/>
-  <text x="${SW/2}" y="${PY+22}" fill="${C.muted}" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" text-anchor="middle">search-cli — terminal GitHub browser</text>
+  <text x="${SW/2}" y="${PY+22}" fill="${C.muted}" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" text-anchor="middle">ghfind — terminal GitHub browser</text>
 
   <g font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">
     ${svg}

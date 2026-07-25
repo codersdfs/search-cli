@@ -2,11 +2,11 @@
  * Config system: load/save config from XDG paths, merge with env vars.
  * 
  * Lookup order:
- *   1. SEARCH_CLI_CONFIG env var
- *   2. $XDG_CONFIG_HOME/search-cli/config.json
- *   3. ~/.config/search-cli/config.json
+ *   1. GHFIND_CONFIG env var
+ *   2. $XDG_CONFIG_HOME/ghfind/config.json
+ *   3. ~/.config/ghfind/config.json
  */
-import type { Config } from "./types.ts";
+import type { Config } from "./types";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
@@ -14,14 +14,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 /** Directory for persistent state (history, bookmarks, session). */
 export function stateDir(): string {
   const xdg = process.env.XDG_STATE_HOME;
-  const base = xdg ? join(xdg, "search-cli") : join(homedir(), ".local", "share", "search-cli");
+  const base = xdg ? join(xdg, "ghfind") : join(homedir(), ".local", "share", "ghfind");
   return base;
 }
 
 /** Directory for cache files. */
 export function cacheDir(): string {
   const xdg = process.env.XDG_CACHE_HOME;
-  const base = xdg ? join(xdg, "search-cli") : join(homedir(), ".cache", "search-cli");
+  const base = xdg ? join(xdg, "ghfind") : join(homedir(), ".cache", "ghfind");
   return base;
 }
 const DEFAULTS: Config = {
@@ -33,11 +33,11 @@ const DEFAULTS: Config = {
 };
 
 export function configPath(): string {
-  const envPath = process.env.SEARCH_CLI_CONFIG;
+  const envPath = process.env.GHFIND_CONFIG;
   if (envPath) return envPath;
 
   const xdg = process.env.XDG_CONFIG_HOME;
-  const base = xdg ? join(xdg, "search-cli") : join(homedir(), ".config", "search-cli");
+  const base = xdg ? join(xdg, "ghfind") : join(homedir(), ".config", "ghfind");
   return join(base, "config.json");
 }
 

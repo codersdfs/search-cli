@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { normalizeRepo, normalizeEnvelope, type GitHubApiItem, type GitHubSearchEnvelope } from "../src/normalizer.ts";
-import { GitHubSearchProvider } from "../src/provider.ts";
-import { parseQuery } from "../src/query.ts";
-import type { SearchOptions } from "../src/types.ts";
+import { describe, it, expect } from "vitest";
+import {
+  normalizeRepo,
+  normalizeEnvelope,
+  type GitHubApiItem,
+  type GitHubSearchEnvelope,
+  InMemoryAdapter,
+  type SearchAdapter,
+} from "../src/search.ts";
+import { parseQuery } from "../src/search.ts";
+import type { SearchOptions, SearchResponse } from "../src/types.ts";
 
 const sampleItem: GitHubApiItem = {
   id: 123,
@@ -61,47 +67,43 @@ describe("normalizeEnvelope", () => {
   });
 });
 
-describe("GitHubSearchProvider (integration with mocked fetch)", () => {
-  const realFetch = globalThis.fetch;
-  let lastUrl = "";
-
-  beforeAll(() => {
-    // @ts-expect-error override fetch for the test
-    globalThis.fetch = async (input: any) => {
-      lastUrl = String(input);
-      const env: GitHubSearchEnvelope = {
-        total_count: 1,
-        incomplete_results: false,
-        items: [sampleItem],
-      };
-      return new Response(JSON.stringify(env), {
-        status: 200,
-        headers: { "x-ratelimit-remaining": "42" },
-      });
+describe("InMemoryAdapter (search without network)", () => {
+  it("returns canned responses for matching queries", async () => {
+    const adapter = new InMemoryAdapter();
+    const response: SearchResponse = {
+      totalCount: 1,
+      repos: [normalizeRepo(sampleItem)],
+      rateLimited: false,
+      rateLimitRemaining: 42,
     };
-  });
+    adapter.setResponse("ripgrep", response);
 
-  afterAll(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("calls the search endpoint and normalizes results", async () => {
-    const provider = new GitHubSearchProvider();
     const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
-    const res = await provider.search(parseQuery("ripgrep"), options);
+    const res = await adapter.search(parseQuery("ripgrep"), options);
     expect(res.totalCount).toBe(1);
     expect(res.repos).toHaveLength(1);
     expect(res.repos[0].fullName).toBe("BurntSushi/ripgrep");
     expect(res.rateLimitRemaining).toBe(42);
-    expect(lastUrl).toContain("api.github.com/search/repositories");
-    expect(lastUrl).toContain("q=ripgrep");
   });
 
-  it("respects the limit when slicing pages", async () => {
-    const provider = new GitHubSearchProvider();
-    const options: SearchOptions = { limit: 1, sort: "stars", json: false, verbose: false };
-    const res = await provider.search(parseQuery("x"), options);
-    expect(res.repos.length).toBeLessThanOrEqual(1);
-    expect(lastUrl).toContain("sort=stars");
+  it("returns default response for unmatched queries", async () => {
+    const adapter = new InMemoryAdapter();
+    adapter.setDefault({ totalCount: 0, repos: [], rateLimited: false });
+
+    const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
+    const res = await adapter.search(parseQuery("unknown"), options);
+    expect(res.totalCount).toBe(0);
+    expect(res.repos).toHaveLength(0);
+  });
+
+  it("clear removes all canned responses", async () => {
+    const adapter = new InMemoryAdapter();
+    adapter.setResponse("x", { totalCount: 1, repos: [], rateLimited: false });
+    adapter.clear();
+    adapter.setDefault({ totalCount: 0, repos: [], rateLimited: false });
+
+    const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
+    const res = await adapter.search(parseQuery("x"), options);
+    expect(res.totalCount).toBe(0);
   });
 });

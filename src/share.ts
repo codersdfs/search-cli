@@ -1,7 +1,7 @@
 /**
  * Share repo — copy formatted snippets to clipboard.
  */
-import type { Repo } from "./types.ts";
+import type { Repo } from "./types";
 
 export type ShareFormat = "markdown" | "plain" | "gh-cli" | "short";
 
@@ -19,31 +19,36 @@ export function formatShare(repo: Repo, format: ShareFormat): string {
 }
 
 /** Copy text to clipboard via platform command. */
+import { spawn } from "child_process";
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     const p = process.platform;
-    if (p === "win32") {
-      const proc = Bun.spawn(["clip"], { stdin: "pipe" });
-      proc.stdin.write(text);
-      proc.stdin.end();
-      await proc.exited;
-    } else if (p === "darwin") {
-      const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
-      proc.stdin.write(text);
-      proc.stdin.end();
-      await proc.exited;
-    } else {
-      // Linux — try xclip, then wl-copy
-      const cmd = Bun.which("xclip") ? ["xclip", "-selection", "clipboard"] :
-        Bun.which("wl-copy") ? ["wl-copy"] : null;
-      if (!cmd) return false;
-      const proc = Bun.spawn(cmd, { stdin: "pipe" });
-      proc.stdin.write(text);
-      proc.stdin.end();
-      await proc.exited;
-    }
-    return true;
+    const cmd = p === "win32" ? ["clip"] : p === "darwin" ? ["pbcopy"] : await findLinuxClipCmd();
+    if (!cmd) return false;
+    const proc = spawn(cmd[0], cmd.slice(1), { stdio: ["pipe", "ignore", "ignore"] });
+    proc.stdin.write(text);
+    proc.stdin.end();
+    return new Promise((resolve) => {
+      proc.on("close", (code) => resolve(code === 0));
+      proc.on("error", () => resolve(false));
+    });
   } catch {
     return false;
+  }
+}
+
+async function findLinuxClipboard(): Promise<string[] | null> {
+  const { execFileSync } = await import("child_process");
+  try {
+    execFileSync("xclip", ["-version"], { stdio: "ignore" });
+    return ["xclip", "-selection", "clipboard"];
+  } catch {
+    try {
+      execFileSync("wl-copy", ["--version"], { stdio: "ignore" });
+      return ["wl-copy"];
+    } catch {
+      return null;
+    }
   }
 }

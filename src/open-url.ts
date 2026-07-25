@@ -1,7 +1,6 @@
 /**
  * Open a URL in the user's default browser — platform-aware.
  *
- * ponytail: three platforms, no abstraction. Add more browsers/flags
  * only if the open/xdg-open pattern fails somewhere.
  */
 

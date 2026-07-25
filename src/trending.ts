@@ -1,12 +1,5 @@
-#!/usr/bin/env bun
-/**
- * trending.ts — "Trending Repositories" view for the GitHub repo browser CLI.
- *
- * Polished terminal UI built with OpenTUI. Tokyo Night palette.
- *
- * Run directly:    bun run src/trending.ts
- * Or import:       import { launchTrending } from "./trending.ts";
- */
+#!/usr/bin/env node
+/** trending.ts — "Trending Repositories" view for the GitHub repo browser CLI. */
 import {
   createCliRenderer,
   BoxRenderable,
@@ -18,10 +11,10 @@ import {
   dim,
   t,
 } from "@opentui/core";
-import type { Repo } from "./types.ts";
-import { openUrl } from "./open-url.ts";
-import { NetworkError } from "./errors.ts";
-import type { GitHubSearchEnvelope } from "./normalizer.ts";
+import type { Repo } from "./types";
+import { openUrl } from "./open-url";
+import { NetworkError } from "./errors";
+import type { GitHubSearchEnvelope } from "./search";
 
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
@@ -130,7 +123,7 @@ export async function fetchTrendingRepos(since: "daily" | "weekly" | "monthly"):
     res = await fetch(url, {
       headers: {
         Accept: "application/vnd.github+json",
-        "User-Agent": "search-cli",
+        "User-Agent": "ghfind",
       },
     });
   } catch {

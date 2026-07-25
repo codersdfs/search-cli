@@ -1,9 +1,5 @@
-/**
- * Output layer: render ranked results either as machine-readable JSON or as a
- * concise, human-readable list. This layer owns all presentation concerns so
- * the search/ranking logic stays presentation-free.
- */
-import type { Repo, SearchResponse } from "./types.ts";
+/** Output layer: render ranked results as JSON or human-readable list. */
+import type { Repo, SearchResponse } from "./types";
 
 /** Format a number compactly (e.g. 1234 -> "1.2k", 999999 -> "1M"). */
 export function formatCount(n: number): string {
@@ -13,14 +9,12 @@ export function formatCount(n: number): string {
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
-/** Format an ISO date as YYYY-MM-DD. */
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "unknown";
   return d.toISOString().slice(0, 10);
 }
 
-/** Emit stable, parseable JSON. */
 export function renderJson(response: SearchResponse, rawQuery: string): string {
   return JSON.stringify(
     {
@@ -35,7 +29,6 @@ export function renderJson(response: SearchResponse, rawQuery: string): string {
   );
 }
 
-/** Emit a concise, readable list for terminals. */
 export function renderHuman(response: SearchResponse, rawQuery: string): string {
   const lines: string[] = [];
   lines.push(`Query: ${rawQuery}`);

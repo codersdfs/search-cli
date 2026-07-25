@@ -1,12 +1,14 @@
-FROM oven/bun:1.3 AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY . .
-RUN bun build src/cli.ts --compile --outfile /tmp/search-cli
+RUN npm run build
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /tmp/search-cli /usr/local/bin/search-cli
-ENTRYPOINT ["search-cli"]
+FROM node:20-alpine
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /app/dist /usr/local/lib/ghfind
+COPY --from=builder /app/node_modules /usr/local/lib/ghfind/node_modules
+RUN ln -s /usr/local/lib/ghfind/cli.js /usr/local/bin/ghfind
+ENTRYPOINT ["ghfind"]
 CMD ["--help"]

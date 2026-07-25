@@ -1,12 +1,9 @@
 /**
  * Watch mode — periodically re-run a search and show changes.
  * 
- * ponytail: simple poll + diff. No notifications (P4 cross-ref).
  */
-import type { ParsedQuery, SearchOptions, Repo } from "./types.ts";
-import { GitHubSearchProvider } from "./provider.ts";
-import { parseQuery, applyFlagFilters } from "./query.ts";
-import { rankRepos } from "./ranking.ts";
+import type { ParsedQuery, SearchOptions, Repo } from "./types";
+import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
 
 export interface WatchOptions {
   query: string;
@@ -32,7 +29,7 @@ export async function runWatch(
   const tick = async () => {
     try {
       const parsed = applyFlagFilters(parseQuery(opts.query), {});
-      const provider = new GitHubSearchProvider(undefined, opts.token ? [opts.token] : []);
+      const provider = createGitHubSearch(undefined, opts.token ? [opts.token] : []);
       const options: SearchOptions = {
         limit: opts.limit,
         sort: opts.sort,

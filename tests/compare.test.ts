@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import { buildComparisonTable } from "../src/compare.ts";
 import type { Repo } from "../src/types.ts";
 
