@@ -133,13 +133,13 @@ export async function launchBrowser(): Promise<void> {
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
-  let showHome = false;
+
 
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
       " search-cli — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
   });
@@ -197,6 +197,7 @@ export async function launchBrowser(): Promise<void> {
     value: "",
   });
   searchBox.add(searchInput);
+  root.add(searchBox);
 
   // ── Toolbar (sort + limit indicator) ────────────────────────────────
   const toolbarText = new TextRenderable(renderer, {
@@ -266,21 +267,12 @@ export async function launchBrowser(): Promise<void> {
   body.add(detailBox);
   root.add(body);
 
-  // ── Home screen ────────────────────────────────────────────────────
-  // Simple centered search input on startup
-  const homeBox = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    flexGrow: 1,
-    backgroundColor: colors.bg,
-    visible: false,
-  });
-  root.add(homeBox);
+
 
   // ── Overlay system ──────────────────────────────────────────────────
 
   // Hide main content so overlays can take 100% of the content area
   function hideMainContent() {
-    homeBox.visible = false;
     trendingTabBox.visible = false;
     searchBox.visible = false;
     toolbarText.visible = false;
@@ -288,7 +280,6 @@ export async function launchBrowser(): Promise<void> {
   }
 
   function showMainContent() {
-    homeBox.visible = false;
     if (currentMode === "trending") {
       trendingTabBox.visible = true;
     } else {
@@ -657,7 +648,7 @@ export async function launchBrowser(): Promise<void> {
     flexGrow: 1,
     backgroundColor: colors.bg,
     border: true,
-    borderColor: colors.blue,
+    borderColor: colors.border,
     title: " Menu ",
     titleColor: colors.blue,
     flexDirection: "column",
@@ -676,7 +667,7 @@ export async function launchBrowser(): Promise<void> {
   const leaderFooter = new TextRenderable(renderer, {
     content: "  ↑↓ select  Enter run  Esc/q close",
     color: colors.muted,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     height: 1,
     paddingX: 1,
   });
@@ -738,6 +729,7 @@ export async function launchBrowser(): Promise<void> {
       value: it,
     }));
     leaderSelect.setSelectedIndex(0);
+    leaderSelect.focus();
     showOverlay("leader");
   }
 
@@ -847,7 +839,7 @@ export async function launchBrowser(): Promise<void> {
   const readmeFooter = new TextRenderable(renderer, {
     content: "  ↑↓/jk scroll  Esc/q close",
     color: colors.muted,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     height: 1,
     paddingX: 1,
   });
@@ -899,7 +891,7 @@ export async function launchBrowser(): Promise<void> {
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
     paddingX: 1,
@@ -959,50 +951,77 @@ export async function launchBrowser(): Promise<void> {
   // ── Graph / Chart ──────────────────────────────────────────────────
 
   /** Unicode blocks for 8 vertical levels within one character cell. */
-  const BLOCKS = [" ", "\u2581", "\u2582", "\u2583", "\u2584", "\u2585", "\u2586", "\u2587", "\u2588"];
+  // Braille dot encoding: each byte is 8 dots (2 cols × 4 rows per char).
+  // Bit layout (LSB first): 0-2=col0 rows, 3-5=col1 rows, 6=col0 row3, 7=col1 row3.
+  // Unicode offset is 0x2800, so braille code point = 0x2800 + bitmask.
+  function brailleChar(bits: number): string {
+    return bits === 0 ? " " : String.fromCodePoint(0x2800 + bits);
+  }
 
-  function buildChartString(values: number[], width: number, height: number): string[] {
+  function buildChartString(values: number[], termW: number, termH: number): string[] {
     if (values.length === 0) return ["(no data)"];
-    // Sample to fit width
+
+    // Braille resolution: 2 horizontal dots and 4 vertical dots per terminal cell.
+    const dotW = termW * 2;
+    const dotH = termH * 4;
+
+    // Sample values to fit braille dot columns.
     const sampled: number[] = [];
-    for (let i = 0; i < width; i++) {
-      sampled.push(values[Math.floor((i / width) * values.length)]);
+    for (let i = 0; i < dotW; i++) {
+      sampled.push(values[Math.floor((i / dotW) * values.length)]);
     }
     const max = Math.max(...sampled, 1);
-    const norm = sampled.map(v => Math.round((v / max) * (8 * height - 1)));
+    // Map each sample to a dot row (0 = bottom, dotH-1 = top).
+    const dotRows = sampled.map(v => Math.round((v / max) * (dotH - 1)));
 
-    // Build char grid from bottom
-    const grid: string[][] = Array.from({ length: height }, () => Array(width).fill(" "));
-    for (let c = 0; c < width; c++) {
-      const p = norm[c];
-      const full = Math.floor(p / 8);
-      const part = p % 8;
-      for (let r = 0; r < full && r < height; r++) grid[height - 1 - r][c] = "\u2588";
-      if (full < height && part > 0) grid[height - 1 - full][c] = BLOCKS[part];
+    // Build a mask grid: dotGrid[row][col] = true if the silhouette passes through.
+    const dotGrid: boolean[][] = Array.from({ length: dotH }, () => Array(dotW).fill(false));
+
+    // Draw the silhouette line: mark the dot at each column.
+    for (let c = 0; c < dotW; c++) {
+      dotGrid[dotH - 1 - dotRows[c]][c] = true;
     }
-    // Fill vertical gaps between adjacent columns
-    for (let c = 0; c < width - 1; c++) {
-      const r1 = Math.floor(norm[c] / 8);
-      const r2 = Math.floor(norm[c + 1] / 8);
-      const lo = Math.max(0, Math.min(r1, r2));
-      const hi = Math.min(height - 1, Math.max(r1, r2));
+    // Fill gaps between adjacent columns so the line is continuous.
+    for (let c = 0; c < dotW - 1; c++) {
+      const r1 = dotRows[c];
+      const r2 = dotRows[c + 1];
+      const lo = Math.min(r1, r2);
+      const hi = Math.max(r1, r2);
       for (let r = lo; r <= hi; r++) {
-        if (grid[height - 1 - r][c] === " ") grid[height - 1 - r][c] = "\u2588";
+        dotGrid[dotH - 1 - r][c] = true;
       }
     }
 
-    // Build rows with Y-axis labels
+    // Convert 4-row × 2-col blocks of dots into braille characters.
     const lines: string[] = [];
-    const labelRows = [0, Math.floor(height / 4), Math.floor(height / 2), Math.floor(3 * height / 4), height - 1];
-    const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
-    for (let r = 0; r < height; r++) {
-      const idx = labelRows.indexOf(r);
+    for (let tr = 0; tr < termH; tr++) {
+      const chars: string[] = [];
+      for (let tc = 0; tc < termW; tc++) {
+        const r0 = tr * 4;
+        const c0 = tc * 2;
+        let bits = 0;
+        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0]) bits |= 0x01;
+        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0]) bits |= 0x02;
+        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0]) bits |= 0x04;
+        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1]) bits |= 0x08;
+        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1]) bits |= 0x10;
+        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1]) bits |= 0x20;
+        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0]) bits |= 0x40;
+        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1]) bits |= 0x80;
+        chars.push(brailleChar(bits));
+      }
+
+      // Y-axis labels
+      const labelRows = [0, Math.floor(termH / 4), Math.floor(termH / 2), Math.floor(3 * termH / 4), termH - 1];
+      const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
+      const idx = labelRows.indexOf(tr);
       let label = "     ";
       if (idx >= 0) label = String(labelVals[idx]).padStart(4) + " ";
-      lines.push(`${label}\u2524${grid[r].join("")}`);
+      lines.push(`${label}\u2524${chars.join("")}`);
     }
+
     // X-axis
-    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(width)}`);
+    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(termW)}`);
     return lines;
   }
 
@@ -1022,7 +1041,7 @@ export async function launchBrowser(): Promise<void> {
         const data = await chartRes.json();
         if (data?.all && data.all.length >= 2) {
           chartCommitData = data.all;
-          const chartW = Math.min(55, chartCommitData.length);
+          const chartW = 60;
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
           chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
@@ -1118,7 +1137,6 @@ export async function launchBrowser(): Promise<void> {
 
   async function loadTrending() {
     currentMode = "trending";
-    if (showHome) toggleHome(false);
     isLoading = true;
     searchBox.visible = false;
     toolbarText.visible = false;
@@ -1155,24 +1173,8 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
   }
 
-  function toggleHome(on: boolean) {
-    showHome = on;
-    homeBox.visible = on;
-    body.visible = !on;
-    if (on) {
-      currentMode = "search";
-      toolbarText.visible = false;
-      trendingTabBox.visible = false;
-      searchBox.visible = true;
-      searchInput.focus();
-      setStatus("Type a GitHub query and press Enter");
-    }
-    renderer.requestRender();
-  }
-
   function showSearchMode() {
     currentMode = "search";
-    homeBox.visible = false;
     trendingTabBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
@@ -1274,10 +1276,9 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Wire events ────────────────────────────────────────────────────
 
-  // Enter in search input → hide home, show results
+  // Enter in search input → show results
   searchInput.on("enter", () => {
     if (searchInput.value.trim() === "" || isLoading) return;
-    if (showHome) toggleHome(false);
     showSearchMode();
     doSearch(searchInput.value);
   });
@@ -1311,7 +1312,7 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
-      // Leader menu: Enter dispatches action
+      // Leader menu: Enter dispatches action, up/down navigates
       if (currentOverlay === "leader") {
         if (key.name === "enter" || key.name === "return") {
           const sel = leaderSelect.getSelectedOption();
@@ -1321,8 +1322,9 @@ export async function launchBrowser(): Promise<void> {
             item.action();
             renderer.requestRender();
           }
+          return;
         }
-        return;
+        // Let up/down/j/k fall through to SelectRenderable
       }
 
       // README viewer: scrollable, Esc/q already handled above
@@ -1519,8 +1521,18 @@ export async function launchBrowser(): Promise<void> {
 
     // q quits
     if (key.name === "q") {
+      if (graphFullscreen) {
+        toggleGraph();
+        return;
+      }
       saveSession({ mode: currentMode, query: currentQueryInput, sort: currentSort, limit: currentLimit, trendingTab });
       cleanup();
+      return;
+    }
+
+    // Esc exits graph mode
+    if (key.name === "escape" && graphFullscreen) {
+      toggleGraph();
       return;
     }
 
@@ -1557,7 +1569,7 @@ export async function launchBrowser(): Promise<void> {
     // '/' focuses search
     if (key.name === "/") {
       searchInput.focus();
-      if (!showHome) showSearchMode();
+      showSearchMode();
       renderer.requestRender();
       return;
     }
@@ -1619,7 +1631,7 @@ export async function launchBrowser(): Promise<void> {
     if (currentQueryInput) {
       doSearch(currentQueryInput);
     } else {
-      toggleHome(true);
+      showSearchMode();
     }
     searchInput.focus();
   }

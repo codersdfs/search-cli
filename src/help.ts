@@ -51,6 +51,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Sort", action: "Cycle sort: best-match → stars → …" },
         { keys: "Limit", action: "Cycle limit: 10 → 25 → 50 → 100" },
         { keys: "Refresh", action: "Re-run current search" },
+        { keys: "Graph", action: "Toggle commit activity chart" },
         { keys: "Readme", action: "Full README viewer" },
         { keys: "Deep-dive", action: "Languages + contributors + excerpt" },
         { keys: "Bookmark", action: "Save / unsave selected repo" },
