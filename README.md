@@ -14,6 +14,16 @@
 npm install -g github-search-cli
 ```
 
+> **TUI requirements:** The interactive browser needs **Bun** or **Node 20–22** with `--experimental-ffi`.
+> Node 23+ removed `node:ffi` which OpenTUI depends on.
+> Non-interactive modes (`--json`, `--csv`, `--markdown`, etc.) work on any Node ≥ 20.
+>
+> | Runtime | TUI | CLI modes |
+> |---------|-----|-----------|
+> | Bun | ✅ | ✅ |
+> | Node 20–22 (`--experimental-ffi`) | ✅ | ✅ |
+> | Node 23+ | ❌ | ✅ |
+
 ## Use
 
 ```bash
