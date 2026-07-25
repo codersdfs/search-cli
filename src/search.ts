@@ -14,8 +14,8 @@ import type {
   SearchResponse,
   SortStrategy,
   CacheEntry,
-} from "./types.ts";
-import { NetworkError, RateLimitError, ParseError } from "./errors.ts";
+} from "./types";
+import { NetworkError, RateLimitError, ParseError } from "./errors";
 
 export interface Logger {
   debug(msg: string): void;

@@ -3,8 +3,8 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import type { SavedSearch, SortStrategy } from "./types.ts";
-import { stateDir } from "./config.ts";
+import type { SavedSearch, SortStrategy } from "./types";
+import { stateDir } from "./config";
 
 const SAVED_FILE = join(stateDir(), "saved-searches.json");
 

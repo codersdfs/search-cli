@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /** CLI entry point — routes between TUI browser and non-interactive modes. */
-import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search.ts";
-import { formatRepos, type ExportFormat } from "./export.ts";
-import { formatLines, pipeExec, type FormatLine } from "./pipe.ts";
-import { runWatch } from "./watch.ts";
-import { runInitWizard } from "./init.ts";
+import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
+import { formatRepos, type ExportFormat } from "./export";
+import { formatLines, pipeExec, type FormatLine } from "./pipe";
+import { runWatch } from "./watch";
+import { runInitWizard } from "./init";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { launchBrowser } from "./tui.ts";
-import type { SearchOptions } from "./types.ts";
+import { launchBrowser } from "./tui";
+import type { SearchOptions } from "./types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");

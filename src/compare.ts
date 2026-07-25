@@ -1,7 +1,7 @@
 /**
  * Repo comparison — side-by-side table for 2+ repos.
  */
-import type { Repo } from "./types.ts";
+import type { Repo } from "./types";
 
 interface CompareRow {
   label: string;

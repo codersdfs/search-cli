@@ -1,5 +1,5 @@
 /** Output layer: render ranked results as JSON or human-readable list. */
-import type { Repo, SearchResponse } from "./types.ts";
+import type { Repo, SearchResponse } from "./types";
 
 /** Format a number compactly (e.g. 1234 -> "1.2k", 999999 -> "1M"). */
 export function formatCount(n: number): string {

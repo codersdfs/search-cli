@@ -31,26 +31,26 @@ import {
   SelectRenderable,
   ScrollBoxRenderable,
 } from "@opentui/core";
-import type { Repo, SearchOptions, SortStrategy } from "./types.ts";
-import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search.ts";
-import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending.ts";
-import { loadConfig } from "./config.ts";
-import { buildHelpSections, HELP_KEYS_COLUMN } from "./help.ts";
-import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors.ts";
-import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history.ts";
-import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks.ts";
-import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches.ts";
-import { saveSession, restoreSession } from "./session.ts";
-import { fetchDeepDive, buildDeepDiveText } from "./deepdive.ts";
-import { buildComparisonTable } from "./compare.ts";
-import { fetchTopics, type TopicItem } from "./explore.ts";
-import { exportToFile, type ExportFormat } from "./export.ts";
-import { loadTheme } from "./themes.ts";
-import { StatusManager } from "./status.ts";
-import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications.ts";
-import { formatShare, copyToClipboard, type ShareFormat } from "./share.ts";
-import { nextTip } from "./tips.ts";
-import { openUrl } from "./open-url.ts";
+import type { Repo, SearchOptions, SortStrategy } from "./types";
+import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search";
+import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending";
+import { loadConfig } from "./config";
+import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
+import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors";
+import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history";
+import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks";
+import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches";
+import { saveSession, restoreSession } from "./session";
+import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
+import { buildComparisonTable } from "./compare";
+import { fetchTopics, type TopicItem } from "./explore";
+import { exportToFile, type ExportFormat } from "./export";
+import { loadTheme } from "./themes";
+import { StatusManager } from "./status";
+import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications";
+import { formatShare, copyToClipboard, type ShareFormat } from "./share";
+import { nextTip } from "./tips";
+import { openUrl } from "./open-url";
 
 // ─── Theme ────────────────────────────────────────────────────────────
 const colors = {

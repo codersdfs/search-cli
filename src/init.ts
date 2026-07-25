@@ -4,9 +4,9 @@
  * ponytail: simple stdin prompts, no curses/readline UI.
  */
 import { createInterface } from "readline";
-import { saveConfig } from "./config.ts";
-import { listThemes } from "./themes.ts";
-import type { Config, SortStrategy } from "./types.ts";
+import { saveConfig } from "./config";
+import { listThemes } from "./themes";
+import type { Config, SortStrategy } from "./types";
 
 function ask(query: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });

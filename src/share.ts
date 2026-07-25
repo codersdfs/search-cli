@@ -1,7 +1,7 @@
 /**
  * Share repo — copy formatted snippets to clipboard.
  */
-import type { Repo } from "./types.ts";
+import type { Repo } from "./types";
 
 export type ShareFormat = "markdown" | "plain" | "gh-cli" | "short";
 

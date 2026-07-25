@@ -1,8 +1,8 @@
 /**
  * Pipe-friendly format modifiers — output repo data as lines for shell piping.
  */
-import type { Repo } from "./types.ts";
-import { openUrl } from "./open-url.ts";
+import type { Repo } from "./types";
+import { openUrl } from "./open-url";
 
 export type FormatLine = "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
 

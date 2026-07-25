@@ -6,7 +6,7 @@
  *   2. $XDG_CONFIG_HOME/ghfind/config.json
  *   3. ~/.config/ghfind/config.json
  */
-import type { Config } from "./types.ts";
+import type { Config } from "./types";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";

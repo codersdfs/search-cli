@@ -11,10 +11,10 @@ import {
   dim,
   t,
 } from "@opentui/core";
-import type { Repo } from "./types.ts";
-import { openUrl } from "./open-url.ts";
-import { NetworkError } from "./errors.ts";
-import type { GitHubSearchEnvelope } from "./search.ts";
+import type { Repo } from "./types";
+import { openUrl } from "./open-url";
+import { NetworkError } from "./errors";
+import type { GitHubSearchEnvelope } from "./search";
 
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
