@@ -1,136 +1,118 @@
-# search-cli
+# ghfind
 
-> Browse, search, and trend GitHub repos from your terminal. No browser needed.
+> Search GitHub repos from your terminal. No browser needed.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="search-cli demo" width="100%">
+  <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="ghfind demo" width="100%">
 </p>
 
 ---
 
-## Quick start
+## Install
 
 ```bash
-# Requires Bun (https://bun.sh)
 npm install -g github-search-cli
-
-# Launch the interactive TUI browser
-search-cli
-
-# Non-interactive search (pipe to jq, csvkit, etc.)
-search-cli "language:Rust stars:>10000" --json | jq '.[].fullName'
-search-cli "language:Zig" --count
-search-cli --trending --json --since weekly
 ```
 
-## CLI modes
+## Use
 
 ```bash
-search-cli "query" --json              # JSON array
-search-cli "query" --csv               # CSV
-search-cli "query" --markdown          # Markdown table
-search-cli "query" --count             # Just the number
-search-cli "query" --format urls       # One URL per line
-search-cli "query" --pipe open         # Open each in browser
-search-cli "query" --pipe clone        # Print clone commands
-search-cli --trending --json           # Trending as JSON
-search-cli --watch "query"             # Poll every 300s
-``` 
+# TUI
+ghfind
 
-### Shell completions
-
-```bash
-source <(search-cli --completion bash)   # Bash
-source <(search-cli --completion zsh)    # Zsh
-search-cli --completion fish | source    # Fish
+# pipe
+ghfind "language:Rust stars:>1000" --json | jq '.[].fullName'
+ghfind "language:Zig" --count
+ghfind --trending --json --since weekly
 ```
 
-### `gh` extension
+### Non-interactive
 
 ```bash
-gh extension install ./gh-search-cli
-gh search-cli "language:Rust"
+ghfind "query" --json        # JSON
+ghfind "query" --csv         # CSV
+ghfind "query" --markdown    # Markdown
+ghfind "query" --count       # count only
+ghfind "query" --format urls # one URL per line
+ghfind "query" --pipe open   # open in browser
+ghfind "query" --pipe clone  # clone commands
+ghfind --trending --json     # trending as JSON
+ghfind --watch "query"       # poll every 300s
+```
+
+### Completions
+
+```bash
+source <(ghfind --completion bash)
+source <(ghfind --completion zsh)
+ghfind --completion fish | source
 ```
 
 ---
 
 ## Features
 
-| Category | What you get |
-|----------|-------------|
-| **Search** | Free-text + qualifiers (`language:`, `stars:`, `topic:`), sort by stars/updated/forks, Tab auto-complete |
-| **Trending** | Browse GitHub trending by day/week/month/year, filter by language |
-| **Memory** | Persistent history (`Ctrl+R`), bookmarks (`b`/`B`), saved searches (`Ctrl+S`/`Ctrl+O`), session restore |
-| **Deep-dive** | Per-repo detail: languages, top contributors, README preview (`d`) |
-| **Compare** | Select 2+ repos and compare side-by-side (`c`/`C`) |
-| **Explore** | Browse popular GitHub topics (`E`) |
-| **Export** | JSON, CSV, Markdown, plain text (`Ctrl+E`) |
-| **Shell** | Pipe-friendly output, `--watch` mode, shell completions, Docker |
-| **Delight** | 3 themes (Tokyo Night, Dracula, Monokai), animated status bar, clipboard share, startup tips |
+<table>
+<tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
+<tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
+<tr><td><b>Bookmarks</b></td><td><code>b</code> / <code>B</code> — save repos, tag them</td></tr>
+<tr><td><b>Deep-dive</b></td><td><code>d</code> — languages, contributors, README, activity chart</td></tr>
+<tr><td><b>Compare</b></td><td><code>c</code> / <code>C</code> — side-by-side, select 2+ repos</td></tr>
+<tr><td><b>Explore</b></td><td><code>E</code> — browse popular topics</td></tr>
+<tr><td><b>History</b></td><td><code>Ctrl+R</code> — recall past searches</td></tr>
+<tr><td><b>Export</b></td><td><code>Ctrl+E</code> — JSON, CSV, Markdown to file</td></tr>
+<tr><td><b>Share</b></td><td><code>Ctrl+P</code> — copy to clipboard (markdown, plain, gh-cli)</td></tr>
+<tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
+</table>
 
 <details>
-<summary><b>⌨️ Full keybindings</b></summary>
-
-### Main view
+<summary>Keybindings</summary>
 
 | Key | Action |
 |-----|--------|
-| `/` | Focus search input |
-| `Enter` | Execute search / open repo |
-| `↑`/`↓` / `j`/`k` | Navigate results |
+| `/` | Focus search |
+| `Enter` | Search / open repo |
+| `↑`/`↓` / `j`/`k` | Navigate |
 | `t` | Toggle search / trending |
 | `s` | Cycle sort |
 | `l` | Cycle limit |
 | `r` | Refresh |
-| `g` | Toggle activity graph |
-| `d` | Toggle repo deep-dive |
-| `o` | Open repo in browser |
-| `b` / `B` | Toggle bookmark / open bookmarks |
-| `c` / `C` | Toggle compare list / show comparison |
-| `E` | Open topic explorer |
+| `d` | Deep-dive |
+| `o` | Open in browser |
+| `b` / `B` | Bookmark / bookmarks panel |
+| `c` / `C` | Compare select / view |
+| `E` | Topic explorer |
 | `Tab` | Auto-complete qualifier |
-| `?` / `Ctrl+H` | Help overlay |
+| `?` / `Ctrl+H` | Help |
+| `Ctrl+R` | History |
+| `Ctrl+S` / `Ctrl+O` | Save / open searches |
+| `Ctrl+E` | Export |
+| `Ctrl+N` | Notifications |
+| `Ctrl+P` | Share |
+| `Esc` | Close overlay |
 | `q` | Quit |
 
-### Overlays
-
-| Key | Action |
-|-----|--------|
-| `Ctrl+R` | Search history |
-| `Ctrl+S` | Save current search |
-| `Ctrl+O` | Saved searches panel |
-| `Ctrl+E` | Export results |
-| `Ctrl+N` | Notifications |
-| `Ctrl+P` | Share repo (copy to clipboard) |
-| `PageDown` / `Ctrl+F` | Next page |
-| `Esc` | Close overlay |
-
-### Trending mode
-
-| Key | Action |
-|-----|--------|
-| `1`–`5` | Switch tab (Today → Week → Month → Year → All) |
-| `←`/`→` / `h`/`l` | Navigate tabs |
+Trending tabs: `1`–`5` (Today → All) or `←`/`→` / `h`/`l`
 </details>
 
 ---
 
 ## Search syntax
 
-```text
+```
 language:Rust stars:>1000 topic:cli
 "machine learning" language:Python stars:>5000
 topic:cli -language:JavaScript
 org:rust-lang language:Rust
 ```
 
-Supported qualifiers: `language:`, `stars:`, `fork:`, `archived:`, `topic:`, `user:`, `org:`, `repo:`, `updated:`, `pushed:`, `visibility:`, `license:`, `created:`, `size:`, `in:`. Prefix with `-` to exclude.
+Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, `topic`, `user`, `org`, `repo`, `updated`, `pushed`, `visibility`, `license`, `created`, `size`, `in`.
 
 ---
 
-## Configuration
+## Config
 
-`~/.config/search-cli/config.json` (created automatically):
+`~/.config/ghfind/config.json` (auto-created, or run `ghfind init`):
 
 ```json
 {
@@ -141,40 +123,20 @@ Supported qualifiers: `language:`, `stars:`, `fork:`, `archived:`, `topic:`, `us
 }
 ```
 
-Or run `search-cli init` for the interactive setup wizard.
-
-Environment variables: `GITHUB_TOKEN`, `SEARCH_CLI_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`.
+Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`
 
 ---
 
-## Install from source
+## From source
 
 ```bash
 git clone https://github.com/codersdfs/search-cli.git
-cd search-cli
-bun install
-bun start              # Launch TUI
-bun test               # 104 tests
-bun run build          # Compile binary → dist/
+cd ghfind
+npm install
+npm start    # TUI
+npm test     # 100+ tests
+npm run build
 ```
-
----
-
-## Design
-
-```
-CLI → QueryBuilder → Provider → Normalizer → Ranking → TUI / stdout
-```
-
-| Layer | File | Job |
-|-------|------|-----|
-| Entry | `src/cli.ts` | Arg parsing, routes to TUI or stdout |
-| TUI | `src/tui.ts` | Interactive browser (OpenTUI) |
-| Query | `src/query.ts` | Parse keywords/qualifiers |
-| Provider | `src/provider.ts` | GitHub REST API with caching + token rotation |
-| Types | `src/types.ts` | Shared interfaces |
-
-The `SearchProvider` interface is the extension point for alternative backends (GitLab, local index, AI retriever).
 
 ---
 
