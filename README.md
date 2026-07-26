@@ -14,14 +14,14 @@
 npm install -g github-search-cli
 ```
 
-> **TUI requirements:** The interactive browser needs **Bun** or **Node 20–22** with `--experimental-ffi`.
-> Node 23+ removed `node:ffi` which OpenTUI depends on.
-> Non-interactive modes (`--json`, `--csv`, `--markdown`, etc.) work on any Node ≥ 20.
+> **No separate runtime needed!** The package bundles a Bun binary, so the TUI
+> works out of the box on Windows, macOS, and Linux — no Node FFI, no `--experimental-ffi`.
 >
 > | Runtime | TUI | CLI modes |
 > |---------|-----|-----------|
-> | Bun | ✅ | ✅ |
-> | Node 20–22 (`--experimental-ffi`) | ✅ | ✅ |
+> | Bundled Bun | ✅ | ✅ |
+> | System Bun | ✅ | ✅ |
+> | Node 20–22 | ✅ | ✅ |
 > | Node 23+ | ❌ | ✅ |
 
 ## Use
@@ -142,10 +142,18 @@ Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`
 ```bash
 git clone https://github.com/codersdfs/search-cli.git
 cd ghfind
+
+# With Bun (recommended for TUI)
+bun install
+bun start        # TUI
+bun test         # 102 tests
+bun run build    # build dist/
+
+# Or with npm
 npm install
-npm start    # TUI
-npm test     # 100+ tests
-npm run build
+npm start        # TUI (requires Node 20-22 for native FFI)
+npm test         # vitest (TUI render test needs Bun)
+npm run build    # build dist/
 ```
 
 ---
