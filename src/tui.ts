@@ -1660,6 +1660,8 @@ function cleanup(): void {
 }
 
 // ── Auto-run ──────────────────────────────────────────────────────────
-if (import.meta.main) {
+// Only launch when run directly (bun run src/tui.ts), not when bundled
+// into cli.js or imported as a module.
+if (import.meta.main && !process.env.GHFIND_BUNDLED) {
   launchBrowser();
 }
