@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Bundled runtime (downloaded by postinstall)
+vendor/
+
 # Logs
 *.log
 

@@ -9,6 +9,7 @@
   "files": [
     "bin/",
     "src/",
+    "vendor/",
     "completions/",
     "demo.svg",
     "LICENSE",
@@ -16,10 +17,12 @@
   ],
   "scripts": {
     "start": "bun run src/cli.ts",
-    "build": "tsup src/cli.ts --format esm --target node20 --out-dir dist --external @opentui/core",
+    "build": "tsup",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
+    "test:bun": "bun test",
     "dev": "bun run --watch src/tui.ts",
+    "postinstall": "node scripts/postinstall.js",
     "format:check": "prettier --check .",
     "format": "prettier --write ."
   },
