@@ -3,8 +3,16 @@
 > Search GitHub repos from your terminal. No browser needed.
 
 <p align="center">
+  <a href="https://x.com/frankli23709971">
+    <img src="https://img.shields.io/badge/made%20by-%40frankli23709971-000000?logo=x&labelColor=000000&color=000000&link=https://x.com/frankli23709971" alt="Made by @frankli23709971">
+  </a>
+</p>
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="ghfind demo" width="100%">
 </p>
+
+[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
@@ -21,8 +29,7 @@ npm install -g github-search-cli
 > |---------|-----|-----------|
 > | Bundled Bun | ✅ | ✅ |
 > | System Bun | ✅ | ✅ |
-> | Node 20–22 | ✅ | ✅ |
-> | Node 23+ | ❌ | ✅ |
+> | Node 20+ | ✅ | ✅ |
 
 ## Use
 
@@ -57,6 +64,18 @@ source <(ghfind --completion bash)
 source <(ghfind --completion zsh)
 ghfind --completion fish | source
 ```
+
+---
+
+## Changelog
+
+### v0.8.1
+- Fixed postinstall to download Bun binary correctly on all platforms
+- Fixed zip asset names to match Bun's current release naming
+- Fixed zip parsing to use central directory instead of local file headers
+- Removed `vendor/` from npm package (Bun binary downloaded at install time)
+- Changed `postinstall` to use `node` instead of `bun run` (works without Bun pre-installed)
+- TUI now works on Node.js 20+ via bundled Bun binary
 
 ---
 
