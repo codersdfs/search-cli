@@ -90,11 +90,21 @@ export async function launchBrowser(): Promise<void> {
   try {
     renderer = await createCliRenderer();
   } catch (err) {
-    console.error(
-      "Failed to start the interactive browser. OpenTUI native backend unavailable.\n",
-      `Reason: ${err instanceof Error ? err.message : String(err)}\n`,
-      "Install Zig or use a platform with native OpenTUI support.",
-    );
+    const isNode = process.versions.bun === undefined;
+    if (isNode) {
+      console.error("\n❌  The interactive TUI requires Bun runtime.\n");
+      console.error("  Install Bun:  curl -fsSL https://bun.sh/install | bash");
+      console.error("  Then run:    bunx ghfind");
+      console.error("\n  Or use non-interactive mode (works on Node.js):");
+      console.error("  ghfind \"language:Rust\" --json | jq '.[].fullName'");
+      console.error("  ghfind --trending --count");
+    } else {
+      console.error(
+        "Failed to start the interactive browser. OpenTUI native backend unavailable.\n",
+        `Reason: ${err instanceof Error ? err.message : String(err)}\n`,
+        "Install Zig or use a platform with native OpenTUI support.",
+      );
+    }
     process.exit(1);
     return;
   }
@@ -1534,9 +1544,14 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
 
-    // Space opens leader menu
-    if (key.name === "space") {
-      showLeaderMenu();
+    // Space toggles leader menu (open if closed, close if open)
+    // Skip when the search input is focused so spaces can be typed in queries
+    if (key.name === "space" && !searchInput.focused) {
+      if (currentOverlay === "leader") {
+        showOverlay("none");
+      } else {
+        showLeaderMenu();
+      }
       return;
     }
 
