@@ -32,14 +32,50 @@ import {
   ScrollBoxRenderable,
 } from "@opentui/core";
 import type { Repo, SearchOptions, SortStrategy } from "./types";
-import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search";
-import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending";
+import {
+  parseQuery,
+  applyFlagFilters,
+  validateQuery,
+  suggestFor,
+  rankRepos,
+  createGitHubSearch,
+  type Logger,
+} from "./search";
+import {
+  fetchTrendingRepos,
+  tabSince,
+  TAB_NAMES,
+  fmtStars,
+  type TrendingRepo,
+} from "./trending";
 import { loadConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
-import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors";
-import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history";
-import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks";
-import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches";
+import {
+  SearchCliError,
+  NetworkError,
+  RateLimitError,
+  BadQueryError,
+  NoResultsError,
+} from "./errors";
+import {
+  appendHistory,
+  readHistory,
+  deleteHistoryEntry,
+  clearHistory,
+  rotateHistory,
+} from "./history";
+import {
+  getBookmarks,
+  isBookmarked,
+  toggleBookmark,
+  removeBookmark,
+} from "./bookmarks";
+import {
+  getSavedSearches,
+  saveSearch,
+  deleteSavedSearch,
+  touchSavedSearch,
+} from "./saved-searches";
 import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
@@ -47,7 +83,12 @@ import { fetchTopics, type TopicItem } from "./explore";
 import { exportToFile, type ExportFormat } from "./export";
 import { loadTheme } from "./themes";
 import { StatusManager } from "./status";
-import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications";
+import {
+  addNotification,
+  getNotifications,
+  dismissNotification,
+  dismissAll,
+} from "./notifications";
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
@@ -131,22 +172,34 @@ export async function launchBrowser(): Promise<void> {
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
   let currentMode: "search" | "trending" = session?.mode ?? "search";
-  let trendingTab: typeof TAB_NAMES[number] = (session?.trendingTab as typeof TAB_NAMES[number]) ?? "This Week";
+  let trendingTab: (typeof TAB_NAMES)[number] =
+    (session?.trendingTab as (typeof TAB_NAMES)[number]) ?? "This Week";
   let trendingPeriod = "this week";
   let graphFullscreen = false;
   let chartCommitData: number[] = [];
-  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" | "leader" | "readme" = "none";
+  let currentOverlay:
+    | "none"
+    | "history"
+    | "bookmarks"
+    | "saved"
+    | "help"
+    | "topics"
+    | "export"
+    | "compare"
+    | "notifications"
+    | "share"
+    | "leader"
+    | "readme" = "none";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
 
-
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
-      " ghfind — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
+      " ghfind — GitHub repo browser   [/]search  [Space]menu  [\u2192]open  [?]help  [q]uit",
     backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
@@ -201,7 +254,8 @@ export async function launchBrowser(): Promise<void> {
     height: 3,
   });
   const searchInput = new InputRenderable(renderer, {
-    placeholder: "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)",
+    placeholder:
+      "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)",
     value: "",
   });
   searchBox.add(searchInput);
@@ -239,7 +293,13 @@ export async function launchBrowser(): Promise<void> {
     focusable: false,
   });
   const resultsSelect = new SelectRenderable(renderer, {
-    options: [{ name: "", description: "Type a query and press Enter to search", value: null }],
+    options: [
+      {
+        name: "",
+        description: "Type a query and press Enter to search",
+        value: null,
+      },
+    ],
     showDescription: false,
     showSelectionIndicator: false,
     flexGrow: 1,
@@ -274,8 +334,6 @@ export async function launchBrowser(): Promise<void> {
   body.add(resultsBox);
   body.add(detailBox);
   root.add(body);
-
-
 
   // ── Overlay system ──────────────────────────────────────────────────
 
@@ -317,18 +375,33 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
     currentOverlay = type;
-    hideMainContent();
-    if (type === "help") { helpBox.visible = true; }
-    else if (type === "history") { historyBox.visible = true; }
-    else if (type === "bookmarks") { bookmarksBox.visible = true; }
-    else if (type === "saved") { savedBox.visible = true; }
-    else if (type === "topics") { topicsBox.visible = true; }
-    else if (type === "export") { exportBox.visible = true; }
-    else if (type === "compare") { compareBox.visible = true; }
-    else if (type === "notifications") { notifsBox.visible = true; }
-    else if (type === "share") { shareBox.visible = true; }
-    else if (type === "leader") { leaderBox.visible = true; }
-    else if (type === "readme") { readmeBox.visible = true; }
+    // Leader menu is a floating overlay — main content stays visible behind it
+    if (type !== "leader") {
+      hideMainContent();
+    }
+    if (type === "help") {
+      helpBox.visible = true;
+    } else if (type === "history") {
+      historyBox.visible = true;
+    } else if (type === "bookmarks") {
+      bookmarksBox.visible = true;
+    } else if (type === "saved") {
+      savedBox.visible = true;
+    } else if (type === "topics") {
+      topicsBox.visible = true;
+    } else if (type === "export") {
+      exportBox.visible = true;
+    } else if (type === "compare") {
+      compareBox.visible = true;
+    } else if (type === "notifications") {
+      notifsBox.visible = true;
+    } else if (type === "share") {
+      shareBox.visible = true;
+    } else if (type === "leader") {
+      leaderBox.visible = true;
+    } else if (type === "readme") {
+      readmeBox.visible = true;
+    }
     renderer.requestRender();
   }
 
@@ -360,7 +433,9 @@ export async function launchBrowser(): Promise<void> {
       border: true,
       borderColor: colors.border,
       title: section.title,
-      titleColor: (colors as Record<string, string>)[section.titleColor] ?? section.titleColor,
+      titleColor:
+        (colors as Record<string, string>)[section.titleColor] ??
+        section.titleColor,
       flexDirection: "column",
       paddingY: 0,
       marginLeft: 1,
@@ -369,16 +444,20 @@ export async function launchBrowser(): Promise<void> {
     });
     for (const row of section.rows) {
       const keys = row.keys.padEnd(HELP_KEYS_COLUMN);
-      sectionBox.add(new TextRenderable(renderer, {
-        content: `  ${keys} ${row.action}`,
-        color: colors.text,
-      }));
+      sectionBox.add(
+        new TextRenderable(renderer, {
+          content: `  ${keys} ${row.action}`,
+          color: colors.text,
+        }),
+      );
     }
     if (section.note) {
-      sectionBox.add(new TextRenderable(renderer, {
-        content: `  ${section.note}`,
-        color: colors.muted,
-      }));
+      sectionBox.add(
+        new TextRenderable(renderer, {
+          content: `  ${section.note}`,
+          color: colors.muted,
+        }),
+      );
     }
     helpScroll.add(sectionBox);
   }
@@ -412,7 +491,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshHistory() {
     const entries = readHistory();
     if (entries.length === 0) {
-      historySelect.options = [{ name: "(no history)", description: "", value: null }];
+      historySelect.options = [
+        { name: "(no history)", description: "", value: null },
+      ];
     } else {
       historySelect.options = entries.map((e, i) => ({
         name: `${e.query}  — ${e.mode}${e.tab ? ` (${e.tab})` : ""}`,
@@ -450,7 +531,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshBookmarks() {
     const bookmarks = getBookmarks();
     if (bookmarks.length === 0) {
-      bookmarksSelect.options = [{ name: "(no bookmarks)", description: "", value: null }];
+      bookmarksSelect.options = [
+        { name: "(no bookmarks)", description: "", value: null },
+      ];
     } else {
       bookmarksSelect.options = bookmarks.map((b) => ({
         name: `${b.repo.fullName}  ★ ${b.repo.stars.toLocaleString()}`,
@@ -518,7 +601,9 @@ export async function launchBrowser(): Promise<void> {
         value: t,
       }));
     } catch {
-      topicsSelect.options = [{ name: "(failed to load topics)", description: "", value: null }];
+      topicsSelect.options = [
+        { name: "(failed to load topics)", description: "", value: null },
+      ];
     }
     topicsSelect.setSelectedIndex(0);
   }
@@ -535,9 +620,21 @@ export async function launchBrowser(): Promise<void> {
   });
   const exportSelect = new SelectRenderable(renderer, {
     options: [
-      { name: "  JSON", description: "Full repo data as JSON array", value: "json" },
-      { name: "  CSV", description: "Rank, name, stars, forks, language, URL", value: "csv" },
-      { name: "  Markdown", description: "Pretty table with links (paste into README)", value: "markdown" },
+      {
+        name: "  JSON",
+        description: "Full repo data as JSON array",
+        value: "json",
+      },
+      {
+        name: "  CSV",
+        description: "Rank, name, stars, forks, language, URL",
+        value: "csv",
+      },
+      {
+        name: "  Markdown",
+        description: "Pretty table with links (paste into README)",
+        value: "markdown",
+      },
       { name: "  Plain text", description: "One repo per line", value: "text" },
     ],
     showDescription: true,
@@ -611,9 +708,21 @@ export async function launchBrowser(): Promise<void> {
   });
   const shareSelect = new SelectRenderable(renderer, {
     options: [
-      { name: "  Markdown", description: "[owner/repo](url) — description", value: "markdown" },
-      { name: "  Plain", description: "owner/repo — description — url", value: "plain" },
-      { name: "  GitHub CLI", description: "gh repo view owner/repo", value: "gh-cli" },
+      {
+        name: "  Markdown",
+        description: "[owner/repo](url) — description",
+        value: "markdown",
+      },
+      {
+        name: "  Plain",
+        description: "owner/repo — description — url",
+        value: "plain",
+      },
+      {
+        name: "  GitHub CLI",
+        description: "gh repo view owner/repo",
+        value: "gh-cli",
+      },
       { name: "  Short", description: "owner/repo", value: "short" },
     ],
     showDescription: true,
@@ -630,7 +739,8 @@ export async function launchBrowser(): Promise<void> {
 
   function refreshCompare() {
     if (compareList.length < 2) {
-      compareText.content = "Select at least 2 repos to compare (press c to add).";
+      compareText.content =
+        "Select at least 2 repos to compare (press c to add).";
     } else {
       compareText.content = buildComparisonTable(compareList);
     }
@@ -639,7 +749,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshSavedSearches() {
     const saved = getSavedSearches();
     if (saved.length === 0) {
-      savedSelect.options = [{ name: "(no saved searches)", description: "", value: null }];
+      savedSelect.options = [
+        { name: "(no saved searches)", description: "", value: null },
+      ];
     } else {
       savedSelect.options = saved.map((s) => ({
         name: `${s.name}`,
@@ -653,13 +765,18 @@ export async function launchBrowser(): Promise<void> {
   // ── Leader menu overlay (Space key) ─────────────────────────────
   const leaderBox = new BoxRenderable(renderer, {
     visible: false,
-    flexGrow: 1,
-    backgroundColor: colors.bg,
+    position: "absolute",
+    width: "80%",
+    height: 18,
+    left: "10%",
+    top: "30%",
+    backgroundColor: colors.surface,
     border: true,
     borderColor: colors.border,
     title: " Menu ",
     titleColor: colors.blue,
     flexDirection: "column",
+    paddingX: 1,
   });
   const leaderSelect = new SelectRenderable(renderer, {
     options: [{ name: "(empty)", description: "", value: null }],
@@ -683,60 +800,327 @@ export async function launchBrowser(): Promise<void> {
   leaderBox.add(leaderFooter);
   root.add(leaderBox);
 
-  interface LeaderItem { name: string; description: string; action: () => void; }
+  // ── Hierarchical menu types ──────────────────────────────────────
+  interface MenuAction {
+    type: "action";
+    name: string;
+    description: string;
+    action: () => void;
+  }
 
-  function showLeaderMenu() {
-    const items: LeaderItem[] = [];
+  interface MenuCategory {
+    type: "category";
+    name: string;
+    description: string;
+    icon: string;
+    children: MenuEntry[];
+  }
 
-    if (currentMode === "search") {
-      items.push(
-        { name: "  Sort", description: `Cycle sort (current: ${currentSort})`, action: () => changeSort() },
-        { name: "  Limit", description: `Cycle result limit (current: ${currentLimit})`, action: () => changeLimit() },
-        { name: "  Refresh", description: "Re-run current search", action: () => { if (currentQueryInput) doSearch(currentQueryInput); } },
-        { name: "  Toggle trending", description: "Browse GitHub trending repos", action: () => loadTrending() },
-        { name: "  Deep-dive", description: "Languages, contributors, README excerpt", action: () => { showOverlay("none"); triggerDeepDive(); } },
-        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
-        { name: "  Activity graph", description: "Toggle commit chart fullscreen", action: () => toggleGraph() },
-        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
-        { name: "  Compare", description: "Add/remove repo to comparison", action: () => toggleCompareOnSelected() },
-      );
-    }
+  type MenuEntry = MenuAction | MenuCategory;
 
-    if (currentMode === "trending") {
-      items.push(
-        { name: "  Refresh", description: "Reload trending repos", action: () => loadTrending() },
-        { name: "  Search mode", description: "Switch to query search", action: () => showSearchMode() },
-        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
-        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
-      );
-    }
+  // ── Submenu navigation ──────────────────────────────────────────
+  interface MenuLevel {
+    title: string;
+    parentTitle: string;
+    entries: MenuEntry[];
+    selectedIndex: number;
+  }
 
-    // Common items (always available when repos exist)
+  const menuStack: MenuLevel[] = [];
+
+  function pushMenuLevel(
+    title: string,
+    parentTitle: string,
+    entries: MenuEntry[],
+    selectIndex = 0,
+  ) {
+    menuStack.push({
+      title,
+      parentTitle,
+      entries,
+      selectedIndex: leaderSelect.getSelectedIndex?.(),
+    });
+    leaderSelect.options = entries.map((e) => ({
+      name:
+        e.type === "category" ? `  ${e.icon} ${e.name} \u2192` : `  ${e.name}`,
+      description: e.description,
+      value: e,
+    }));
+    leaderSelect.setSelectedIndex(selectIndex);
+    leaderBox.title = title;
+    const isTop = menuStack.length === 1;
+    leaderFooter.content = isTop
+      ? "  \u2191\u2193 select  \u2192 open category  Enter run  Esc/q close"
+      : "  Esc back  \u2191\u2193 select  Enter run";
+  }
+
+  function popMenuLevel(): boolean {
+    if (menuStack.length <= 1) return false;
+    const prev = menuStack[menuStack.length - 2];
+    const current = menuStack.pop()!;
+    leaderSelect.options = prev.entries.map((e) => ({
+      name:
+        e.type === "category" ? `  ${e.icon} ${e.name} \u2192` : `  ${e.name}`,
+      description: e.description,
+      value: e,
+    }));
+    leaderSelect.setSelectedIndex(current.selectedIndex);
+    leaderBox.title = prev.title;
+    const isTop = menuStack.length === 1;
+    leaderFooter.content = isTop
+      ? "  \u2191\u2193 select  \u2192 open category  Enter run  Esc/q close"
+      : "  Esc back  \u2191\u2193 select  Enter run";
+    return true;
+  }
+
+  function resetMenu() {
+    menuStack.length = 0;
+  }
+
+  // ── Build hierarchical menu ─────────────────────────────────────
+  function buildMenuHierarchy(): MenuCategory[] {
     const hasRepo = (() => {
       const opt = resultsSelect.getSelectedOption();
       return opt?.value && typeof (opt.value as any)?.fullName === "string";
     })();
 
-    items.push(
-      { name: "  Open in browser", description: "Open selected repo in browser", action: () => openUrlIfSelected() },
-      { name: "  History", description: "Search history", action: () => { refreshHistory(); showOverlay("history"); } },
-      { name: "  Saved searches", description: "Load a saved search", action: () => { refreshSavedSearches(); showOverlay("saved"); } },
-      { name: "  Export", description: "Export results to JSON/CSV/Markdown", action: () => showOverlay("export") },
-      { name: "  Share repo", description: "Copy repo link to clipboard", action: () => showShareIfRepo() },
-      { name: "  Notifications", description: "View alerts", action: () => { refreshNotifications(); showOverlay("notifications"); } },
-      { name: "  Topics", description: "Browse popular GitHub topics", action: () => { refreshTopics(); showOverlay("topics"); } },
-      { name: "  Compare view", description: "Show side-by-side comparison", action: () => { refreshCompare(); showOverlay("compare"); } },
-      { name: "  Bookmarks panel", description: "Browse saved repos", action: () => { refreshBookmarks(); showOverlay("bookmarks"); } },
-      { name: "  Save search", description: "Save current query", action: () => saveCurrentSearch() },
-      { name: "  Help", description: "Keybindings reference", action: () => showOverlay("help") },
-    );
+    const groups: MenuCategory[] = [];
 
-    leaderSelect.options = items.map((it) => ({
-      name: it.name,
-      description: it.description,
-      value: it,
-    }));
-    leaderSelect.setSelectedIndex(0);
+    // 🔍 Search group (search mode only)
+    const searchItems: MenuEntry[] = [];
+    if (currentMode === "search") {
+      searchItems.push(
+        {
+          type: "action",
+          name: "Sort",
+          description: `Cycle sort (current: ${currentSort})`,
+          action: () => changeSort(),
+        },
+        {
+          type: "action",
+          name: "Limit",
+          description: `Cycle result limit (current: ${currentLimit})`,
+          action: () => changeLimit(),
+        },
+        {
+          type: "action",
+          name: "Refresh",
+          description: "Re-run current search",
+          action: () => {
+            if (currentQueryInput) doSearch(currentQueryInput);
+          },
+        },
+        {
+          type: "action",
+          name: "Save search",
+          description: "Save current query as a named search",
+          action: () => saveCurrentSearch(),
+        },
+        {
+          type: "action",
+          name: "Saved searches",
+          description: "Load a saved search",
+          action: () => {
+            refreshSavedSearches();
+            showOverlay("saved");
+          },
+        },
+      );
+    }
+    if (searchItems.length > 0) {
+      groups.push({
+        type: "category",
+        name: "Search",
+        description: "Sort, limit, refresh, save searches",
+        icon: "\uD83D\uDD0D",
+        children: searchItems,
+      });
+    }
+
+    // 📋 Repo group (when a repo is selected)
+    const repoItems: MenuEntry[] = [];
+    if (hasRepo) {
+      repoItems.push(
+        {
+          type: "action",
+          name: "Open in browser",
+          description: "Open selected repo in browser",
+          action: () => openUrlIfSelected(),
+        },
+        {
+          type: "action",
+          name: "Readme",
+          description: "Full README viewer",
+          action: () => {
+            showReadme();
+          },
+        },
+        {
+          type: "action",
+          name: "Activity graph",
+          description: "Toggle commit chart fullscreen",
+          action: () => toggleGraph(),
+        },
+      );
+      if (currentMode === "search") {
+        repoItems.push({
+          type: "action",
+          name: "Deep-dive",
+          description: "Languages, contributors, README excerpt",
+          action: () => {
+            showOverlay("none");
+            triggerDeepDive();
+          },
+        });
+      }
+      repoItems.push(
+        {
+          type: "action",
+          name: "Bookmark",
+          description: "Save / unsave selected repo",
+          action: () => toggleBookmarkOnSelected(),
+        },
+        {
+          type: "action",
+          name: "Compare",
+          description: "Add/remove repo to comparison",
+          action: () => toggleCompareOnSelected(),
+        },
+        {
+          type: "action",
+          name: "Share",
+          description: "Copy repo link to clipboard",
+          action: () => showShareIfRepo(),
+        },
+      );
+    }
+    if (repoItems.length > 0) {
+      groups.push({
+        type: "category",
+        name: "Repo",
+        description: "Open, readme, bookmark, share, compare",
+        icon: "\uD83D\uDCCB",
+        children: repoItems,
+      });
+    }
+
+    // 🧭 Navigate group (always available)
+    const navItems: MenuEntry[] = [];
+    if (currentMode === "search") {
+      navItems.push({
+        type: "action",
+        name: "Trending",
+        description: "Browse GitHub trending repos",
+        action: () => loadTrending(),
+      });
+    } else {
+      navItems.push({
+        type: "action",
+        name: "Search mode",
+        description: "Switch to query search",
+        action: () => showSearchMode(),
+      });
+    }
+    navItems.push(
+      {
+        type: "action",
+        name: "History",
+        description: "Search history",
+        action: () => {
+          refreshHistory();
+          showOverlay("history");
+        },
+      },
+      {
+        type: "action",
+        name: "Bookmarks",
+        description: "Browse saved repos",
+        action: () => {
+          refreshBookmarks();
+          showOverlay("bookmarks");
+        },
+      },
+      {
+        type: "action",
+        name: "Topics",
+        description: "Browse popular GitHub topics",
+        action: () => {
+          refreshTopics();
+          showOverlay("topics");
+        },
+      },
+      {
+        type: "action",
+        name: "Export",
+        description: "Export results to JSON/CSV/Markdown",
+        action: () => showOverlay("export"),
+      },
+    );
+    groups.push({
+      type: "category",
+      name: "Navigate",
+      description: "Trending, history, bookmarks, topics, export",
+      icon: "\uD83E\uDDED",
+      children: navItems,
+    });
+
+    // ⚙️ System group
+    const sysItems: MenuEntry[] = [
+      {
+        type: "action",
+        name: "Help",
+        description: "Keybindings reference",
+        action: () => showOverlay("help"),
+      },
+      {
+        type: "action",
+        name: "Notifications",
+        description: "View alerts",
+        action: () => {
+          refreshNotifications();
+          showOverlay("notifications");
+        },
+      },
+      {
+        type: "action",
+        name: "Compare view",
+        description: "Show side-by-side comparison",
+        action: () => {
+          refreshCompare();
+          showOverlay("compare");
+        },
+      },
+      {
+        type: "action",
+        name: "Quit",
+        description: "Exit ghfind",
+        action: () => {
+          saveSession({
+            mode: currentMode,
+            query: currentQueryInput,
+            sort: currentSort,
+            limit: currentLimit,
+            trendingTab,
+          });
+          cleanup();
+        },
+      },
+    ];
+    groups.push({
+      type: "category",
+      name: "System",
+      description: "Help, notifications, compare, quit",
+      icon: "\u2699\uFE0F",
+      children: sysItems,
+    });
+
+    return groups;
+  }
+
+  function showLeaderMenu() {
+    resetMenu();
+    const topLevel = buildMenuHierarchy();
+    pushMenuLevel("  Menu", "", topLevel, 0);
     leaderSelect.focus();
     showOverlay("leader");
   }
@@ -753,7 +1137,9 @@ export async function launchBrowser(): Promise<void> {
     const repo = opt?.value as Repo | undefined;
     if (repo) {
       const added = toggleBookmark(repo);
-      setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
+      setStatus(
+        added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`,
+      );
     }
   }
 
@@ -767,23 +1153,36 @@ export async function launchBrowser(): Promise<void> {
       setStatus(`Removed ${repo.fullName} from comparison`);
     } else {
       compareList.push(repo);
-      setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
+      setStatus(
+        `${repo.fullName} added to comparison (${compareList.length} selected)`,
+      );
     }
   }
 
   function showShareIfRepo() {
     const opt = resultsSelect.getSelectedOption();
     const repo = opt?.value as Repo | undefined;
-    if (!repo) { setStatus("No repo selected to share"); return; }
+    if (!repo) {
+      setStatus("No repo selected to share");
+      return;
+    }
     showOverlay("share");
   }
 
   function saveCurrentSearch() {
     if (currentQueryInput) {
-      const name = currentQueryInput.length > 40
-        ? currentQueryInput.slice(0, 37) + "..."
-        : currentQueryInput;
-      saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
+      const name =
+        currentQueryInput.length > 40
+          ? currentQueryInput.slice(0, 37) + "..."
+          : currentQueryInput;
+      saveSearch(
+        name,
+        currentQueryInput,
+        currentMode,
+        currentSort,
+        currentLimit,
+        currentMode === "trending" ? trendingTab : undefined,
+      );
       setStatus(`Saved as "${name}"`);
     } else {
       setStatus("No search to save");
@@ -872,8 +1271,13 @@ export async function launchBrowser(): Promise<void> {
         `${repo.owner}/${repo.name}/master/README.md`,
         `${repo.owner}/${repo.name}/main/README.rst`,
       ]) {
-        const r = await fetch(`https://raw.githubusercontent.com/${path}`, { headers });
-        if (r.ok) { text = await r.text(); break; }
+        const r = await fetch(`https://raw.githubusercontent.com/${path}`, {
+          headers,
+        });
+        if (r.ok) {
+          text = await r.text();
+          break;
+        }
       }
       if (!text) {
         readmeText.content = `  (no README found for ${repo.fullName})`;
@@ -937,7 +1341,9 @@ export async function launchBrowser(): Promise<void> {
       detailText.content = "";
       return;
     }
-    const topics = repo.topics.length ? repo.topics.slice(0, 8).join(", ") : "—";
+    const topics = repo.topics.length
+      ? repo.topics.slice(0, 8).join(", ")
+      : "—";
     const desc = repo.description ?? "(no description)";
     const lines = [
       `Name     ${repo.fullName}`,
@@ -966,7 +1372,11 @@ export async function launchBrowser(): Promise<void> {
     return bits === 0 ? " " : String.fromCodePoint(0x2800 + bits);
   }
 
-  function buildChartString(values: number[], termW: number, termH: number): string[] {
+  function buildChartString(
+    values: number[],
+    termW: number,
+    termH: number,
+  ): string[] {
     if (values.length === 0) return ["(no data)"];
 
     // Braille resolution: 2 horizontal dots and 4 vertical dots per terminal cell.
@@ -980,10 +1390,12 @@ export async function launchBrowser(): Promise<void> {
     }
     const max = Math.max(...sampled, 1);
     // Map each sample to a dot row (0 = bottom, dotH-1 = top).
-    const dotRows = sampled.map(v => Math.round((v / max) * (dotH - 1)));
+    const dotRows = sampled.map((v) => Math.round((v / max) * (dotH - 1)));
 
     // Build a mask grid: dotGrid[row][col] = true if the silhouette passes through.
-    const dotGrid: boolean[][] = Array.from({ length: dotH }, () => Array(dotW).fill(false));
+    const dotGrid: boolean[][] = Array.from({ length: dotH }, () =>
+      Array(dotW).fill(false),
+    );
 
     // Draw the silhouette line: mark the dot at each column.
     for (let c = 0; c < dotW; c++) {
@@ -1008,20 +1420,40 @@ export async function launchBrowser(): Promise<void> {
         const r0 = tr * 4;
         const c0 = tc * 2;
         let bits = 0;
-        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0]) bits |= 0x01;
-        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0]) bits |= 0x02;
-        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0]) bits |= 0x04;
-        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1]) bits |= 0x08;
-        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1]) bits |= 0x10;
-        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1]) bits |= 0x20;
-        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0]) bits |= 0x40;
-        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1]) bits |= 0x80;
+        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0])
+          bits |= 0x01;
+        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0])
+          bits |= 0x02;
+        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0])
+          bits |= 0x04;
+        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1])
+          bits |= 0x08;
+        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1])
+          bits |= 0x10;
+        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1])
+          bits |= 0x20;
+        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0])
+          bits |= 0x40;
+        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1])
+          bits |= 0x80;
         chars.push(brailleChar(bits));
       }
 
       // Y-axis labels
-      const labelRows = [0, Math.floor(termH / 4), Math.floor(termH / 2), Math.floor(3 * termH / 4), termH - 1];
-      const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
+      const labelRows = [
+        0,
+        Math.floor(termH / 4),
+        Math.floor(termH / 2),
+        Math.floor((3 * termH) / 4),
+        termH - 1,
+      ];
+      const labelVals = [
+        max,
+        Math.round(max * 0.75),
+        Math.round(max / 2),
+        Math.round(max / 4),
+        0,
+      ];
       const idx = labelRows.indexOf(tr);
       let label = "     ";
       if (idx >= 0) label = String(labelVals[idx]).padStart(4) + " ";
@@ -1038,10 +1470,13 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
     try {
       const [chartRes, repoRes] = await Promise.all([
-        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
-          { headers: { "User-Agent": "ghfind/1.0" } }),
-        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`,
-          { headers: { "User-Agent": "ghfind/1.0" } }).then(r => r.ok ? r.json() : null),
+        fetch(
+          `https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
+          { headers: { "User-Agent": "ghfind/1.0" } },
+        ),
+        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`, {
+          headers: { "User-Agent": "ghfind/1.0" },
+        }).then((r) => (r.ok ? r.json() : null)),
       ]);
 
       let chartSection = "";
@@ -1052,18 +1487,23 @@ export async function launchBrowser(): Promise<void> {
           const chartW = 60;
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
-          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
+          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join(
+            "\n",
+          );
         }
       }
 
       const desc = repo.description ?? "";
       const lang = repo.language ?? "\u2014";
       const updated = repo.updatedAt ? repo.updatedAt.slice(0, 10) : "";
-      const topics = repoRes?.topics?.length ? repoRes.topics.slice(0, 8).join(", ") : "";
-
-      const growthLine = currentMode === "trending" && repo.score > 0
-        ? ` Growth \u25b2 ${fmtStars(repo.score)} ${trendingPeriod}`
+      const topics = repoRes?.topics?.length
+        ? repoRes.topics.slice(0, 8).join(", ")
         : "";
+
+      const growthLine =
+        currentMode === "trending" && repo.score > 0
+          ? ` Growth \u25b2 ${fmtStars(repo.score)} ${trendingPeriod}`
+          : "";
 
       const detailLines = [
         ` ${repo.fullName}`,
@@ -1075,12 +1515,9 @@ export async function launchBrowser(): Promise<void> {
         desc,
         "",
         ` ${repo.url}`,
-      ].filter(l => l !== "");
+      ].filter((l) => l !== "");
 
-      detailText.content = [
-        ...detailLines,
-        chartSection,
-      ].join("\n");
+      detailText.content = [...detailLines, chartSection].join("\n");
     } catch {
       detailText.content = "  Failed to load chart";
     }
@@ -1110,7 +1547,14 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Trending helpers ────────────────────────────────────────────────
 
-  function formatTrendingLine(r: { rank: number; owner: string; name: string; stars: number; starsToday: number; language: string }): string {
+  function formatTrendingLine(r: {
+    rank: number;
+    owner: string;
+    name: string;
+    stars: number;
+    starsToday: number;
+    language: string;
+  }): string {
     const rank = String(r.rank).padStart(2, "0");
     const name = `${r.owner}/${r.name}`.padEnd(30).slice(0, 30);
     const lang = (r.language || "?").padEnd(12).slice(0, 12);
@@ -1150,7 +1594,9 @@ export async function launchBrowser(): Promise<void> {
     toolbarText.visible = false;
     trendingTabBox.visible = true;
     renderTrendingTabs();
-    resultsSelect.options = [{ name: "  Loading trending...", description: "", value: null }];
+    resultsSelect.options = [
+      { name: "  Loading trending...", description: "", value: null },
+    ];
     detailText.content = "";
     statusMgr.set("loading", "Loading trending repos...");
     renderer.requestRender();
@@ -1158,8 +1604,13 @@ export async function launchBrowser(): Promise<void> {
     try {
       const fetched = await fetchTrendingRepos(tabSince(trendingTab));
       const since = tabSince(trendingTab);
-      trendingPeriod = since === "daily" ? "today" : since === "weekly" ? "this week" : "this month";
-      resultsSelect.options = fetched.map(r => ({
+      trendingPeriod =
+        since === "daily"
+          ? "today"
+          : since === "weekly"
+            ? "this week"
+            : "this month";
+      resultsSelect.options = fetched.map((r) => ({
         name: formatTrendingLine(r),
         description: r.description,
         value: trendingRepoToSelectValue(r),
@@ -1170,11 +1621,27 @@ export async function launchBrowser(): Promise<void> {
       } else {
         throw new NoResultsError(trendingTab);
       }
-      statusMgr.set("success", `${fetched.length} trending repos — ${trendingTab}`);
-      appendHistory({ query: `trending:${trendingTab}`, mode: "trending", tab: trendingTab, timestamp: Date.now(), resultCount: fetched.length });
+      statusMgr.set(
+        "success",
+        `${fetched.length} trending repos — ${trendingTab}`,
+      );
+      appendHistory({
+        query: `trending:${trendingTab}`,
+        mode: "trending",
+        tab: trendingTab,
+        timestamp: Date.now(),
+        resultCount: fetched.length,
+      });
     } catch (err) {
-      const msg = err instanceof SearchCliError ? err.userMessage : (err instanceof Error ? err.message : String(err));
-      resultsSelect.options = [{ name: " (error)", description: "", value: null }];
+      const msg =
+        err instanceof SearchCliError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
       statusMgr.set("error", msg.slice(0, 60));
     }
     isLoading = false;
@@ -1186,7 +1653,8 @@ export async function launchBrowser(): Promise<void> {
     trendingTabBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
-    searchInput.placeholder = "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
+    searchInput.placeholder =
+      "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
     searchInput.focus();
     renderer.requestRender();
   }
@@ -1201,7 +1669,9 @@ export async function launchBrowser(): Promise<void> {
     isLoading = true;
     currentQueryInput = q;
     if (!append) {
-      resultsSelect.options = [{ name: "  Searching...", description: "", value: null }];
+      resultsSelect.options = [
+        { name: "  Searching...", description: "", value: null },
+      ];
       detailText.content = "";
     }
     statusMgr.set("searching", `Searching for "${q}"`);
@@ -1239,15 +1709,30 @@ export async function launchBrowser(): Promise<void> {
         const idx = append ? resultsSelect.options.length - newRepos.length : 0;
         updateDetail(currentRepos[idx]);
         resultsSelect.setSelectedIndex(idx);
-        statusMgr.set("success", `Page ${currentPage} — ${currentRepos.length} of ${totalCount.toLocaleString()} results`);
+        statusMgr.set(
+          "success",
+          `Page ${currentPage} — ${currentRepos.length} of ${totalCount.toLocaleString()} results`,
+        );
         if (!append) {
-          appendHistory({ query: q, mode: "search", timestamp: Date.now(), resultCount: currentRepos.length });
+          appendHistory({
+            query: q,
+            mode: "search",
+            timestamp: Date.now(),
+            resultCount: currentRepos.length,
+          });
         }
       }
     } catch (err) {
       currentRepos = [];
-      resultsSelect.options = [{ name: " (error)", description: "", value: null }];
-      const msg = err instanceof SearchCliError ? err.userMessage : (err instanceof Error ? err.message : String(err));
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
+      const msg =
+        err instanceof SearchCliError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : String(err);
       statusMgr.set("error", msg.slice(0, 60));
     }
 
@@ -1313,21 +1798,56 @@ export async function launchBrowser(): Promise<void> {
   renderer.keyInput.on("keypress", (key) => {
     // ── Overlay-mode handling ────────────────────────────────────────
     if (currentOverlay !== "none") {
-      // Escape or q closes any overlay
-      if (key.name === "escape" || key.name === "q") {
+      // Escape or q closes any overlay (except: leader uses Esc for back-nav, q to close)
+      if (key.name === "escape") {
+        if (currentOverlay === "leader") {
+          if (!popMenuLevel()) {
+            showOverlay("none");
+          }
+          setToolbar();
+          renderer.requestRender();
+        } else {
+          showOverlay("none");
+          renderer.requestRender();
+        }
+        return;
+      }
+      if (key.name === "q") {
         showOverlay("none");
         renderer.requestRender();
         return;
       }
 
-      // Leader menu: Enter dispatches action, up/down navigates
+      // Leader menu: hierarchical submenu navigation
       if (currentOverlay === "leader") {
-        if (key.name === "enter" || key.name === "return") {
+        if (
+          key.name === "enter" ||
+          key.name === "return" ||
+          key.name === "right" ||
+          key.name === "l"
+        ) {
           const sel = leaderSelect.getSelectedOption();
-          const item = sel?.value as LeaderItem | undefined;
-          if (item) {
+          const entry = sel?.value as MenuEntry | undefined;
+          if (!entry) return;
+          if (entry.type === "category") {
+            pushMenuLevel(
+              `  Menu > ${entry.name}`,
+              entry.name,
+              entry.children,
+              0,
+            );
+            renderer.requestRender();
+          } else {
+            resetMenu();
             showOverlay("none");
-            item.action();
+            entry.action();
+            renderer.requestRender();
+          }
+          return;
+        }
+        if (key.name === "left" || key.name === "h") {
+          if (popMenuLevel()) {
+            setToolbar();
             renderer.requestRender();
           }
           return;
@@ -1365,7 +1885,8 @@ export async function launchBrowser(): Promise<void> {
             const entry = (sel.value as any).entry;
             showOverlay("none");
             if (entry.mode === "trending") {
-              if (entry.tab) trendingTab = entry.tab as typeof TAB_NAMES[number];
+              if (entry.tab)
+                trendingTab = entry.tab as (typeof TAB_NAMES)[number];
               loadTrending();
             } else {
               searchInput.value = entry.query;
@@ -1417,7 +1938,7 @@ export async function launchBrowser(): Promise<void> {
             showOverlay("none");
             touchSavedSearch(s.name);
             if (s.mode === "trending") {
-              if (s.tab) trendingTab = s.tab as typeof TAB_NAMES[number];
+              if (s.tab) trendingTab = s.tab as (typeof TAB_NAMES)[number];
               loadTrending();
             } else {
               searchInput.value = s.query;
@@ -1533,7 +2054,13 @@ export async function launchBrowser(): Promise<void> {
         toggleGraph();
         return;
       }
-      saveSession({ mode: currentMode, query: currentQueryInput, sort: currentSort, limit: currentLimit, trendingTab });
+      saveSession({
+        mode: currentMode,
+        query: currentQueryInput,
+        sort: currentSort,
+        limit: currentLimit,
+        trendingTab,
+      });
       cleanup();
       return;
     }
@@ -1569,9 +2096,10 @@ export async function launchBrowser(): Promise<void> {
         const currentWord = lastSpace >= 0 ? val.slice(lastSpace + 1) : val;
         const suggestions = suggestFor(currentWord);
         if (suggestions.length > 0) {
-          const newVal = lastSpace >= 0
-            ? val.slice(0, lastSpace + 1) + suggestions[0]
-            : suggestions[0];
+          const newVal =
+            lastSpace >= 0
+              ? val.slice(0, lastSpace + 1) + suggestions[0]
+              : suggestions[0];
           searchInput.value = newVal;
           renderer.requestRender();
         }
@@ -1603,14 +2131,20 @@ export async function launchBrowser(): Promise<void> {
     if (key.name === "left" || key.name === "h") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx > 0) { trendingTab = TAB_NAMES[idx - 1]; loadTrending(); }
+        if (idx > 0) {
+          trendingTab = TAB_NAMES[idx - 1];
+          loadTrending();
+        }
       }
       return;
     }
     if (key.name === "right" || key.name === "l") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
+        if (idx < TAB_NAMES.length - 1) {
+          trendingTab = TAB_NAMES[idx + 1];
+          loadTrending();
+        }
       }
       return;
     }
@@ -1670,7 +2204,11 @@ function formatToolbar(sort: SortStrategy, limit: number): string {
 }
 
 function cleanup(): void {
-  try { rotateHistory(); } catch { /* non-critical */ }
+  try {
+    rotateHistory();
+  } catch {
+    /* non-critical */
+  }
   process.exit(0);
 }
 
