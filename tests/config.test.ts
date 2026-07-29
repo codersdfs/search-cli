@@ -25,7 +25,7 @@ describe("config", () => {
     const cfg = loadConfig();
     expect(cfg.defaultSort).toBe("best-match");
     expect(cfg.defaultLimit).toBe(50);
-    expect(cfg.theme).toBe("tokyo-night");
+    expect(cfg.theme).toBe("premium-dark");
     expect(cfg.cacheTtlSeconds).toBe(300);
     expect(cfg.defaultTab).toBe("search");
   });
@@ -62,6 +62,6 @@ describe("config", () => {
     const cfg = loadConfig();
     expect(cfg.defaultLimit).toBe(25);
     expect(cfg.defaultSort).toBe("best-match");
-    expect(cfg.theme).toBe("tokyo-night");
+    expect(cfg.theme).toBe("premium-dark");
   });
 });

@@ -1,4 +1,4 @@
-# Dependencies
+Dependencies
 node_modules/
 
 # Build output
@@ -40,3 +40,4 @@ coverage/
 # Export files
 search-cli-export-*
 ghfind-export-*
+AGENTS.md
