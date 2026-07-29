@@ -32,14 +32,50 @@ import {
   ScrollBoxRenderable,
 } from "@opentui/core";
 import type { Repo, SearchOptions, SortStrategy } from "./types";
-import { parseQuery, applyFlagFilters, validateQuery, suggestFor, rankRepos, createGitHubSearch, type Logger } from "./search";
-import { fetchTrendingRepos, tabSince, TAB_NAMES, fmtStars, type TrendingRepo } from "./trending";
+import {
+  parseQuery,
+  applyFlagFilters,
+  validateQuery,
+  suggestFor,
+  rankRepos,
+  createGitHubSearch,
+  type Logger,
+} from "./search";
+import {
+  fetchTrendingRepos,
+  tabSince,
+  TAB_NAMES,
+  fmtStars,
+  type TrendingRepo,
+} from "./trending";
 import { loadConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
-import { SearchCliError, NetworkError, RateLimitError, BadQueryError, NoResultsError } from "./errors";
-import { appendHistory, readHistory, deleteHistoryEntry, clearHistory, rotateHistory } from "./history";
-import { getBookmarks, isBookmarked, toggleBookmark, removeBookmark } from "./bookmarks";
-import { getSavedSearches, saveSearch, deleteSavedSearch, touchSavedSearch } from "./saved-searches";
+import {
+  SearchCliError,
+  NetworkError,
+  RateLimitError,
+  BadQueryError,
+  NoResultsError,
+} from "./errors";
+import {
+  appendHistory,
+  readHistory,
+  deleteHistoryEntry,
+  clearHistory,
+  rotateHistory,
+} from "./history";
+import {
+  getBookmarks,
+  isBookmarked,
+  toggleBookmark,
+  removeBookmark,
+} from "./bookmarks";
+import {
+  getSavedSearches,
+  saveSearch,
+  deleteSavedSearch,
+  touchSavedSearch,
+} from "./saved-searches";
 import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
@@ -47,25 +83,43 @@ import { fetchTopics, type TopicItem } from "./explore";
 import { exportToFile, type ExportFormat } from "./export";
 import { loadTheme } from "./themes";
 import { StatusManager } from "./status";
-import { addNotification, getNotifications, dismissNotification, dismissAll } from "./notifications";
+import {
+  addNotification,
+  getNotifications,
+  dismissNotification,
+  dismissAll,
+} from "./notifications";
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
+import { checkForUpdate, installUpdate, type UpdateInfo } from "./update-check";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 // ─── Theme ────────────────────────────────────────────────────────────
+// Premium color system with layered surfaces and semantic colors
 const colors = {
-  bg: "#1e1e2e",
-  surface: "#181825",
-  text: "#cdd6f4",
-  muted: "#6c7086",
+  bg: "#3D3B3B",
+  surface: "#4a4848",
+  surfaceAlt: "#525050",
+  text: "#e0e4f0",
+  muted: "#a8a6a6",
   blue: "#89b4fa",
   green: "#a6e3a1",
   yellow: "#f9e2af",
   red: "#f38ba8",
   teal: "#94e2d5",
-  border: "#45475a",
-  selectionBg: "#2d5bcf",
+  purple: "#cba6f7",
+  orange: "#fab387",
+  border: "#1C1C1C",
+  borderAlt: "#2a2a2a",
+  separator: "#1C1C1C",  // Dark thin colorblock - thicker than border, visible separation
+  selectionBg: "#2A2A9C",
   selectionText: "#ffffff",
+  success: "#a6e3a1",
+  warning: "#f9e2af",
+  error: "#f38ba8",
 };
 
 // ─── Logger ───────────────────────────────────────────────────────────
@@ -131,33 +185,50 @@ export async function launchBrowser(): Promise<void> {
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
   let currentMode: "search" | "trending" = session?.mode ?? "search";
-  let trendingTab: typeof TAB_NAMES[number] = (session?.trendingTab as typeof TAB_NAMES[number]) ?? "This Week";
+  let trendingTab: (typeof TAB_NAMES)[number] =
+    (session?.trendingTab as (typeof TAB_NAMES)[number]) ?? "This Week";
   let trendingPeriod = "this week";
   let graphFullscreen = false;
   let chartCommitData: number[] = [];
-  let currentOverlay: "none" | "history" | "bookmarks" | "saved" | "help" | "topics" | "export" | "compare" | "notifications" | "share" | "leader" | "readme" = "none";
+  let currentOverlay:
+    | "none"
+    | "history"
+    | "bookmarks"
+    | "saved"
+    | "help"
+    | "topics"
+    | "export"
+    | "compare"
+    | "notifications"
+    | "share"
+    | "leader"
+    | "readme"
+    | "update" = "none";
+  let updateInfo: UpdateInfo | null = null;
+  let updateChoice: "yes" | "no" | "later" = "later";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
 
-
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
       " ghfind — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
-    backgroundColor: colors.bg,
-    color: colors.muted,
+    backgroundColor: colors.surface,
+    color: colors.text,
     height: 1,
+    borderBottom: true,
+    borderBottomColor: colors.border,
   });
-  root.add(header);
 
   // ── Trending tab bar (hidden in search mode) ────────────────────────
   const trendingTabBox = new BoxRenderable(renderer, {
     flexDirection: "row",
     height: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
+    // No border — pure contract-edge separation via text contrast
     paddingX: 1,
     visible: false,
   });
@@ -190,30 +261,45 @@ export async function launchBrowser(): Promise<void> {
       }
     });
   }
+  root.add(header);
   root.add(trendingTabBox);
 
   // ── Search input row ────────────────────────────────────────────────
   const searchBox = new BoxRenderable(renderer, {
-    visible: true, // hidden in trending mode
-    border: true,
-    borderColor: colors.blue,
-    paddingX: 1,
-    height: 3,
+    visible: true,
+    borderBottom: true,
+    borderBottomColor: colors.border,
+    title: " SEARCH ",
+    titleColor: colors.blue,
+    width: "100%",
+    flexDirection: "row",
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: colors.surface,
   });
   const searchInput = new InputRenderable(renderer, {
-    placeholder: "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)",
+    placeholder:
+      "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)",
     value: "",
+    backgroundColor: colors.surface,
+    textColor: colors.text,
+    borderColor: colors.blue,
+    selectedBorderColor: colors.blue,
+    paddingX: 0,
+    flexGrow: 1,
   });
   searchBox.add(searchInput);
   root.add(searchBox);
 
   // ── Toolbar (sort + limit indicator) ────────────────────────────────
   const toolbarText = new TextRenderable(renderer, {
-    content: formatToolbar(currentSort, currentLimit),
+    content: formatToolbar(currentSort, currentLimit, totalCount),
     visible: true, // hidden in trending mode
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,                  // Surface panel
     color: colors.muted,
     height: 1,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     paddingX: 1,
   });
   root.add(toolbarText);
@@ -229,8 +315,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Results pane
   const resultsBox = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Results ",
     titleColor: colors.blue,
     width: "50%",
@@ -239,11 +325,16 @@ export async function launchBrowser(): Promise<void> {
     focusable: false,
   });
   const resultsSelect = new SelectRenderable(renderer, {
-    options: [{ name: "", description: "Type a query and press Enter to search", value: null }],
+    options: [
+      {
+        name: "",
+        description: "Type a query and press Enter to search",
+        value: null,
+      },
+    ],
     showDescription: false,
     showSelectionIndicator: false,
     flexGrow: 1,
-    backgroundColor: colors.bg,
     textColor: colors.text,
     selectedBackgroundColor: colors.selectionBg,
     selectedTextColor: colors.selectionText,
@@ -255,8 +346,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Detail / Graph pane
   const detailBox = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Details ",
     titleColor: colors.green,
     width: "50%",
@@ -264,6 +355,7 @@ export async function launchBrowser(): Promise<void> {
     paddingX: 1,
     paddingY: 1,
     focusable: false,
+    backgroundColor: colors.surface,
   });
   const detailText = new TextRenderable(renderer, {
     content: "",
@@ -274,8 +366,6 @@ export async function launchBrowser(): Promise<void> {
   body.add(resultsBox);
   body.add(detailBox);
   root.add(body);
-
-
 
   // ── Overlay system ──────────────────────────────────────────────────
 
@@ -318,17 +408,31 @@ export async function launchBrowser(): Promise<void> {
     }
     currentOverlay = type;
     hideMainContent();
-    if (type === "help") { helpBox.visible = true; }
-    else if (type === "history") { historyBox.visible = true; }
-    else if (type === "bookmarks") { bookmarksBox.visible = true; }
-    else if (type === "saved") { savedBox.visible = true; }
-    else if (type === "topics") { topicsBox.visible = true; }
-    else if (type === "export") { exportBox.visible = true; }
-    else if (type === "compare") { compareBox.visible = true; }
-    else if (type === "notifications") { notifsBox.visible = true; }
-    else if (type === "share") { shareBox.visible = true; }
-    else if (type === "leader") { leaderBox.visible = true; }
-    else if (type === "readme") { readmeBox.visible = true; }
+    if (type === "help") {
+      helpBox.visible = true;
+    } else if (type === "history") {
+      historyBox.visible = true;
+    } else if (type === "bookmarks") {
+      bookmarksBox.visible = true;
+    } else if (type === "saved") {
+      savedBox.visible = true;
+    } else if (type === "topics") {
+      topicsBox.visible = true;
+    } else if (type === "export") {
+      exportBox.visible = true;
+    } else if (type === "compare") {
+      compareBox.visible = true;
+    } else if (type === "notifications") {
+      notifsBox.visible = true;
+    } else if (type === "share") {
+      shareBox.visible = true;
+    } else if (type === "leader") {
+      leaderBox.visible = true;
+    } else if (type === "readme") {
+      readmeBox.visible = true;
+    } else if (type === "update") {
+      updateBox.visible = true;
+    }
     renderer.requestRender();
   }
 
@@ -338,8 +442,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
   });
   const helpScroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
@@ -357,10 +461,12 @@ export async function launchBrowser(): Promise<void> {
   });
   for (const section of helpSections) {
     const sectionBox = new BoxRenderable(renderer, {
-      border: true,
-      borderColor: colors.border,
+      borderBottom: true,
+      borderBottomColor: colors.border,
       title: section.title,
-      titleColor: (colors as Record<string, string>)[section.titleColor] ?? section.titleColor,
+      titleColor:
+        (colors as Record<string, string>)[section.titleColor] ??
+        section.titleColor,
       flexDirection: "column",
       paddingY: 0,
       marginLeft: 1,
@@ -369,16 +475,20 @@ export async function launchBrowser(): Promise<void> {
     });
     for (const row of section.rows) {
       const keys = row.keys.padEnd(HELP_KEYS_COLUMN);
-      sectionBox.add(new TextRenderable(renderer, {
-        content: `  ${keys} ${row.action}`,
-        color: colors.text,
-      }));
+      sectionBox.add(
+        new TextRenderable(renderer, {
+          content: `  ${keys} ${row.action}`,
+          color: colors.text,
+        }),
+      );
     }
     if (section.note) {
-      sectionBox.add(new TextRenderable(renderer, {
-        content: `  ${section.note}`,
-        color: colors.muted,
-      }));
+      sectionBox.add(
+        new TextRenderable(renderer, {
+          content: `  ${section.note}`,
+          color: colors.muted,
+        }),
+      );
     }
     helpScroll.add(sectionBox);
   }
@@ -390,8 +500,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Search History ",
     titleColor: colors.blue,
   });
@@ -412,7 +522,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshHistory() {
     const entries = readHistory();
     if (entries.length === 0) {
-      historySelect.options = [{ name: "(no history)", description: "", value: null }];
+      historySelect.options = [
+        { name: "(no history)", description: "", value: null },
+      ];
     } else {
       historySelect.options = entries.map((e, i) => ({
         name: `${e.query}  — ${e.mode}${e.tab ? ` (${e.tab})` : ""}`,
@@ -428,8 +540,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Bookmarks ",
     titleColor: colors.green,
   });
@@ -450,7 +562,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshBookmarks() {
     const bookmarks = getBookmarks();
     if (bookmarks.length === 0) {
-      bookmarksSelect.options = [{ name: "(no bookmarks)", description: "", value: null }];
+      bookmarksSelect.options = [
+        { name: "(no bookmarks)", description: "", value: null },
+      ];
     } else {
       bookmarksSelect.options = bookmarks.map((b) => ({
         name: `${b.repo.fullName}  ★ ${b.repo.stars.toLocaleString()}`,
@@ -466,8 +580,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Saved Searches ",
     titleColor: colors.yellow,
   });
@@ -490,8 +604,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Topics ",
     titleColor: colors.purple ?? colors.blue,
   });
@@ -518,7 +632,9 @@ export async function launchBrowser(): Promise<void> {
         value: t,
       }));
     } catch {
-      topicsSelect.options = [{ name: "(failed to load topics)", description: "", value: null }];
+      topicsSelect.options = [
+        { name: "(failed to load topics)", description: "", value: null },
+      ];
     }
     topicsSelect.setSelectedIndex(0);
   }
@@ -528,16 +644,28 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Export ",
     titleColor: colors.green,
   });
   const exportSelect = new SelectRenderable(renderer, {
     options: [
-      { name: "  JSON", description: "Full repo data as JSON array", value: "json" },
-      { name: "  CSV", description: "Rank, name, stars, forks, language, URL", value: "csv" },
-      { name: "  Markdown", description: "Pretty table with links (paste into README)", value: "markdown" },
+      {
+        name: "  JSON",
+        description: "Full repo data as JSON array",
+        value: "json",
+      },
+      {
+        name: "  CSV",
+        description: "Rank, name, stars, forks, language, URL",
+        value: "csv",
+      },
+      {
+        name: "  Markdown",
+        description: "Pretty table with links (paste into README)",
+        value: "markdown",
+      },
       { name: "  Plain text", description: "One repo per line", value: "text" },
     ],
     showDescription: true,
@@ -557,8 +685,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Comparison ",
     titleColor: colors.yellow,
   });
@@ -575,8 +703,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Notifications ",
     titleColor: colors.yellow,
   });
@@ -604,16 +732,28 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Share Repo ",
     titleColor: colors.blue,
   });
   const shareSelect = new SelectRenderable(renderer, {
     options: [
-      { name: "  Markdown", description: "[owner/repo](url) — description", value: "markdown" },
-      { name: "  Plain", description: "owner/repo — description — url", value: "plain" },
-      { name: "  GitHub CLI", description: "gh repo view owner/repo", value: "gh-cli" },
+      {
+        name: "  Markdown",
+        description: "[owner/repo](url) — description",
+        value: "markdown",
+      },
+      {
+        name: "  Plain",
+        description: "owner/repo — description — url",
+        value: "plain",
+      },
+      {
+        name: "  GitHub CLI",
+        description: "gh repo view owner/repo",
+        value: "gh-cli",
+      },
       { name: "  Short", description: "owner/repo", value: "short" },
     ],
     showDescription: true,
@@ -630,7 +770,8 @@ export async function launchBrowser(): Promise<void> {
 
   function refreshCompare() {
     if (compareList.length < 2) {
-      compareText.content = "Select at least 2 repos to compare (press c to add).";
+      compareText.content =
+        "Select at least 2 repos to compare (press c to add).";
     } else {
       compareText.content = buildComparisonTable(compareList);
     }
@@ -639,7 +780,9 @@ export async function launchBrowser(): Promise<void> {
   function refreshSavedSearches() {
     const saved = getSavedSearches();
     if (saved.length === 0) {
-      savedSelect.options = [{ name: "(no saved searches)", description: "", value: null }];
+      savedSelect.options = [
+        { name: "(no saved searches)", description: "", value: null },
+      ];
     } else {
       savedSelect.options = saved.map((s) => ({
         name: `${s.name}`,
@@ -654,11 +797,15 @@ export async function launchBrowser(): Promise<void> {
   const leaderBox = new BoxRenderable(renderer, {
     visible: false,
     flexGrow: 1,
-    backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
-    title: " Menu ",
+    backgroundColor: colors.surface,
+    borderBottom: true,
+    borderBottomColor: colors.border,
+    title: " MENU ",
     titleColor: colors.blue,
+    titleAlign: "center",
+    paddingX: 2,
+    paddingTop: 1,
+    paddingBottom: 1,
     flexDirection: "column",
   });
   const leaderSelect = new SelectRenderable(renderer, {
@@ -666,48 +813,116 @@ export async function launchBrowser(): Promise<void> {
     showDescription: true,
     showSelectionIndicator: true,
     flexGrow: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     textColor: colors.text,
     selectedBackgroundColor: colors.selectionBg,
     selectedTextColor: colors.selectionText,
-    itemSpacing: 0,
+    itemSpacing: 2,
+    borderColor: colors.border,
   });
   const leaderFooter = new TextRenderable(renderer, {
-    content: "  ↑↓ select  Enter run  Esc/q close",
+    content: " ↑↓ select   Enter run   Esc/q close ",
     color: colors.muted,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     height: 1,
-    paddingX: 1,
+    borderTop: true,
+    borderTopColor: colors.border,
+    paddingX: 2,
   });
   leaderBox.add(leaderSelect);
   leaderBox.add(leaderFooter);
   root.add(leaderBox);
 
-  interface LeaderItem { name: string; description: string; action: () => void; }
+  interface LeaderItem {
+    name: string;
+    description: string;
+    action: () => void;
+  }
 
   function showLeaderMenu() {
     const items: LeaderItem[] = [];
 
     if (currentMode === "search") {
       items.push(
-        { name: "  Sort", description: `Cycle sort (current: ${currentSort})`, action: () => changeSort() },
-        { name: "  Limit", description: `Cycle result limit (current: ${currentLimit})`, action: () => changeLimit() },
-        { name: "  Refresh", description: "Re-run current search", action: () => { if (currentQueryInput) doSearch(currentQueryInput); } },
-        { name: "  Toggle trending", description: "Browse GitHub trending repos", action: () => loadTrending() },
-        { name: "  Deep-dive", description: "Languages, contributors, README excerpt", action: () => { showOverlay("none"); triggerDeepDive(); } },
-        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
-        { name: "  Activity graph", description: "Toggle commit chart fullscreen", action: () => toggleGraph() },
-        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
-        { name: "  Compare", description: "Add/remove repo to comparison", action: () => toggleCompareOnSelected() },
+        {
+          name: "  Sort",
+          description: `Cycle sort (current: ${currentSort})`,
+          action: () => changeSort(),
+        },
+        {
+          name: "  Limit",
+          description: `Cycle result limit (current: ${currentLimit})`,
+          action: () => changeLimit(),
+        },
+        {
+          name: "  Refresh",
+          description: "Re-run current search",
+          action: () => {
+            if (currentQueryInput) doSearch(currentQueryInput);
+          },
+        },
+        {
+          name: "  Toggle trending",
+          description: "Browse GitHub trending repos",
+          action: () => loadTrending(),
+        },
+        {
+          name: "  Deep-dive",
+          description: "Languages, contributors, README excerpt",
+          action: () => {
+            showOverlay("none");
+            triggerDeepDive();
+          },
+        },
+        {
+          name: "  Readme",
+          description: "Full README viewer",
+          action: () => {
+            showReadme();
+          },
+        },
+        {
+          name: "  Activity graph",
+          description: "Toggle commit chart fullscreen",
+          action: () => toggleGraph(),
+        },
+        {
+          name: "  Bookmark",
+          description: "Save / unsave selected repo",
+          action: () => toggleBookmarkOnSelected(),
+        },
+        {
+          name: "  Compare",
+          description: "Add/remove repo to comparison",
+          action: () => toggleCompareOnSelected(),
+        },
       );
     }
 
     if (currentMode === "trending") {
       items.push(
-        { name: "  Refresh", description: "Reload trending repos", action: () => loadTrending() },
-        { name: "  Search mode", description: "Switch to query search", action: () => showSearchMode() },
-        { name: "  Readme", description: "Full README viewer", action: () => { showReadme(); } },
-        { name: "  Bookmark", description: "Save / unsave selected repo", action: () => toggleBookmarkOnSelected() },
+        {
+          name: "  Refresh",
+          description: "Reload trending repos",
+          action: () => loadTrending(),
+        },
+        {
+          name: "  Search mode",
+          description: "Switch to query search",
+          action: () => showSearchMode(),
+        },
+        {
+          name: "  Readme",
+          description: "Full README viewer",
+          action: () => {
+            showReadme();
+          },
+        },
+        {
+          name: "  Bookmark",
+          description: "Save / unsave selected repo",
+          action: () => toggleBookmarkOnSelected(),
+        },
       );
     }
 
@@ -718,17 +933,79 @@ export async function launchBrowser(): Promise<void> {
     })();
 
     items.push(
-      { name: "  Open in browser", description: "Open selected repo in browser", action: () => openUrlIfSelected() },
-      { name: "  History", description: "Search history", action: () => { refreshHistory(); showOverlay("history"); } },
-      { name: "  Saved searches", description: "Load a saved search", action: () => { refreshSavedSearches(); showOverlay("saved"); } },
-      { name: "  Export", description: "Export results to JSON/CSV/Markdown", action: () => showOverlay("export") },
-      { name: "  Share repo", description: "Copy repo link to clipboard", action: () => showShareIfRepo() },
-      { name: "  Notifications", description: "View alerts", action: () => { refreshNotifications(); showOverlay("notifications"); } },
-      { name: "  Topics", description: "Browse popular GitHub topics", action: () => { refreshTopics(); showOverlay("topics"); } },
-      { name: "  Compare view", description: "Show side-by-side comparison", action: () => { refreshCompare(); showOverlay("compare"); } },
-      { name: "  Bookmarks panel", description: "Browse saved repos", action: () => { refreshBookmarks(); showOverlay("bookmarks"); } },
-      { name: "  Save search", description: "Save current query", action: () => saveCurrentSearch() },
-      { name: "  Help", description: "Keybindings reference", action: () => showOverlay("help") },
+      {
+        name: "  Open in browser",
+        description: "Open selected repo in browser",
+        action: () => openUrlIfSelected(),
+      },
+      {
+        name: "  History",
+        description: "Search history",
+        action: () => {
+          refreshHistory();
+          showOverlay("history");
+        },
+      },
+      {
+        name: "  Saved searches",
+        description: "Load a saved search",
+        action: () => {
+          refreshSavedSearches();
+          showOverlay("saved");
+        },
+      },
+      {
+        name: "  Export",
+        description: "Export results to JSON/CSV/Markdown",
+        action: () => showOverlay("export"),
+      },
+      {
+        name: "  Share repo",
+        description: "Copy repo link to clipboard",
+        action: () => showShareIfRepo(),
+      },
+      {
+        name: "  Notifications",
+        description: "View alerts",
+        action: () => {
+          refreshNotifications();
+          showOverlay("notifications");
+        },
+      },
+      {
+        name: "  Topics",
+        description: "Browse popular GitHub topics",
+        action: () => {
+          refreshTopics();
+          showOverlay("topics");
+        },
+      },
+      {
+        name: "  Compare view",
+        description: "Show side-by-side comparison",
+        action: () => {
+          refreshCompare();
+          showOverlay("compare");
+        },
+      },
+      {
+        name: "  Bookmarks panel",
+        description: "Browse saved repos",
+        action: () => {
+          refreshBookmarks();
+          showOverlay("bookmarks");
+        },
+      },
+      {
+        name: "  Save search",
+        description: "Save current query",
+        action: () => saveCurrentSearch(),
+      },
+      {
+        name: "  Help",
+        description: "Keybindings reference",
+        action: () => showOverlay("help"),
+      },
     );
 
     leaderSelect.options = items.map((it) => ({
@@ -753,7 +1030,9 @@ export async function launchBrowser(): Promise<void> {
     const repo = opt?.value as Repo | undefined;
     if (repo) {
       const added = toggleBookmark(repo);
-      setStatus(added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`);
+      setStatus(
+        added ? `Bookmarked ${repo.fullName}` : `Unbookmarked ${repo.fullName}`,
+      );
     }
   }
 
@@ -767,23 +1046,36 @@ export async function launchBrowser(): Promise<void> {
       setStatus(`Removed ${repo.fullName} from comparison`);
     } else {
       compareList.push(repo);
-      setStatus(`${repo.fullName} added to comparison (${compareList.length} selected)`);
+      setStatus(
+        `${repo.fullName} added to comparison (${compareList.length} selected)`,
+      );
     }
   }
 
   function showShareIfRepo() {
     const opt = resultsSelect.getSelectedOption();
     const repo = opt?.value as Repo | undefined;
-    if (!repo) { setStatus("No repo selected to share"); return; }
+    if (!repo) {
+      setStatus("No repo selected to share");
+      return;
+    }
     showOverlay("share");
   }
 
   function saveCurrentSearch() {
     if (currentQueryInput) {
-      const name = currentQueryInput.length > 40
-        ? currentQueryInput.slice(0, 37) + "..."
-        : currentQueryInput;
-      saveSearch(name, currentQueryInput, currentMode, currentSort, currentLimit, currentMode === "trending" ? trendingTab : undefined);
+      const name =
+        currentQueryInput.length > 40
+          ? currentQueryInput.slice(0, 37) + "..."
+          : currentQueryInput;
+      saveSearch(
+        name,
+        currentQueryInput,
+        currentMode,
+        currentSort,
+        currentLimit,
+        currentMode === "trending" ? trendingTab : undefined,
+      );
       setStatus(`Saved as "${name}"`);
     } else {
       setStatus("No search to save");
@@ -817,9 +1109,9 @@ export async function launchBrowser(): Promise<void> {
   const readmeBox = new BoxRenderable(renderer, {
     visible: false,
     flexGrow: 1,
-    backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.green,
+    backgroundColor: colors.surface,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " README ",
     titleColor: colors.green,
   });
@@ -854,6 +1146,67 @@ export async function launchBrowser(): Promise<void> {
   readmeBox.add(readmeFooter);
   root.add(readmeBox);
 
+  // ── Update modal (blocking Yes/No/Later) ─────────────────────────────
+  const updateBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderTop: true,
+    borderTopColor: colors.yellow,
+    borderBottom: true,
+    borderBottomColor: colors.yellow,
+    title: " UPDATE AVAILABLE ",
+    titleColor: colors.yellow,
+    titleAlign: "center",
+    flexDirection: "column",
+    paddingX: 2,
+    paddingTop: 2,
+    paddingBottom: 1,
+    gap: 1,
+  });
+  const updateTitle = new TextRenderable(renderer, {
+    content: "",
+    color: colors.text,
+    backgroundColor: colors.surface,
+  });
+  const updateBody = new TextRenderable(renderer, {
+    content: "",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+  });
+  const updateFooter = new TextRenderable(renderer, {
+    content: " [Y]es  [N]o  [L]ater ",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+    height: 1,
+    borderTop: true,
+    borderTopColor: colors.yellow,
+  });
+  updateBox.add(updateTitle);
+  updateBox.add(updateBody);
+  updateBox.add(updateFooter);
+  root.add(updateBox);
+
+  function showUpdateModal(info: UpdateInfo): void {
+    updateInfo = info;
+    updateChoice = "later";
+    updateTitle.content = `ghfind ${info.current} → ${info.latest} is available`;
+    updateBody.content = `A newer version (${info.latest}) is published on npm.\n  Run npm install -g github-search-cli to upgrade.\n  Press Y to install now, N to skip, L to dismiss.`;
+    showOverlay("update");
+  }
+
+  async function handleUpdateChoice(): Promise<void> {
+    if (!updateInfo) return;
+    showOverlay("none");
+    if (updateChoice === "yes") {
+      const result = installUpdate();
+      addNotification("upgrade", result.message);
+      if (result.success) {
+        process.exit(0);
+      }
+    }
+  }
+
   async function showReadme() {
     const opt = resultsSelect.getSelectedOption();
     const repo = opt?.value as Repo | undefined;
@@ -872,8 +1225,13 @@ export async function launchBrowser(): Promise<void> {
         `${repo.owner}/${repo.name}/master/README.md`,
         `${repo.owner}/${repo.name}/main/README.rst`,
       ]) {
-        const r = await fetch(`https://raw.githubusercontent.com/${path}`, { headers });
-        if (r.ok) { text = await r.text(); break; }
+        const r = await fetch(`https://raw.githubusercontent.com/${path}`, {
+          headers,
+        });
+        if (r.ok) {
+          text = await r.text();
+          break;
+        }
       }
       if (!text) {
         readmeText.content = `  (no README found for ${repo.fullName})`;
@@ -899,10 +1257,12 @@ export async function launchBrowser(): Promise<void> {
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     color: colors.muted,
     height: 1,
     paddingX: 1,
+    borderTop: true,
+    borderTopColor: colors.border,
   });
   root.add(statusBar);
 
@@ -928,7 +1288,7 @@ export async function launchBrowser(): Promise<void> {
   }
 
   function setToolbar() {
-    toolbarText.content = formatToolbar(currentSort, currentLimit);
+    toolbarText.content = formatToolbar(currentSort, currentLimit, totalCount);
     renderer.requestRender();
   }
 
@@ -937,22 +1297,30 @@ export async function launchBrowser(): Promise<void> {
       detailText.content = "";
       return;
     }
-    const topics = repo.topics.length ? repo.topics.slice(0, 8).join(", ") : "—";
+    const topics = repo.topics.length
+      ? repo.topics.slice(0, 8).join(", ")
+      : "—";
     const desc = repo.description ?? "(no description)";
+    const stars = repo.stars.toLocaleString();
+    const forks = repo.forks.toLocaleString();
+    const lang = repo.language ?? "—";
+    const updated = repo.updatedAt.slice(0, 10);
+    const statusTags: string[] = [];
+    if (repo.archived) statusTags.push("archived");
+    if (repo.isFork) statusTags.push("fork");
+    const tagStr = statusTags.length ? `  [${statusTags.join(", ")}]` : "";
+    
     const lines = [
-      `Name     ${repo.fullName}`,
-      `Stars    ${repo.stars.toLocaleString()}`,
-      `Forks    ${repo.forks.toLocaleString()}`,
-      `Lang     ${repo.language ?? "—"}`,
-      `Updated  ${repo.updatedAt.slice(0, 10)}`,
-      repo.archived ? "Status   archived" : "",
-      repo.isFork ? "Status   fork" : "",
-      `Topics   ${topics}`,
-      "",
-      desc,
-      "",
-      repo.url,
-    ].filter((l) => l !== "");
+      `  ${repo.fullName}${tagStr}`,
+      ``,
+      `  ★  ${stars}    ♡  ${forks}    ${lang}`,
+      `  Updated  ${updated}`,
+      `  Topics   ${topics}`,
+      ``,
+      `  ${desc}`,
+      ``,
+      `  ${repo.url}`,
+    ];
     detailText.content = lines.join("\n");
   }
 
@@ -966,7 +1334,11 @@ export async function launchBrowser(): Promise<void> {
     return bits === 0 ? " " : String.fromCodePoint(0x2800 + bits);
   }
 
-  function buildChartString(values: number[], termW: number, termH: number): string[] {
+  function buildChartString(
+    values: number[],
+    termW: number,
+    termH: number,
+  ): string[] {
     if (values.length === 0) return ["(no data)"];
 
     // Braille resolution: 2 horizontal dots and 4 vertical dots per terminal cell.
@@ -980,10 +1352,12 @@ export async function launchBrowser(): Promise<void> {
     }
     const max = Math.max(...sampled, 1);
     // Map each sample to a dot row (0 = bottom, dotH-1 = top).
-    const dotRows = sampled.map(v => Math.round((v / max) * (dotH - 1)));
+    const dotRows = sampled.map((v) => Math.round((v / max) * (dotH - 1)));
 
     // Build a mask grid: dotGrid[row][col] = true if the silhouette passes through.
-    const dotGrid: boolean[][] = Array.from({ length: dotH }, () => Array(dotW).fill(false));
+    const dotGrid: boolean[][] = Array.from({ length: dotH }, () =>
+      Array(dotW).fill(false),
+    );
 
     // Draw the silhouette line: mark the dot at each column.
     for (let c = 0; c < dotW; c++) {
@@ -1008,29 +1382,54 @@ export async function launchBrowser(): Promise<void> {
         const r0 = tr * 4;
         const c0 = tc * 2;
         let bits = 0;
-        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0]) bits |= 0x01;
-        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0]) bits |= 0x02;
-        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0]) bits |= 0x04;
-        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1]) bits |= 0x08;
-        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1]) bits |= 0x10;
-        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1]) bits |= 0x20;
-        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0]) bits |= 0x40;
-        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1]) bits |= 0x80;
+        if (r0 + 0 < dotH && c0 + 0 < dotW && dotGrid[r0 + 0][c0 + 0])
+          bits |= 0x01;
+        if (r0 + 1 < dotH && c0 + 0 < dotW && dotGrid[r0 + 1][c0 + 0])
+          bits |= 0x02;
+        if (r0 + 2 < dotH && c0 + 0 < dotW && dotGrid[r0 + 2][c0 + 0])
+          bits |= 0x04;
+        if (r0 + 0 < dotH && c0 + 1 < dotW && dotGrid[r0 + 0][c0 + 1])
+          bits |= 0x08;
+        if (r0 + 1 < dotH && c0 + 1 < dotW && dotGrid[r0 + 1][c0 + 1])
+          bits |= 0x10;
+        if (r0 + 2 < dotH && c0 + 1 < dotW && dotGrid[r0 + 2][c0 + 1])
+          bits |= 0x20;
+        if (r0 + 3 < dotH && c0 + 0 < dotW && dotGrid[r0 + 3][c0 + 0])
+          bits |= 0x40;
+        if (r0 + 3 < dotH && c0 + 1 < dotW && dotGrid[r0 + 3][c0 + 1])
+          bits |= 0x80;
         chars.push(brailleChar(bits));
       }
 
-      // Y-axis labels
-      const labelRows = [0, Math.floor(termH / 4), Math.floor(termH / 2), Math.floor(3 * termH / 4), termH - 1];
-      const labelVals = [max, Math.round(max * 0.75), Math.round(max / 2), Math.round(max / 4), 0];
+      // Y-axis labels with gradient indicators
+      const labelRows = [
+        0,
+        Math.floor(termH / 4),
+        Math.floor(termH / 2),
+        Math.floor((3 * termH) / 4),
+        termH - 1,
+      ];
+      const labelVals = [
+        max,
+        Math.round(max * 0.75),
+        Math.round(max / 2),
+        Math.round(max / 4),
+        0,
+      ];
       const idx = labelRows.indexOf(tr);
       let label = "     ";
-      if (idx >= 0) label = String(labelVals[idx]).padStart(4) + " ";
-      lines.push(`${label}\u2524${chars.join("")}`);
+      if (idx >= 0) {
+        const val = labelVals[idx];
+        label = val >= 1000 ? `${(val/1000).toFixed(1).replace(/\.0$/, "")}k` : String(val);
+        label = label.padStart(5) + " ";
+      }
+      lines.push(`${label}┆${chars.join("")}`);
     }
 
-    // X-axis
-    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(termW)}`);
-    return lines;
+    // X-axis with week labels
+    const xAxis = `     ┆${"─".repeat(termW)}`;
+    const weekLabels = `     ┆ ${"1w".padEnd(Math.floor(termW/4))} ${"13w".padEnd(Math.floor(termW/4))} ${"26w".padEnd(Math.floor(termW/4))} ${"52w"}`;
+    return [xAxis, weekLabels];
   }
 
   async function loadChart(repo: Repo) {
@@ -1038,10 +1437,13 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
     try {
       const [chartRes, repoRes] = await Promise.all([
-        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
-          { headers: { "User-Agent": "ghfind/1.0" } }),
-        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`,
-          { headers: { "User-Agent": "ghfind/1.0" } }).then(r => r.ok ? r.json() : null),
+        fetch(
+          `https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
+          { headers: { "User-Agent": "ghfind/1.0" } },
+        ),
+        fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`, {
+          headers: { "User-Agent": "ghfind/1.0" },
+        }).then((r) => (r.ok ? r.json() : null)),
       ]);
 
       let chartSection = "";
@@ -1052,35 +1454,38 @@ export async function launchBrowser(): Promise<void> {
           const chartW = 60;
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
-          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
+          chartSection = ["", " Weekly commits (52 weeks)", ...chartLines].join(
+            "\n",
+          );
         }
       }
 
       const desc = repo.description ?? "";
-      const lang = repo.language ?? "\u2014";
+      const lang = repo.language ?? "—";
       const updated = repo.updatedAt ? repo.updatedAt.slice(0, 10) : "";
-      const topics = repoRes?.topics?.length ? repoRes.topics.slice(0, 8).join(", ") : "";
-
-      const growthLine = currentMode === "trending" && repo.score > 0
-        ? ` Growth \u25b2 ${fmtStars(repo.score)} ${trendingPeriod}`
+      const topics = repoRes?.topics?.length
+        ? repoRes.topics.slice(0, 8).join(", ")
         : "";
 
-      const detailLines = [
-        ` ${repo.fullName}`,
-        ` \u2606 ${repo.stars.toLocaleString()}  \u2666 ${repo.forks.toLocaleString()}  ${lang}`,
-        growthLine,
-        updated ? ` Updated ${updated}` : "",
-        topics ? ` Topics  ${topics}` : "",
-        "",
-        desc,
-        "",
-        ` ${repo.url}`,
-      ].filter(l => l !== "");
+      const growthLine =
+        currentMode === "trending" && repo.score > 0
+          ? `  ▲ Growth  ${fmtStars(repo.score)} ${trendingPeriod}`
+          : "";
 
-      detailText.content = [
-        ...detailLines,
-        chartSection,
-      ].join("\n");
+      const detailLines = [
+        `  ${repo.fullName}`,
+        ``,
+        `  ★  ${repo.stars.toLocaleString()}    ♡  ${repo.forks.toLocaleString()}    ${lang}`,
+        growthLine,
+        `  Updated  ${updated}`,
+        topics ? `  Topics   ${topics}` : "",
+        ``,
+        `  ${desc}`,
+        ``,
+        `  ${repo.url}`,
+      ].filter((l) => l !== "");
+
+      detailText.content = [...detailLines, chartSection].join("\n");
     } catch {
       detailText.content = "  Failed to load chart";
     }
@@ -1110,12 +1515,19 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Trending helpers ────────────────────────────────────────────────
 
-  function formatTrendingLine(r: { rank: number; owner: string; name: string; stars: number; starsToday: number; language: string }): string {
+  function formatTrendingLine(r: {
+    rank: number;
+    owner: string;
+    name: string;
+    stars: number;
+    starsToday: number;
+    language: string;
+  }): string {
     const rank = String(r.rank).padStart(2, "0");
-    const name = `${r.owner}/${r.name}`.padEnd(30).slice(0, 30);
+    const name = `${r.owner}/${r.name}`.padEnd(35).slice(0, 35);
     const lang = (r.language || "?").padEnd(12).slice(0, 12);
-    const stars = `★ ${fmtStars(r.stars)}`.padEnd(9).slice(0, 9);
-    const arrow = r.starsToday > 0 ? "▲" : r.starsToday < 0 ? "▼" : "—";
+    const stars = `★ ${fmtStars(r.stars)}`.padEnd(10).slice(0, 10);
+    const arrow = r.starsToday > 0 ? "▲" : r.starsToday < 0 ? "▼" : "●";
     const growth = `${arrow} ${fmtStars(r.starsToday)} ${trendingPeriod}`;
     return `[${rank}] ${name} ${lang} ${stars} ${growth}`;
   }
@@ -1150,7 +1562,9 @@ export async function launchBrowser(): Promise<void> {
     toolbarText.visible = false;
     trendingTabBox.visible = true;
     renderTrendingTabs();
-    resultsSelect.options = [{ name: "  Loading trending...", description: "", value: null }];
+    resultsSelect.options = [
+      { name: "  Loading trending...", description: "", value: null },
+    ];
     detailText.content = "";
     statusMgr.set("loading", "Loading trending repos...");
     renderer.requestRender();
@@ -1158,8 +1572,13 @@ export async function launchBrowser(): Promise<void> {
     try {
       const fetched = await fetchTrendingRepos(tabSince(trendingTab));
       const since = tabSince(trendingTab);
-      trendingPeriod = since === "daily" ? "today" : since === "weekly" ? "this week" : "this month";
-      resultsSelect.options = fetched.map(r => ({
+      trendingPeriod =
+        since === "daily"
+          ? "today"
+          : since === "weekly"
+            ? "this week"
+            : "this month";
+      resultsSelect.options = fetched.map((r) => ({
         name: formatTrendingLine(r),
         description: r.description,
         value: trendingRepoToSelectValue(r),
@@ -1170,11 +1589,27 @@ export async function launchBrowser(): Promise<void> {
       } else {
         throw new NoResultsError(trendingTab);
       }
-      statusMgr.set("success", `${fetched.length} trending repos — ${trendingTab}`);
-      appendHistory({ query: `trending:${trendingTab}`, mode: "trending", tab: trendingTab, timestamp: Date.now(), resultCount: fetched.length });
+      statusMgr.set(
+        "success",
+        `${fetched.length} trending repos — ${trendingTab}`,
+      );
+      appendHistory({
+        query: `trending:${trendingTab}`,
+        mode: "trending",
+        tab: trendingTab,
+        timestamp: Date.now(),
+        resultCount: fetched.length,
+      });
     } catch (err) {
-      const msg = err instanceof SearchCliError ? err.userMessage : (err instanceof Error ? err.message : String(err));
-      resultsSelect.options = [{ name: " (error)", description: "", value: null }];
+      const msg =
+        err instanceof SearchCliError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
       statusMgr.set("error", msg.slice(0, 60));
     }
     isLoading = false;
@@ -1186,7 +1621,8 @@ export async function launchBrowser(): Promise<void> {
     trendingTabBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
-    searchInput.placeholder = "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
+    searchInput.placeholder =
+      "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
     searchInput.focus();
     renderer.requestRender();
   }
@@ -1201,7 +1637,9 @@ export async function launchBrowser(): Promise<void> {
     isLoading = true;
     currentQueryInput = q;
     if (!append) {
-      resultsSelect.options = [{ name: "  Searching...", description: "", value: null }];
+      resultsSelect.options = [
+        { name: "  Searching...", description: "", value: null },
+      ];
       detailText.content = "";
     }
     statusMgr.set("searching", `Searching for "${q}"`);
@@ -1239,15 +1677,30 @@ export async function launchBrowser(): Promise<void> {
         const idx = append ? resultsSelect.options.length - newRepos.length : 0;
         updateDetail(currentRepos[idx]);
         resultsSelect.setSelectedIndex(idx);
-        statusMgr.set("success", `Page ${currentPage} — ${currentRepos.length} of ${totalCount.toLocaleString()} results`);
+        statusMgr.set(
+          "success",
+          `Page ${currentPage} — ${currentRepos.length} of ${totalCount.toLocaleString()} results`,
+        );
         if (!append) {
-          appendHistory({ query: q, mode: "search", timestamp: Date.now(), resultCount: currentRepos.length });
+          appendHistory({
+            query: q,
+            mode: "search",
+            timestamp: Date.now(),
+            resultCount: currentRepos.length,
+          });
         }
       }
     } catch (err) {
       currentRepos = [];
-      resultsSelect.options = [{ name: " (error)", description: "", value: null }];
-      const msg = err instanceof SearchCliError ? err.userMessage : (err instanceof Error ? err.message : String(err));
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
+      const msg =
+        err instanceof SearchCliError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : String(err);
       statusMgr.set("error", msg.slice(0, 60));
     }
 
@@ -1365,7 +1818,8 @@ export async function launchBrowser(): Promise<void> {
             const entry = (sel.value as any).entry;
             showOverlay("none");
             if (entry.mode === "trending") {
-              if (entry.tab) trendingTab = entry.tab as typeof TAB_NAMES[number];
+              if (entry.tab)
+                trendingTab = entry.tab as (typeof TAB_NAMES)[number];
               loadTrending();
             } else {
               searchInput.value = entry.query;
@@ -1417,7 +1871,7 @@ export async function launchBrowser(): Promise<void> {
             showOverlay("none");
             touchSavedSearch(s.name);
             if (s.mode === "trending") {
-              if (s.tab) trendingTab = s.tab as typeof TAB_NAMES[number];
+              if (s.tab) trendingTab = s.tab as (typeof TAB_NAMES)[number];
               loadTrending();
             } else {
               searchInput.value = s.query;
@@ -1522,6 +1976,26 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
+      // Update modal: Y/N/L
+      if (currentOverlay === "update") {
+        if (key.name === "y" || key.name === "Y") {
+          updateChoice = "yes";
+          void handleUpdateChoice();
+          return;
+        }
+        if (key.name === "n" || key.name === "N") {
+          updateChoice = "no";
+          showOverlay("none");
+          return;
+        }
+        if (key.name === "l" || key.name === "L") {
+          updateChoice = "later";
+          showOverlay("none");
+          return;
+        }
+        return;
+      }
+
       return;
     }
 
@@ -1533,7 +2007,13 @@ export async function launchBrowser(): Promise<void> {
         toggleGraph();
         return;
       }
-      saveSession({ mode: currentMode, query: currentQueryInput, sort: currentSort, limit: currentLimit, trendingTab });
+      saveSession({
+        mode: currentMode,
+        query: currentQueryInput,
+        sort: currentSort,
+        limit: currentLimit,
+        trendingTab,
+      });
       cleanup();
       return;
     }
@@ -1569,9 +2049,10 @@ export async function launchBrowser(): Promise<void> {
         const currentWord = lastSpace >= 0 ? val.slice(lastSpace + 1) : val;
         const suggestions = suggestFor(currentWord);
         if (suggestions.length > 0) {
-          const newVal = lastSpace >= 0
-            ? val.slice(0, lastSpace + 1) + suggestions[0]
-            : suggestions[0];
+          const newVal =
+            lastSpace >= 0
+              ? val.slice(0, lastSpace + 1) + suggestions[0]
+              : suggestions[0];
           searchInput.value = newVal;
           renderer.requestRender();
         }
@@ -1603,14 +2084,20 @@ export async function launchBrowser(): Promise<void> {
     if (key.name === "left" || key.name === "h") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx > 0) { trendingTab = TAB_NAMES[idx - 1]; loadTrending(); }
+        if (idx > 0) {
+          trendingTab = TAB_NAMES[idx - 1];
+          loadTrending();
+        }
       }
       return;
     }
     if (key.name === "right" || key.name === "l") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
-        if (idx < TAB_NAMES.length - 1) { trendingTab = TAB_NAMES[idx + 1]; loadTrending(); }
+        if (idx < TAB_NAMES.length - 1) {
+          trendingTab = TAB_NAMES[idx + 1];
+          loadTrending();
+        }
       }
       return;
     }
@@ -1635,6 +2122,24 @@ export async function launchBrowser(): Promise<void> {
     }
   });
 
+  // ── Update check (before start) ──────────────────────────────────────
+  const pkgPath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "package.json",
+  );
+  let currentVersion = "0.0.0";
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    currentVersion = pkg.version;
+  } catch {
+    // non-critical
+  }
+  const updateResult = await checkForUpdate(currentVersion);
+  if (updateResult.info) {
+    showUpdateModal(updateResult.info);
+  }
+
   // ── Start ──────────────────────────────────────────────────────────
   renderer.start();
   if (currentMode === "trending") {
@@ -1656,21 +2161,27 @@ export async function launchBrowser(): Promise<void> {
 function formatResultLine(repo: Repo): string {
   const stars = formatStars(repo.stars);
   const lang = (repo.language ?? "?").padEnd(12).slice(0, 12);
-  return `${repo.fullName}  ${stars}`;
+  const name = repo.fullName.padEnd(40).slice(0, 40);
+  return `${name}  ${lang}  ${stars}`;
 }
 
 function formatStars(n: number): string {
+  if (n >= 1000000) return `★ ${(n / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1000) return `★ ${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return `★ ${n}`;
 }
 
-function formatToolbar(sort: SortStrategy, limit: number): string {
+function formatToolbar(sort: SortStrategy, limit: number, totalCount: number): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
-  return ` sort: ${sortLabel}   limit: ${limit}`;
+  return ` sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}`;
 }
 
 function cleanup(): void {
-  try { rotateHistory(); } catch { /* non-critical */ }
+  try {
+    rotateHistory();
+  } catch {
+    /* non-critical */
+  }
   process.exit(0);
 }
 
