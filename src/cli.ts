@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { launchBrowser } from "./tui";
+import { fetchTrendingRepos, trendingRepoToRepo } from "./trending";
 import type { SearchOptions } from "./types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -175,6 +176,23 @@ Options:
 async function runNonInteractive(flags: CLIFlags, format?: ExportFormat) {
   const query = flags.query;
   const provider = createGitHubSearch(undefined, flags.token ? [flags.token] : []);
+
+  // --trending mode: fetch trending repos instead of searching
+  if (flags.trending && !flags.watch) {
+    const since = flags.since === "weekly" ? "weekly" : flags.since === "monthly" ? "monthly" : "daily";
+    const repos = await fetchTrendingRepos(since);
+    const formatted = repos.map(trendingRepoToRepo);
+    if (format) {
+      console.log(formatRepos(formatted, format));
+    } else if (flags.count) {
+      console.log(formatted.length);
+    } else {
+      for (const r of repos) {
+        console.log(r.owner + "/" + r.name + "  ★ " + r.stars + "  ▲ +" + r.starsToday + " " + since + "  ● " + r.language);
+      }
+    }
+    return;
+  }
 
   // --watch mode
   if (flags.watch) {

@@ -107,6 +107,11 @@ const colors = {
   border: "#45475a",
   selectionBg: "#2d5bcf",
   selectionText: "#ffffff",
+  // Premium accents for the command menu
+  accent: "#89b4fa",
+  accentDim: "#587cf5",
+  surfaceDim: "#1a1919",
+  borderAccent: "#1a1919",
 };
 
 // ─── Logger ───────────────────────────────────────────────────────────
@@ -366,6 +371,7 @@ export async function launchBrowser(): Promise<void> {
     notifsBox.visible = false;
     shareBox.visible = false;
     leaderBox.visible = false;
+    leaderDim.visible = false;
     readmeBox.visible = false;
 
     if (type === "none") {
@@ -398,6 +404,7 @@ export async function launchBrowser(): Promise<void> {
     } else if (type === "share") {
       shareBox.visible = true;
     } else if (type === "leader") {
+      leaderDim.visible = true;
       leaderBox.visible = true;
     } else if (type === "readme") {
       readmeBox.visible = true;
@@ -763,6 +770,18 @@ export async function launchBrowser(): Promise<void> {
   }
 
   // ── Leader menu overlay (Space key) ─────────────────────────────
+  // Dim overlay — sits behind the menu, above main content
+  const leaderDim = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#00000099", // 60% opacity black (hex alpha: 0x99 ≈ 153/255)
+  });
+  root.add(leaderDim);
+
   const leaderBox = new BoxRenderable(renderer, {
     visible: false,
     position: "absolute",
@@ -770,11 +789,13 @@ export async function launchBrowser(): Promise<void> {
     height: 18,
     left: "10%",
     top: "30%",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceDim,
     border: true,
-    borderColor: colors.border,
-    title: " Menu ",
-    titleColor: colors.blue,
+    borderStyle: "rounded",
+    borderColor: colors.borderAccent,
+    title: " ⚙ Menu ",
+    titleColor: colors.accent,
+    titleAlignment: "left",
     flexDirection: "column",
     paddingX: 1,
   });
@@ -783,21 +804,26 @@ export async function launchBrowser(): Promise<void> {
     showDescription: true,
     showSelectionIndicator: true,
     flexGrow: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surfaceDim,
     textColor: colors.text,
-    selectedBackgroundColor: colors.selectionBg,
+    focusedBackgroundColor: colors.surfaceDim,
+    focusedTextColor: colors.text,
+    selectedBackgroundColor: colors.accent,
     selectedTextColor: colors.selectionText,
+    descriptionColor: colors.muted,
+    selectedDescriptionColor: colors.selectionText,
     itemSpacing: 0,
   });
   const leaderFooter = new TextRenderable(renderer, {
     content: "  ↑↓ select  Enter run  Esc/q close",
     color: colors.muted,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surfaceDim,
     height: 1,
     paddingX: 1,
   });
   leaderBox.add(leaderSelect);
   leaderBox.add(leaderFooter);
+  root.add(leaderDim);
   root.add(leaderBox);
 
   // ── Hierarchical menu types ──────────────────────────────────────
@@ -1120,7 +1146,7 @@ export async function launchBrowser(): Promise<void> {
   function showLeaderMenu() {
     resetMenu();
     const topLevel = buildMenuHierarchy();
-    pushMenuLevel("  Menu", "", topLevel, 0);
+    pushMenuLevel(" ⚙ Menu ", "", topLevel, 0);
     leaderSelect.focus();
     showOverlay("leader");
   }

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — ghfind</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .dot { width: 0.5rem; height: 0.5rem; border-radius: 9999px; display: inline-block; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-2">
+        <h1 class="text-3xl font-serif">Architecture review — ghfind</h1>
+        <p class="text-sm text-slate-500">July 29, 2026 · 21 source modules, 15 test files</p>
+        <div class="flex gap-4 text-xs uppercase tracking-wider text-slate-500">
+          <span><span class="inline-block w-3 h-3 border border-slate-400 mr-1"></span>module</span>
+          <span><span class="inline-block w-3 h-3 border-2 border-dashed border-slate-400 mr-1"></span>seam</span>
+          <span><span class="inline-block w-3 h-3 bg-red-500 mr-1"></span>leakage</span>
+          <span><span class="inline-block w-3 h-3 bg-slate-900 mr-1"></span>deep module</span>
+        </div>
+      </header>
+
+      <!-- ── Candidate 1 ── -->
+      <section id="candidate-1" class="space-y-4">
+        <article class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-serif">Collapse the Trending module into the Search module</h2>
+            <div class="flex gap-2 flex-shrink-0">
+              <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 rounded">Strong</span>
+              <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">ports &amp; adapters</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-600">
+            src/trending.ts · src/search.ts · src/cli.ts · src/watch.ts · src/tui.ts
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">Before — two parallel fetch paths, duplicated conversion</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph T[trending.ts — 526 lines]
+    direction TB
+    F[fetchTrendingRepos<br/>HTML scrape] --> P[parseTrendingHtml]
+    P --> R[TrendingRepo[]]
+    R --> C[trendingRepoToRepo]
+    C --> S[Repo[]]
+  end
+  subgraph S2[search.ts — 555 lines]
+    direction TB
+    A[GitHubSearchAdapter<br/>API fetch] --> N[normalizeEnvelope]
+    N --> R2[Repo[]]
+    R2 --> K[rankRepos]
+  end
+  T -.leak.-> S2
+  CLI[cli.ts] --> T
+  CLI --> S2
+  W[watch.ts] --> T
+  W --> S2
+  TU[tui.ts] --> T
+  TU --> S2
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class T,S2 leak
+              </pre>
+            </div>
+            <!-- After -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">After — one Search module, trending as an adapter strategy</p>
+              <div class="relative h-48">
+                <div class="absolute inset-0 border-2 border-slate-900 rounded-lg bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 flex flex-col">
+                  <div class="text-xs uppercase tracking-wider text-slate-300 mb-1">Search module</div>
+                  <div class="text-sm text-slate-200 mb-2">interface: search(query, options) → SearchResponse</div>
+                  <div class="text-xs text-slate-400">adapters: GitHub API · GitHub Trending HTML · in-memory (tests)</div>
+                </div>
+                <div class="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 h-6 border-2 border-dashed border-slate-400 rounded flex items-center justify-center text-xs text-slate-500">
+                  adapter seam
+                </div>
+                <div class="absolute -bottom-14 left-1/2 -translate-x-1/2 w-24 text-center">
+                  <div class="text-xs text-slate-600">in-memory adapter</div>
+                  <div class="text-xs text-slate-400">(tests)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <p><strong>Problem:</strong> The Trending module (526 lines) is a parallel fetch path that scrapes HTML from github.com/trending, parses it into <code>TrendingRepo[]</code>, then converts each to <code>Repo</code> via <code>trendingRepoToRepo</code>. The Search module (555 lines) fetches from the GitHub API, normalizes to <code>Repo[]</code>, and ranks. Both paths are consumed by cli.ts, watch.ts, and tui.ts — three call sites each import from both modules. The <code>TrendingRepo</code> type is a near-duplicate of <code>Repo</code> with <code>starsToday</code> and <code>rank</code> added. The conversion function <code>trendingRepoToRepo</code> is duplicated logic that fills in fake values (forks: 0, watchers: 0, createdAt: "") for fields the HTML scrape doesn't provide.</p>
+            <p><strong>Solution:</strong> Collapse trending into the Search module as a second adapter. Add a <code>TrendingSearchAdapter</code> that implements <code>SearchAdapter</code> — it scrapes HTML, parses, and returns <code>SearchResponse</code> directly. The <code>TrendingRepo</code> type disappears; trending repos become <code>Repo</code> objects with <code>score</code> carrying the star-growth value (already used in tui.ts line 1531). The <code>trendingRepoToRepo</code> conversion function is deleted. The <code>SearchModule</code> already has the adapter seam — this is a real seam with three adapters (GitHub API, GitHub Trending HTML, in-memory).</p>
+            <ul class="text-sm text-slate-600 space-y-0.5">
+              <li>• <strong>locality:</strong> both fetch paths in one module, not scattered across 2 files</li>
+              <li>• <strong>leverage:</strong> one adapter seam, 3 implementations — call sites use one interface</li>
+              <li>• <strong>interface:</strong> 3 call sites × 2 imports → 1 import from Search module</li>
+              <li>• <strong>tests:</strong> trending adapter tested via in-memory adapter, no HTML fixture needed for integration</li>
+              <li>• <strong>deletion:</strong> removes <code>trendingRepoToRepo</code>, <code>TrendingRepo</code> type, and the duplicate <code>Repo</code> conversion</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Candidate 2 ── -->
+      <section id="candidate-2" class="space-y-4">
+        <article class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-serif">Extract a persistence adapter for state files</h2>
+            <div class="flex gap-2 flex-shrink-0">
+              <span class="px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded">Worth exploring</span>
+              <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">local-substitutable</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-600">
+            src/history.ts · src/bookmarks.ts · src/saved-searches.ts · src/session.ts · src/notifications.ts · src/config.ts
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">Before — 6 modules, each re-implementing file I/O</p>
+              <pre class="mermaid">
+flowchart LR
+  H[history.ts<br/>JSONL + rotate] --> FS[fs + stateDir]
+  B[bookmarks.ts<br/>JSON + sort] --> FS
+  S[saved-searches.ts<br/>JSON + sort] --> FS
+  N[notifications.ts<br/>JSON + load/save] --> FS
+  C[config.ts<br/>JSON + merge] --> FS
+  ST[session.ts<br/>JSON] --> FS
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class H,B,S,N,C,ST leak
+              </pre>
+            </div>
+            <!-- After -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">After — one persistence adapter, 6 thin domain modules</p>
+              <div class="relative h-48">
+                <div class="absolute top-0 left-0 right-0 h-10 border-2 border-slate-900 rounded-lg bg-gradient-to-br from-slate-900 to-slate-800 text-white p-2">
+                  <div class="text-xs uppercase tracking-wider text-slate-300">Persistence adapter</div>
+                  <div class="text-xs text-slate-400">readJSON / writeJSON / appendJSONL / stateDir</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-28 flex gap-1">
+                  <div class="flex-1 border border-slate-300 rounded p-1 text-center">
+                    <div class="text-xs text-slate-600">history</div>
+                  </div>
+                  <div class="flex-1 border border-slate-300 rounded p-1 text-center">
+                    <div class="text-xs text-slate-600">bookmarks</div>
+                  </div>
+                  <div class="flex-1 border border-slate-300 rounded p-1 text-center">
+                    <div class="text-xs text-slate-600">saved-searches</div>
+                  </div>
+                  <div class="flex-1 border border-slate-300 rounded p-1 text-center">
+                    <div class="text-xs text-slate-600">notifications</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <p><strong>Problem:</strong> Six modules each independently call <code>mkdirSync</code>, <code>readFileSync</code>, <code>writeFileSync</code>, and <code>stateDir()</code> from config.ts. The file I/O pattern is duplicated with minor variations (JSON vs JSONL, append vs overwrite, sort vs unsorted). This is a classic local-substitutable seam — the same logic repeated, just with different filenames.</p>
+            <p><strong>Solution:</strong> Extract a single persistence adapter with <code>readJSON&lt;T&gt;(path)</code>, <code>writeJSON(path, data)</code>, <code>appendJSONL(path, obj)</code>, and <code>stateDir()</code>. Each domain module becomes a thin wrapper that delegates I/O to the adapter. The adapter is the seam — swap it for an in-memory implementation in tests.</p>
+            <ul class="text-sm text-slate-600 space-y-0.5">
+              <li>• <strong>leverage:</strong> one I/O implementation, 6 call sites</li>
+              <li>• <strong>locality:</strong> file I/O bugs (permissions, race conditions) fix in one place</li>
+              <li>• <strong>tests:</strong> swap adapter for in-memory, no temp files needed</li>
+              <li>• <strong>interface:</strong> 6 modules × 3 fs calls → 1 adapter with 4 methods</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Candidate 3 ── -->
+      <section id="candidate-3" class="space-y-4">
+        <article class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-serif">Collapse export + pipe into a single Output module</h2>
+            <div class="flex gap-2 flex-shrink-0">
+              <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 rounded">Strong</span>
+              <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">local-substitutable</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-600">
+            src/export.ts · src/pipe.ts · src/cli.ts
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">Before — 2 modules, 8 format functions, duplicated switch</p>
+              <div class="relative h-48">
+                <div class="absolute top-0 left-0 right-0 h-20 border-2 border-slate-300 rounded p-2">
+                  <div class="text-xs text-slate-600">export.ts</div>
+                  <div class="text-xs text-slate-500">formatJson · formatCsv · formatMarkdown · formatText · formatRepos · exportToFile</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-20 border-2 border-slate-300 rounded p-2">
+                  <div class="text-xs text-slate-600">pipe.ts</div>
+                  <div class="text-xs text-slate-500">formatUrls · formatNames · formatSshUrls · formatCloneCommands · formatIds · formatLines · pipeExec</div>
+                </div>
+                <div class="absolute top-20 left-1/2 -translate-x-1/2 w-24 text-center">
+                  <span class="text-xs text-red-500">leak</span>
+                  <div class="text-xs text-slate-400">both switch on format string</div>
+                </div>
+              </div>
+            </div>
+            <!-- After -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">After — one Output module with a registry pattern</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph OUT[Output module]
+    direction TB
+    REG[format registry<br/>Map&lt;Format, fn&gt;] --> FMT[format(repos, format)]
+    FMT --> EXP[exportToFile]
+    FMT --> PIPE[pipeExec]
+  end
+  CLI[cli.ts] --> OUT
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class OUT deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <p><strong>Problem:</strong> export.ts and pipe.ts are two shallow modules that both implement a switch on a format string. export.ts handles JSON/CSV/Markdown/text; pipe.ts handles urls/names/ssh-urls/clone-commands/ids. Both have a <code>formatX</code> function per format and a dispatcher. The interface (format string) is nearly as complex as the implementation (8 format functions). cli.ts imports from both.</p>
+            <p><strong>Solution:</strong> Collapse into one Output module. Use a registry: <code>const FORMATS = new Map&lt;Format, (repos) =&gt; string&gt;()</code>. Both export and pipe formats register in the same map. One <code>format(repos, format)</code> function dispatches. <code>exportToFile</code> and <code>pipeExec</code> become methods on the same module.</p>
+            <ul class="text-sm text-slate-600 space-y-0.5">
+              <li>• <strong>leverage:</strong> one format registry, one dispatcher</li>
+              <li>• <strong>interface:</strong> 2 modules × 7 functions → 1 module with registry</li>
+              <li>• <strong>locality:</strong> adding a new format = 1 line in the registry, not 2 files</li>
+              <li>• <strong>tests:</strong> test format registry directly, no cli.ts needed</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Candidate 4 ── -->
+      <section id="candidate-4" class="space-y-4">
+        <article class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-serif">Deepen the TUI into a view layer with a state module</h2>
+            <div class="flex gap-2 flex-shrink-0">
+              <span class="px-2 py-0.5 text-xs bg-slate-100 text-slate-800 rounded">Speculative</span>
+              <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">in-process</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-600">
+            src/tui.ts · src/deepdive.ts · src/compare.ts · src/explore.ts · src/trending.ts
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">Before — 2000-line tui.ts with embedded domain logic</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph TUI[tui.ts — 2000 lines]
+    direction TB
+    SR[search state] --> HL[history calls]
+    SR --> BM[bookmark calls]
+    SR --> SS[saved-search calls]
+    SR --> DD[deep-dive fetch]
+    SR --> CP[compare logic]
+    SR --> TP[topic fetch]
+    SR --> EX[export calls]
+  end
+  H[history.ts] -.-> TUI
+  B[bookmarks.ts] -.-> TUI
+  S[saved-searches.ts] -.-> TUI
+  D[deepdive.ts] -.-> TUI
+  C[compare.ts] -.-> TUI
+  E[explore.ts] -.-> TUI
+  X[export.ts] -.-> TUI
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class H,B,S,D,C,E,X leak
+              </pre>
+            </div>
+            <!-- After -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">After — TUI is a pure view, state module holds all domain calls</p>
+              <div class="relative h-48">
+                <div class="absolute top-0 left-0 right-0 h-12 border-2 border-slate-900 rounded-lg bg-gradient-to-br from-slate-900 to-slate-800 text-white p-2">
+                  <div class="text-xs uppercase tracking-wider text-slate-300">TUI view layer</div>
+                  <div class="text-xs text-slate-400">renders state, dispatches actions</div>
+                </div>
+                <div class="absolute top-16 left-0 right-0 h-12 border-2 border-slate-300 rounded-lg bg-white p-2">
+                  <div class="text-xs uppercase tracking-wider text-slate-500">SearchState module</div>
+                  <div class="text-xs text-slate-400">search · history · bookmarks · saved-searches · deep-dive · compare</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-10 border-2 border-dashed border-slate-400 rounded flex items-center justify-center text-xs text-slate-500">
+                  adapter seam: Search module
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <p><strong>Problem:</strong> tui.ts is 2000+ lines and directly imports 14 modules. It mixes rendering logic with state management, domain calls, and event handling. Understanding the TUI requires bouncing between tui.ts, deepdive.ts, compare.ts, explore.ts, and trending.ts. The state (currentRepos, currentPage, compareList, deepDiveActive, graphFullscreen) is scattered across local variables in the launchBrowser closure.</p>
+            <p><strong>Solution:</strong> Extract a SearchState module that owns all state and domain calls. The TUI becomes a pure view that reads from SearchState and dispatches actions. SearchState exposes a narrow interface: <code>search()</code>, <code>nextPage()</code>, <code>toggleBookmark()</code>, <code>addToCompare()</code>, <code>toggleDeepDive()</code>, <code>loadTrending()</code>, etc.</p>
+            <ul class="text-sm text-slate-600 space-y-0.5">
+              <li>• <strong>locality:</strong> state mutations in one module, not scattered in closure</li>
+              <li>• <strong>interface:</strong> 14 imports → 1 SearchState import in the view</li>
+              <li>• <strong>tests:</strong> SearchState is testable without OpenTUI renderer</li>
+              <li>• <strong>caution:</strong> OpenTUI's renderer is tightly coupled to component lifecycle — may need adapter for testability</li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Candidate 5 ── -->
+      <section id="candidate-5" class="space-y-4">
+        <article class="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-serif">Collapse the CLI routing into a single dispatch table</h2>
+            <div class="flex gap-2 flex-shrink-0">
+              <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 rounded">Strong</span>
+              <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">local-substitutable</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-600">
+            src/cli.ts · src/search.ts · src/trending.ts · src/watch.ts · src/export.ts · src/pipe.ts
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Before -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">Before — 257-line cli.ts with 6 branching paths</p>
+              <div class="relative h-48">
+                <div class="absolute inset-0 border-2 border-slate-300 rounded-lg bg-white p-4 flex flex-col">
+                  <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">cli.ts — runNonInteractive</div>
+                  <div class="text-xs text-slate-400">if trending → fetchTrendingRepos</div>
+                  <div class="text-xs text-slate-400">if watch → runWatch</div>
+                  <div class="text-xs text-slate-400">if pipe → provider.search + pipeExec</div>
+                  <div class="text-xs text-slate-400">if format → provider.search + formatLines</div>
+                  <div class="text-xs text-slate-400">else → provider.search + formatRepos</div>
+                  <div class="text-xs text-red-500 mt-2">leak: each branch re-parses query, re-builds options, re-calls rankRepos</div>
+                </div>
+              </div>
+            </div>
+            <!-- After -->
+            <div>
+              <p class="text-xs text-slate-500 mb-2">After — one dispatch table, shared query/options setup</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph CLI[cli.ts]
+    direction TB
+    P[parseArgs] --> D[dispatch table]
+    D --> T[trending handler]
+    D --> W[watch handler]
+    D --> S[search handler]
+    S --> F[format/pipe/export]
+  end
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class CLI deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <p><strong>Problem:</strong> cli.ts's <code>runNonInteractive</code> function has 6 branching paths (trending, watch, pipe, format, count, standard search). Each branch independently calls <code>applyFlagFilters(parseQuery(query), {})</code>, builds <code>SearchOptions</code>, calls <code>provider.search</code>, and calls <code>rankRepos</code>. The query parsing and options construction is duplicated 4 times. The trending path is entirely separate from the search path, even though both produce <code>Repo[]</code>.</p>
+            <p><strong>Solution:</strong> Collapse the 6 branches into a dispatch table. Extract the shared setup (parse query, build options, create provider) into one function. Each handler receives the parsed query and options, and returns <code>Repo[]</code> or <code>SearchResponse</code>. The trending handler uses the trending adapter; the search handler uses the GitHub adapter. Both return <code>Repo[]</code> from the same interface.</p>
+            <ul class="text-sm text-slate-600 space-y-0.5">
+              <li>• <strong>locality:</strong> query parsing in one place, not duplicated 4 times</li>
+              <li>• <strong>interface:</strong> 6 branches → 1 dispatch with shared setup</li>
+              <li>• <strong>tests:</strong> each handler testable independently with in-memory adapter</li>
+              <li>• <strong>deletion:</strong> removes 4 copies of <code>applyFlagFilters(parseQuery(query), {})</code></li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <!-- ── Top recommendation ── -->
+      <section id="top-recommendation" class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-6">
+        <h2 class="text-xl font-serif">Top recommendation</h2>
+        <div class="space-y-2">
+          <p><strong>Collapse the Trending module into the Search module</strong> (Candidate 1).</p>
+          <p>The Search module already has the adapter seam (<code>SearchAdapter</code> interface, <code>GitHubSearchAdapter</code>, <code>InMemoryAdapter</code>). The Trending module is a parallel fetch path that produces the same <code>Repo[]</code> output but through a different adapter (HTML scrape vs API). The deletion test passes — collapsing these concentrates the fetch logic into one deep module rather than spreading it across 2 files. Three call sites (cli.ts, watch.ts, tui.ts) each import from both modules; unifying them behind the existing adapter seam eliminates the duplicate <code>trendingRepoToRepo</code> conversion and the <code>TrendingRepo</code> type. The <code>SearchModule</code> already caches responses — trending repos would benefit from the same caching without any new code.</p>
+          <p class="text-sm"><a href="#candidate-1" class="text-emerald-700 underline">→ Jump to candidate 1</a></p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
