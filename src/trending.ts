@@ -11,9 +11,9 @@ import {
   dim,
   t,
 } from "@opentui/core";
-import type { Repo } from "./types";
+import type { Repo, ParsedQuery } from "./types";
 import { openUrl } from "./open-url";
-import { NetworkError } from "./errors";
+import { SearchModule, TrendingAdapter } from "./search";
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
   bg: "#1a1b26",
@@ -79,104 +79,6 @@ export function tabSince(tab: TabName): "daily" | "weekly" | "monthly" {
     default:          return "monthly";
   }
 }
-// ─── Types ────────────────────────────────────────────────────────────
-export interface TrendingRepo {
-  rank: number;
-  owner: string;
-  name: string;
-  stars: number;
-  starsToday: number;
-  language: string;
-  description: string;
-}
-// ─── HTML scraping parser ─────────────────────────────────────────────
-const TRENDING_URL = "https://github.com/trending";
-/**
- * Fetch trending repos by scraping github.com/trending HTML.
- *
- * The page structure (2026):
- *   <article class="Box-row">
- *     <h2><a href="/owner/name">repo name</a></h2>
- *     <p>description</p>
- *     <span itemprop="programmingLanguage">TypeScript</span>
- *     <a href="/owner/name/stargazers">  N,NNN </a>
- *     <span> NNN stars today </span>
- *
- * github.com/trending?since=daily|weekly|monthly
- *
- * Falls back to starsToday: 0 if the HTML format changes.
- */
-export async function fetchTrendingRepos(since: "daily" | "weekly" | "monthly"): Promise<TrendingRepo[]> {
-  const url = since === "daily" ? TRENDING_URL : `${TRENDING_URL}?since=${since}`;
-  let res: Response;
-  try {
-    res = await fetch(url, { headers: { "User-Agent": "ghfind" } });
-  } catch {
-    throw new NetworkError();
-  }
-  if (!res.ok) throw new NetworkError();
-  const html = await res.text();
-  return parseTrendingHtml(html);
-}
-/** Parse github.com/trending HTML into TrendingRepo[]. */
-export function parseTrendingHtml(html: string): TrendingRepo[] {
-  // Trim whitespace before flattening to avoid regex issues
-  const flat = html.replace(/>\s+</g, "><").replace(/\s+/g, " ");
-  const repos: TrendingRepo[] = [];
-  // Regex to extract each article block
-  // We match articles and then extract fields from each
-  const articleRe = /<article class="Box-row">(.*?)<\/article>/gi;
-  let match: RegExpExecArray | null;
-  let rank = 0;
-  while ((match = articleRe.exec(flat)) !== null) {
-    rank++;
-    const block = match[1];
-    // Extract owner/name from href="/owner/name" within a Link class anchor
-    // The repo link is the first h2 > a in the article
-    const repoMatch = block.match(/href="\/([^\/"]+)\/([^\/"?#]+)"[^>]*class="Link"/);
-    if (!repoMatch) continue;
-    const owner = repoMatch[1];
-    const name = repoMatch[2];
-    // Total stars: the stargazers link contains the count
-    // Total stars: appears after </svg> inside the stargazers link
-    const starsMatch = block.match(/href="\/[^\/"]+\/[^\/"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/);
-    const stars = starsMatch ? parseInt(starsMatch[1].replace(/,/g, ""), 10) : 0;
-    // Growth: "NNN stars today" or "NNN stars this week/month"
-    const growthMatch = block.match(/(\d[\d,]*)\s+stars\s+(today|this\s+\w+)/);
-    const starsToday = growthMatch ? parseInt(growthMatch[1].replace(/,/g, ""), 10) : 0;
-    // Language: <span itemprop="programmingLanguage">TypeScript</span>
-    const langMatch = block.match(/itemprop="programmingLanguage">([^<]+)</);
-    const language = langMatch ? langMatch[1].trim() : "";
-    // Description: <p class="col-9 color-fg-muted my-1 tmp-pr-4">desc</p>
-    const descMatch = block.match(/<p[^>]*class="[^"]*color-fg-muted[^"]*"[^>]*>([^<]+)</);
-    const description = descMatch ? descMatch[1].trim() : "";
-    repos.push({ rank, owner, name, stars, starsToday, language, description });
-  }
-  return repos;
-}
-/** Convert TrendingRepo → Repo for use with export/format functions. */
-export function trendingRepoToRepo(r: TrendingRepo, query?: string): Repo {
-  return {
-    id: 0,
-    fullName: `${r.owner}/${r.name}`,
-    name: r.name,
-    owner: r.owner,
-    description: r.description,
-    url: `https://github.com/${r.owner}/${r.name}`,
-    stars: r.stars,
-    forks: 0,
-    watchers: 0,
-    language: r.language,
-    topics: [],
-    archived: false,
-    isFork: false,
-    private: false,
-    createdAt: "",
-    updatedAt: "",
-    pushedAt: "",
-    score: r.starsToday,
-  };
-}
 // ─── Number formatting ────────────────────────────────────────────────
 /** 1234 → "1.2k", 1234567 → "1.2M", 999999 → "1M" */
 export function fmtStars(n: number): string {
@@ -206,18 +108,18 @@ export function fmtSigned(n: number): string {
  *   - Growth: green bold
  *   - Description: dim muted gray
  */
-export function formatRepoLine(repo: TrendingRepo): StyledText {
-  const rank = String(repo.rank).padStart(2, "0");
+export function formatRepoLine(repo: Repo, rank: number): StyledText {
+  const rankStr = String(rank).padStart(2, "0");
   const full = `${repo.owner}/${repo.name}`;
-  const lc = langColor(repo.language);
-  const rc = rankColor(repo.rank);
+  const lc = langColor(repo.language ?? "");
+  const rc = rankColor(rank);
   const star = "★";
-  const arrow = repo.starsToday > 0 ? "▲" : "▼";
-  const growth = `${arrow} ${fmtSigned(repo.starsToday)} today`;
-  const desc = repo.description.length > 60
-    ? repo.description.slice(0, 57) + "..."
-    : repo.description;
-  const line1 = t`${dim(fg(C.rankBg)(`[${rank}]`))} ${bold(fg("#c0caf5")(full))}  ${fg(lc)(`● ${repo.language}`)}  ${fg(C.gold)(`${star} ${fmtStars(repo.stars)}`)}  ${bold(fg(C.green)(growth))}`;
+  const arrow = repo.score > 0 ? "▲" : repo.score < 0 ? "▼" : "—";
+  const growth = `${arrow} ${fmtSigned(repo.score)} today`;
+  const desc = (repo.description ?? "").length > 60
+    ? (repo.description ?? "").slice(0, 57) + "..."
+    : (repo.description ?? "");
+  const line1 = t`${dim(fg(C.rankBg)(`[${rankStr}]`))} ${bold(fg("#c0caf5")(full))}  ${fg(lc)(`● ${repo.language}`)}  ${fg(C.gold)(`${star} ${fmtStars(repo.stars)}`)}  ${bold(fg(C.green)(growth))}`;
   const line2 = t`  ${dim(fg(C.muted)(desc))}`;
   const chunks = [
     ...line1.chunks,
@@ -267,7 +169,7 @@ export async function launchTrending(): Promise<void> {
   // ── State ──
   let selectedTab = 1; // "This Week" default
   let currentPeriod = "this week";
-  let repos: TrendingRepo[] = [];
+  let repos: Repo[] = [];
   let selectedRepoIdx = 0;
   let isLoading = false;
   // ── Fetch from github.com/trending ──
@@ -288,9 +190,17 @@ export async function launchTrending(): Promise<void> {
     scrollBox.add(loadingText);
     renderer.requestRender();
     try {
-      const fetched = await fetchTrendingRepos(tabSince(TAB_NAMES[index]));
+      const searchModule = new SearchModule(new TrendingAdapter());
+      const parsed: ParsedQuery = { keywords: [], qualifiers: [], raw: "trending" };
+      const response = await searchModule.search(parsed, {
+        limit: 25,
+        sort: "stars",
+        json: false,
+        verbose: false,
+        trendingSince: tabSince(TAB_NAMES[index]),
+      });
       scrollBox.remove(loadingText);
-      repos = fetched;
+      repos = response.repos;
       selectedRepoIdx = 0;
       rebuildList();
     } catch (err) {
@@ -402,8 +312,8 @@ export async function launchTrending(): Promise<void> {
       const desc = (r.description ?? "").length > 55
         ? (r.description ?? "").slice(0, 52) + "..."
         : (r.description ?? "");
-      const arrow = r.starsToday > 0 ? "▲" : r.starsToday < 0 ? "▼" : "—";
-      const growthStr = `${arrow} ${fmtStars(Math.abs(r.starsToday))} ${currentPeriod}`;
+      const arrow = r.score > 0 ? "▲" : r.score < 0 ? "▼" : "—";
+      const growthStr = `${arrow} ${fmtStars(Math.abs(r.score))} ${currentPeriod}`;
       const rankStr = `[${String(rank).padStart(2, "0")}]`;
       const nameStr = `${r.owner}/${r.name}`.padEnd(30).slice(0, 30);
       const langStr = `● ${r.language || "—"}`.padEnd(14).slice(0, 14);

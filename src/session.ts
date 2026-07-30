@@ -1,17 +1,14 @@
 /**
  * Session restore — save/restore UI state between restarts.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import type { SessionState, SortStrategy } from "./types";
-import { stateDir } from "./config";
+import type { SessionState } from "./types";
+import { readJSON, writeJSON } from "./storage";
 
-const SESSION_FILE = join(stateDir(), "session.json");
+const SESSION_FILE = "session.json";
 
 export function saveSession(state: SessionState): void {
-  mkdirSync(stateDir(), { recursive: true });
   try {
-    writeFileSync(SESSION_FILE, JSON.stringify(state));
+    writeJSON(SESSION_FILE, state);
   } catch (err) {
     if (process.env.DEBUG)
       console.error(`[ghfind] Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
@@ -19,18 +16,9 @@ export function saveSession(state: SessionState): void {
 }
 
 export function restoreSession(): SessionState | null {
-  try {
-    const raw = readFileSync(SESSION_FILE, "utf-8");
-    return JSON.parse(raw) as SessionState;
-  } catch {
-    return null;
-  }
+  return readJSON<SessionState | null>(SESSION_FILE, null);
 }
 
 export function clearSession(): void {
-  try {
-    writeFileSync(SESSION_FILE, "");
-  } catch {
-    // non-critical
-  }
+  writeJSON(SESSION_FILE, null);
 }

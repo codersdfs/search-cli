@@ -39,14 +39,14 @@ import {
   suggestFor,
   rankRepos,
   createGitHubSearch,
+  SearchModule,
+  TrendingAdapter,
   type Logger,
 } from "./search";
 import {
-  fetchTrendingRepos,
   tabSince,
   TAB_NAMES,
   fmtStars,
-  type TrendingRepo,
 } from "./trending";
 import { loadConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
@@ -80,7 +80,7 @@ import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { fetchTopics, type TopicItem } from "./explore";
-import { exportToFile, type ExportFormat } from "./export";
+import { exportToFile, type ExportFormat } from "./output";
 import { loadTheme } from "./themes";
 import { StatusManager } from "./status";
 import {
@@ -1573,44 +1573,14 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Trending helpers ────────────────────────────────────────────────
 
-  function formatTrendingLine(r: {
-    rank: number;
-    owner: string;
-    name: string;
-    stars: number;
-    starsToday: number;
-    language: string;
-  }): string {
-    const rank = String(r.rank).padStart(2, "0");
+  function formatTrendingLine(r: Repo, rank: number): string {
+    const rankStr = String(rank).padStart(2, "0");
     const name = `${r.owner}/${r.name}`.padEnd(30).slice(0, 30);
     const lang = (r.language || "?").padEnd(12).slice(0, 12);
     const stars = `★ ${fmtStars(r.stars)}`.padEnd(9).slice(0, 9);
-    const arrow = r.starsToday > 0 ? "▲" : r.starsToday < 0 ? "▼" : "—";
-    const growth = `${arrow} ${fmtStars(r.starsToday)} ${trendingPeriod}`;
-    return `[${rank}] ${name} ${lang} ${stars} ${growth}`;
-  }
-
-  function trendingRepoToSelectValue(r: TrendingRepo): Repo {
-    return {
-      id: 0,
-      fullName: `${r.owner}/${r.name}`,
-      name: r.name,
-      owner: r.owner,
-      description: r.description,
-      url: `https://github.com/${r.owner}/${r.name}`,
-      stars: r.stars,
-      forks: 0,
-      watchers: 0,
-      language: r.language,
-      topics: [],
-      archived: false,
-      isFork: false,
-      private: false,
-      createdAt: "",
-      updatedAt: "",
-      pushedAt: "",
-      score: r.starsToday,
-    };
+    const arrow = r.score > 0 ? "▲" : r.score < 0 ? "▼" : "—";
+    const growth = `${arrow} ${fmtStars(r.score)} ${trendingPeriod}`;
+    return `[${rankStr}] ${name} ${lang} ${stars} ${growth}`;
   }
 
   async function loadTrending() {
@@ -1628,7 +1598,12 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
 
     try {
-      const fetched = await fetchTrendingRepos(tabSince(trendingTab));
+      const searchModule = new SearchModule(new TrendingAdapter());
+      const response = await searchModule.search(
+        { keywords: [], qualifiers: [], raw: "trending" },
+        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: tabSince(trendingTab) },
+      );
+      const fetched = response.repos;
       const since = tabSince(trendingTab);
       trendingPeriod =
         since === "daily"
@@ -1636,14 +1611,14 @@ export async function launchBrowser(): Promise<void> {
           : since === "weekly"
             ? "this week"
             : "this month";
-      resultsSelect.options = fetched.map((r) => ({
-        name: formatTrendingLine(r),
-        description: r.description,
-        value: trendingRepoToSelectValue(r),
+      resultsSelect.options = fetched.map((r, i) => ({
+        name: formatTrendingLine(r, i + 1),
+        description: r.description ?? "",
+        value: r,
       }));
       if (fetched.length > 0) {
         resultsSelect.setSelectedIndex(0);
-        updateDetail(trendingRepoToSelectValue(fetched[0]));
+        updateDetail(fetched[0]);
       } else {
         throw new NoResultsError(trendingTab);
       }

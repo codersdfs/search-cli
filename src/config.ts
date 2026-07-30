@@ -9,7 +9,7 @@
 import type { Config } from "./types";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 
 /** Directory for persistent state (history, bookmarks, session). */
 export function stateDir(): string {

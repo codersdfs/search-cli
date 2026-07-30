@@ -4,7 +4,7 @@
  */
 import type { ParsedQuery, SearchOptions, Repo } from "./types";
 import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
-import { fetchTrendingRepos, trendingRepoToRepo } from "./trending";
+import { createTrendingSearch } from "./search";
 
 export interface WatchOptions {
   query: string;
@@ -32,8 +32,12 @@ export async function runWatch(
       let repos: Repo[];
       if (opts.trending) {
         const since = opts.query === "weekly" ? "weekly" : opts.query === "monthly" ? "monthly" : "daily";
-        const trending = await fetchTrendingRepos(since);
-        repos = trending.map(trendingRepoToRepo);
+        const trendingSearch = createTrendingSearch();
+        const response = await trendingSearch.search(
+          { keywords: [], qualifiers: [], raw: "trending" },
+          { limit: opts.limit, sort: opts.sort, json: false, verbose: false, trendingSince: since },
+        );
+        repos = response.repos;
       } else {
         const parsed = applyFlagFilters(parseQuery(opts.query), {});
         const provider = createGitHubSearch(undefined, opts.token ? [opts.token] : []);
