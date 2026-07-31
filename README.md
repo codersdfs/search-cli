@@ -67,33 +67,6 @@ ghfind --completion fish | source
 
 ---
 
-## Changelog
-
-### v0.8.2
-
-- Added automatic update checking against the npm registry
-- Added leader menu (Space) consolidating all contextual actions
-- Added update modal with Y/N/L (install now / skip / dismiss)
-- Added topic explorer, notifications panel, and saved searches overlay
-- Added activity graph toggle (commit chart fullscreen)
-- Added README viewer (full markdown rendering in TUI)
-- Added result auto-complete for search qualifiers (Tab)
-- Added PageUp/PageDown for quick navigation
-- Added Ctrl+X to clear history, Ctrl+C to clear all notifications
-- Improved export error handling and format selection
-- Updated keybindings reference (see keybinds table below)
-
-### v0.8.1
-
-- Fixed postinstall to download Bun binary correctly on all platforms
-- Fixed zip asset names to match Bun's current release naming
-- Fixed zip parsing to use central directory instead of local file headers
-- Removed `vendor/` from npm package (Bun binary downloaded at install time)
-- Changed `postinstall` to use `node` instead of `bun run` (works without Bun pre-installed)
-- TUI now works on Node.js 20+ via bundled Bun binary
-
----
-
 ## Features
 
 <table>
@@ -227,6 +200,33 @@ npm start        # TUI (requires Node 20-22 for native FFI)
 npm test         # vitest (TUI render test needs Bun)
 npm run build    # build dist/
 ```
+
+---
+
+## Changelog
+
+### v0.8.2
+
+- Added automatic update checking against the npm registry
+- Added leader menu (Space) consolidating all contextual actions
+- Added update modal with Y/N/L (install now / skip / dismiss)
+- Added topic explorer, notifications panel, and saved searches overlay
+- Added activity graph toggle (commit chart fullscreen)
+- Added README viewer (full markdown rendering in TUI)
+- Added result auto-complete for search qualifiers (Tab)
+- Added PageUp/PageDown for quick navigation
+- Added Ctrl+X to clear history, Ctrl+C to clear all notifications
+- Improved export error handling and format selection
+- Updated keybindings reference
+
+### v0.8.1
+
+- Fixed postinstall to download Bun binary correctly on all platforms
+- Fixed zip asset names to match Bun's current release naming
+- Fixed zip parsing to use central directory instead of local file headers
+- Removed `vendor/` from npm package (Bun binary downloaded at install time)
+- Changed `postinstall` to use `node` instead of `bun run` (works without Bun pre-installed)
+- TUI now works on Node.js 20+ via bundled Bun binary
 
 ---
 
