@@ -25,11 +25,11 @@ npm install -g github-search-cli
 > **No separate runtime needed!** The package bundles a Bun binary, so the TUI
 > works out of the box on Windows, macOS, and Linux — no Node FFI, no `--experimental-ffi`.
 >
-> | Runtime | TUI | CLI modes |
-> |---------|-----|-----------|
-> | Bundled Bun | ✅ | ✅ |
-> | System Bun | ✅ | ✅ |
-> | Node 20+ | ✅ | ✅ |
+> | Runtime     | TUI | CLI modes |
+> | ----------- | --- | --------- |
+> | Bundled Bun | ✅  | ✅        |
+> | System Bun  | ✅  | ✅        |
+> | Node 20+    | ✅  | ✅        |
 
 ## Use
 
@@ -69,7 +69,22 @@ ghfind --completion fish | source
 
 ## Changelog
 
+### v0.8.2
+
+- Added automatic update checking against the npm registry
+- Added leader menu (Space) consolidating all contextual actions
+- Added update modal with Y/N/L (install now / skip / dismiss)
+- Added topic explorer, notifications panel, and saved searches overlay
+- Added activity graph toggle (commit chart fullscreen)
+- Added README viewer (full markdown rendering in TUI)
+- Added result auto-complete for search qualifiers (Tab)
+- Added PageUp/PageDown for quick navigation
+- Added Ctrl+X to clear history, Ctrl+C to clear all notifications
+- Improved export error handling and format selection
+- Updated keybindings reference (see keybinds table below)
+
 ### v0.8.1
+
 - Fixed postinstall to download Bun binary correctly on all platforms
 - Fixed zip asset names to match Bun's current release naming
 - Fixed zip parsing to use central directory instead of local file headers
@@ -84,44 +99,82 @@ ghfind --completion fish | source
 <table>
 <tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
 <tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
-<tr><td><b>Bookmarks</b></td><td><code>b</code> / <code>B</code> — save repos, tag them</td></tr>
-<tr><td><b>Deep-dive</b></td><td><code>d</code> — languages, contributors, README, activity chart</td></tr>
-<tr><td><b>Compare</b></td><td><code>c</code> / <code>C</code> — side-by-side, select 2+ repos</td></tr>
-<tr><td><b>Explore</b></td><td><code>E</code> — browse popular topics</td></tr>
-<tr><td><b>History</b></td><td><code>Ctrl+R</code> — recall past searches</td></tr>
-<tr><td><b>Export</b></td><td><code>Ctrl+E</code> — JSON, CSV, Markdown to file</td></tr>
-<tr><td><b>Share</b></td><td><code>Ctrl+P</code> — copy to clipboard (markdown, plain, gh-cli)</td></tr>
+<tr><td><b>Bookmarks</b></td><td>Space → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
+<tr><td><b>Deep-dive</b></td><td>Space → Deep-dive — languages, contributors, README, activity chart</td></tr>
+<tr><td><b>Compare</b></td><td>Space → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
+<tr><td><b>Explore</b></td><td>Space → Topics — browse popular GitHub topics</td></tr>
+<tr><td><b>History</b></td><td>Space → History — recall past searches</td></tr>
+<tr><td><b>Saved</b></td><td>Space → Saved searches — load or save queries</td></tr>
+<tr><td><b>Export</b></td><td>Space → Export — JSON, CSV, Markdown to file</td></tr>
+<tr><td><b>Share</b></td><td>Space → Share repo — copy repo link to clipboard</td></tr>
+<tr><td><b>Notifications</b></td><td>Space → Notifications — view & dismiss alerts</td></tr>
+<tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
+<tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
 <tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
 </table>
 
 <details>
 <summary>Keybindings</summary>
 
-| Key | Action |
-|-----|--------|
-| `/` | Focus search |
-| `Enter` | Search / open repo |
-| `↑`/`↓` / `j`/`k` | Navigate |
-| `t` | Toggle search / trending |
-| `s` | Cycle sort |
-| `l` | Cycle limit |
-| `r` | Refresh |
-| `d` | Deep-dive |
-| `o` | Open in browser |
-| `b` / `B` | Bookmark / bookmarks panel |
-| `c` / `C` | Compare select / view |
-| `E` | Topic explorer |
-| `Tab` | Auto-complete qualifier |
-| `?` / `Ctrl+H` | Help |
-| `Ctrl+R` | History |
-| `Ctrl+S` / `Ctrl+O` | Save / open searches |
-| `Ctrl+E` | Export |
-| `Ctrl+N` | Notifications |
-| `Ctrl+P` | Share |
-| `Esc` | Close overlay |
-| `q` | Quit |
+**Global shortcuts** (main view, no overlay active)
 
-Trending tabs: `1`–`5` (Today → All) or `←`/`→` / `h`/`l`
+| Key                   | Action                                         |
+| --------------------- | ---------------------------------------------- |
+| `/`                   | Focus search input                             |
+| `Enter`               | Execute search / open selected repo in browser |
+| `↑` / `↓` — `j` / `k` | Navigate results & menus                       |
+| `Space`               | Open leader menu (contextual actions)          |
+| `Tab`                 | Auto-complete search qualifier                 |
+| `?` or `Ctrl+H`       | Help overlay                                   |
+| `1`–`5`               | Switch trending tabs (Today → All)             |
+| `←` / `→` — `h` / `l` | Switch trending tabs (left/right)              |
+| `PageUp`              | Jump to top of results                         |
+| `PageDown`            | Load next page of results                      |
+| `Esc`                 | Close current overlay                          |
+| `q`                   | Quit ghfind                                    |
+
+**Leader menu** — press `Space`, navigate with `↑`/`↓`, press `Enter` to dispatch
+
+Actions shown depend on current mode (search vs trending) and selection:
+
+| Menu item       | Description                                             |
+| --------------- | ------------------------------------------------------- |
+| Sort            | Cycle sort strategy (best-match, stars, updated, forks) |
+| Limit           | Cycle result limit (10, 25, 50, 100)                    |
+| Refresh         | Re-run current search (or reload trending)              |
+| Toggle trending | Switch between search and trending views                |
+| Deep-dive       | Show languages, contributors, README excerpt            |
+| Readme          | Full README viewer                                      |
+| Activity graph  | Toggle commit chart fullscreen                          |
+| Bookmark        | Save / unsave selected repo                             |
+| Compare         | Add/remove repo to comparison set                       |
+| Compare view    | Show side-by-side comparison table                      |
+| Open in browser | Open selected repo URL                                  |
+| History         | Recall past searches                                    |
+| Saved searches  | Load a saved search                                     |
+| Save search     | Save current query                                      |
+| Export          | Export results to JSON / CSV / Markdown                 |
+| Share repo      | Copy repo link to clipboard                             |
+| Notifications   | View and dismiss alerts                                 |
+| Topics          | Browse popular GitHub topics                            |
+| Bookmarks panel | Browse saved bookmarks                                  |
+| Help            | Keybindings reference                                   |
+
+**Overlay-specific shortcuts**
+
+| Key             | Context                                              | Action                                      |
+| --------------- | ---------------------------------------------------- | ------------------------------------------- |
+| `Esc` / `q`     | Any overlay                                          | Close overlay                               |
+| `Enter`         | Leader / History / Saved / Export / Topics / Share   | Confirm selection                           |
+| `d`             | History / Bookmarks / Saved searches / Notifications | Delete current entry                        |
+| `Ctrl+X`        | History                                              | Clear all history                           |
+| `Ctrl+C`        | Notifications                                        | Dismiss all notifications                   |
+| `Y` / `N` / `L` | Update modal                                         | Yes (install) / No (skip) / Later (dismiss) |
+
+Trending tabs: `1`–`5` (Today → All) or `←`/`→` — `h`/`l`
+
+> Most actions are accessed via the **leader menu** (`Space`). This keeps the keymap minimal while providing a full command palette. The leader menu filters actions contextually — items that don't apply (e.g., Bookmark with no repo selected) are hidden.
+
 </details>
 
 ---
