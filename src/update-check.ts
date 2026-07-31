@@ -1,180 +1,162 @@
 /**
- * Update checker — polls the npm registry for the latest published version
- * of `github-search-cli` and reports whether a newer version is available.
+ * Update checker — checks npm registry for a newer ghfind version.
  *
- * Design (locked in wayfinder):
- *  - Source: npm registry `latest` tag
- *  - Trigger: TUI entry only
- *  - Frequency: check every launch; "Later" suppresses only this session
- *  - Fail-open: network errors never block startup
- *  - State: cached under the XDG state dir (cacheDir)
+ * Uses the npm registry HTTP API (no subprocess needed — Bun has native fetch).
+ * Persists check state in the XDG state dir via storage.ts.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
-import { cacheDir } from "./config";
+import { readJSON, writeJSON, debugLog } from "./storage";
+import { stateDir } from "./config";
 
-const PACKAGE_NAME = "github-search-cli";
-const NPM_REGISTRY_URL = `https://registry.npmjs.org/${PACKAGE_NAME}/latest`;
-const CHECK_TIMEOUT_MS = 3000;
+const REGISTRY_URL = "https://registry.npmjs.org/github-search-cli/latest";
+const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REQUEST_TIMEOUT_MS = 5000;
 
-export interface UpdateInfo {
-  current: string;
-  latest: string;
-  hasUpdate: boolean;
-  url: string;
+export interface UpdateState {
+  /** Timestamp of last successful check. */
+  lastCheck: number;
+  /** Timestamp until which we should suppress the panel (snooze). */
+  snoozeUntil: number;
+  /** If true, never show the update panel again. */
+  suppressed: boolean;
+  /** Latest version found on last check (for display). */
+  latestVersion?: string;
 }
 
-export interface UpdateCheckResult {
-  info: UpdateInfo | null;
-  error: string | null;
+const STATE_FILE = "update-state.json";
+export const DEFAULTS: UpdateState = {
+  lastCheck: 0,
+  snoozeUntil: 0,
+  suppressed: false,
+};
+
+/** Read update-check state from disk. */
+export function readUpdateState(): UpdateState {
+  return { ...DEFAULTS, ...readJSON<Partial<UpdateState>>(STATE_FILE, {}) };
 }
 
-interface CachedCheck {
-  latest: string;
-  checkedAt: number;
-}
-
-const CACHE_FILE = join(cacheDir(), "update-check.json");
-
-/** Compare two semver-ish version strings. Returns >0 if a>b, <0 if a<b, 0 if equal. */
-export function compareVersions(a: string, b: string): number {
-  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
-  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const da = pa[i] ?? 0;
-    const db = pb[i] ?? 0;
-    if (da !== db) return da - db;
-  }
-  return 0;
-}
-
-function loadCache(): CachedCheck | null {
-  try {
-    const raw = readFileSync(CACHE_FILE, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (parsed.latest && typeof parsed.checkedAt === "number") {
-      return parsed as CachedCheck;
-    }
-  } catch {
-    // no cache yet
-  }
-  return null;
-}
-
-function saveCache(latest: string): void {
-  try {
-    mkdirSync(cacheDir(), { recursive: true });
-    writeFileSync(
-      CACHE_FILE,
-      JSON.stringify({ latest, checkedAt: Date.now() }),
-    );
-  } catch {
-    // non-critical — don't block startup
-  }
+/** Write update-check state to disk. */
+export function writeUpdateState(state: UpdateState): void {
+  writeJSON(STATE_FILE, state);
 }
 
 /**
- * Fetch the latest version from npm registry.
- * Uses fetch with a timeout; returns null on any failure (fail-open).
+ * Whether we should run an update check now, based on cached state.
+ * Returns false if: suppressed, snoozed, or checked within the last 24h.
  */
-export async function fetchLatestVersion(
-  timeoutMs: number = CHECK_TIMEOUT_MS,
+export function shouldCheckUpdate(): boolean {
+  const state = readUpdateState();
+  if (state.suppressed) return false;
+  if (Date.now() < state.snoozeUntil) return false;
+  if (Date.now() - state.lastCheck < CHECK_INTERVAL_MS) return false;
+  return true;
+}
+
+/**
+ * Compare two semver strings. Returns true if `latest` is newer than `current`.
+ * Uses Bun's built-in semver if available, falls back to simple comparison.
+ */
+export function isNewerVersion(current: string, latest: string): boolean {
+  // ponytail: Bun.semver.order is the right tool — native, correct on edge cases
+  if (typeof Bun !== "undefined" && Bun.semver) {
+    return Bun.semver.order(current, latest) < 0;
+  }
+  // Fallback: naive string comparison (works for simple semver; does not handle pre-release tags)
+  const curParts = current.split(".").map((s) => Number(s.split("-")[0]));
+  const newParts = latest.split(".").map((s) => Number(s.split("-")[0]));
+  for (let i = 0; i < Math.max(curParts.length, newParts.length); i++) {
+    const c = curParts[i] ?? 0;
+    const n = newParts[i] ?? 0;
+    if (n > c) return true;
+    if (n < c) return false;
+  }
+  return false;
+}
+
+/**
+ * Check the npm registry for a newer version of ghfind.
+ * Returns the latest version string if an update is available, or null.
+ * Never throws — failures (offline, timeout, DNS) return null silently.
+ */
+export async function checkForUpdate(
+  currentVersion: string,
 ): Promise<string | null> {
+  if (process.env.DEBUG) debugLog(`Checking for update (current: ${currentVersion})`);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(NPM_REGISTRY_URL, {
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
+    const res = await fetch(REGISTRY_URL, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { version?: string };
-    return data.version ?? null;
-  } catch {
+    if (!res.ok) {
+      if (process.env.DEBUG) debugLog(`Registry returned ${res.status}`);
+      return null;
+    }
+    const data = await res.json() as { version?: string };
+    const latest = data.version;
+    if (!latest) {
+      if (process.env.DEBUG) debugLog("No version in registry response");
+      return null;
+    }
+    if (process.env.DEBUG) debugLog(`Registry latest: ${latest}`);
+    if (!isNewerVersion(currentVersion, latest)) return null;
+    return latest;
+  } catch (e) {
+    if (process.env.DEBUG) debugLog(`Update check failed: ${e instanceof Error ? e.message : String(e)}`);
     return null;
   }
 }
 
 /**
- * Check for an update. Returns UpdateCheckResult with info (if newer) or error.
- *
- * @param currentVersion The currently running version (from package.json)
- * @param options.skipCache Bypass cache (useful for tests)
+ * Mark the update check as done. Stores the latest version if one was found.
  */
-export async function checkForUpdate(
-  currentVersion: string,
-  options: { skipCache?: boolean } = {},
-): Promise<UpdateCheckResult> {
-  // Use cache if available and not skipped
-  if (!options.skipCache) {
-    const cached = loadCache();
-    if (cached) {
-      if (compareVersions(cached.latest, currentVersion) > 0) {
-        return {
-          info: {
-            current: currentVersion,
-            latest: cached.latest,
-            hasUpdate: true,
-            url: `https://github.com/${PACKAGE_NAME}/releases`,
-          },
-          error: null,
-        };
-      }
-      // cached version is not newer — still return null info, no error
-      return { info: null, error: null };
-    }
-  }
-
-  // Fetch fresh
-  const latest = await fetchLatestVersion();
-  if (latest === null) {
-    return { info: null, error: "network" };
-  }
-
-  saveCache(latest);
-
-  if (compareVersions(latest, currentVersion) > 0) {
-    return {
-      info: {
-        current: currentVersion,
-        latest,
-        hasUpdate: true,
-        url: `https://github.com/${PACKAGE_NAME}/releases`,
-      },
-      error: null,
-    };
-  }
-
-  return { info: null, error: null };
+export function markUpdateChecked(latestVersion?: string): void {
+  writeUpdateState({
+    ...readUpdateState(),
+    lastCheck: Date.now(),
+    latestVersion,
+  });
 }
 
 /**
- * Run `npm install -g github-search-cli` to upgrade.
- * Spawns detached so it survives the TUI process exiting.
+ * Snooze update notifications for the given number of days.
  */
-export async function installUpdate(): Promise<{
-  success: boolean;
-  message: string;
-}> {
+export function snoozeUpdateNotices(days: number): void {
+  writeUpdateState({
+    ...readUpdateState(),
+    snoozeUntil: Date.now() + days * 24 * 60 * 60 * 1000,
+  });
+}
+
+/**
+ * Permanently suppress the update panel.
+ */
+export function suppressUpdateNotices(): void {
+  writeUpdateState({
+    ...readUpdateState(),
+    suppressed: true,
+  });
+}
+
+/**
+ * Attempt to update ghfind in-place.
+ * Uses `process.versions.bun` for reliable runtime detection (works on all platforms).
+ */
+export async function performUpdate(): Promise<boolean> {
+  const isBun = typeof process.versions !== "undefined" && "bun" in process.versions;
+  const cmd = isBun
+    ? ["bun", "install", "-g", "ghfind"]
+    : ["npm", "install", "-g", "ghfind"];
+
   try {
-    const { spawnSync } = await import("child_process");
-    const result = spawnSync("npm", ["install", "-g", PACKAGE_NAME], {
-      stdio: "inherit",
-      shell: true,
-      detached: true,
+    const proc = Bun.spawn(cmd, {
+      stdout: "pipe",
+      stderr: "pipe",
     });
-    if (result.status === 0) {
-      return { success: true, message: "Update installed successfully." };
+    await proc.exited;
+    if (proc.exitCode !== 0) {
+      const err = await proc.stderr.text();
+      debugLog(`Install failed (code ${proc.exitCode}): ${err}`);
     }
-    return {
-      success: false,
-      message: `npm install failed (exit ${result.status})`,
-    };
-  } catch (err) {
-    return {
-      success: false,
-      message: `Failed to run npm install: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return proc.exitCode === 0;
+  } catch {
+    return false;
   }
 }

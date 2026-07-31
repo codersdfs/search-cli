@@ -4,6 +4,7 @@
  */
 import type { ParsedQuery, SearchOptions, Repo } from "./types";
 import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
+import { createTrendingSearch } from "./search";
 
 export interface WatchOptions {
   query: string;
@@ -28,17 +29,28 @@ export async function runWatch(
 
   const tick = async () => {
     try {
-      const parsed = applyFlagFilters(parseQuery(opts.query), {});
-      const provider = createGitHubSearch(undefined, opts.token ? [opts.token] : []);
-      const options: SearchOptions = {
-        limit: opts.limit,
-        sort: opts.sort,
-        json: false,
-        verbose: false,
-        token: opts.token,
-      };
-      const response = await provider.search(parsed, options);
-      const repos = rankRepos(response.repos, options.sort);
+      let repos: Repo[];
+      if (opts.trending) {
+        const since = opts.query === "weekly" ? "weekly" : opts.query === "monthly" ? "monthly" : "daily";
+        const trendingSearch = createTrendingSearch();
+        const response = await trendingSearch.search(
+          { keywords: [], qualifiers: [], raw: "trending" },
+          { limit: opts.limit, sort: opts.sort, json: false, verbose: false, trendingSince: since },
+        );
+        repos = response.repos;
+      } else {
+        const parsed = applyFlagFilters(parseQuery(opts.query), {});
+        const provider = createGitHubSearch(undefined, opts.token ? [opts.token] : []);
+        const options: SearchOptions = {
+          limit: opts.limit,
+          sort: opts.sort,
+          json: false,
+          verbose: false,
+          token: opts.token,
+        };
+        const response = await provider.search(parsed, options);
+        repos = rankRepos(response.repos, options.sort);
+      }
 
       failCount = 0; // reset on success
       const delta = previous.length > 0 ? repos.length - previous.length : 0;

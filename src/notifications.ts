@@ -1,7 +1,5 @@
 /** Notification center — ephemeral alerts for rate limits, watch changes, etc. */
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import { stateDir } from "./config";
+import { readJSON, writeJSON } from "./storage";
 
 export interface Notification {
   id: number;
@@ -14,20 +12,15 @@ export interface Notification {
 let nextId = 1;
 let notifs: Notification[] = [];
 const MAX_NOTIFS = 50;
-const FILE = join(stateDir(), "notifications.json");
+const FILE = "notifications.json";
 
 function load(): void {
-  try {
-    notifs = JSON.parse(readFileSync(FILE, "utf-8"));
-    nextId = (Math.max(...notifs.map((n) => n.id), 0) + 1);
-  } catch {
-    notifs = [];
-  }
+  notifs = readJSON<Notification[]>(FILE, []);
+  nextId = Math.max(...notifs.map((n) => n.id), 0) + 1;
 }
 
 function save(): void {
-  mkdirSync(stateDir(), { recursive: true });
-  writeFileSync(FILE, JSON.stringify(notifs));
+  writeJSON(FILE, notifs);
 }
 
 export function addNotification(type: Notification["type"], message: string): Notification {

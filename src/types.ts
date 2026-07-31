@@ -57,6 +57,8 @@ export interface SearchOptions {
   token?: string;
   /** Page number for pagination (1-based, default 1). */
   page?: number;
+  /** Trending period: daily|weekly|monthly. Used by TrendingAdapter. */
+  trendingSince?: "daily" | "weekly" | "monthly";
   /** Verbose logging (outgoing query, errors, rate limits). */
   verbose: boolean;
 }

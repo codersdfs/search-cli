@@ -6,6 +6,7 @@
  * createTestRenderer to verify the layout renders without crashing.
  */
 import { describe, expect, test } from "vitest";
+import type { Repo } from "../src/types";
 import {
   fmtStars,
   fmtSigned,
@@ -63,66 +64,69 @@ describe("fmtSigned", () => {
 
 // ── formatRepoLine ────────────────────────────────────────────────────
 describe("formatRepoLine", () => {
-  const repo = {
-    rank: 1,
-    owner: "tauri-apps",
+  const repo: Repo = {
+    id: 0,
+    fullName: "tauri-apps/tauri",
     name: "tauri",
+    owner: "tauri-apps",
     stars: 89_200,
-    starsToday: 235,
+    score: 235,
     language: "Rust",
     description: "Build smaller, faster desktop apps.",
+    forks: 0, watchers: 0, topics: [], archived: false, isFork: false, private: false,
+    url: "https://github.com/tauri-apps/tauri", createdAt: "", updatedAt: "", pushedAt: "",
   };
 
   test("includes rank padded to 2 digits", () => {
-    const styled = formatRepoLine(repo);
+    const styled = formatRepoLine(repo, 1);
     const text = styled.chunks.map(c => c.text).join("");
     expect(text).toContain("[01]");
   });
 
   test("includes owner/name", () => {
-    const text = formatRepoLine(repo).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
     expect(text).toContain("tauri-apps/tauri");
   });
 
   test("includes star count formatted with k", () => {
-    const text = formatRepoLine(repo).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
     expect(text).toContain("★ 89.2k");
   });
 
   test("includes today growth with ▲", () => {
-    const text = formatRepoLine(repo).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
     expect(text).toContain("▲");
     expect(text).toContain("+235 today");
   });
 
   test("shows ▼ for negative growth", () => {
-    const repo2 = { ...repo, starsToday: -50 };
-    const text = formatRepoLine(repo2).chunks.map(c => c.text).join("");
+    const repo2: Repo = { ...repo, score: -50 };
+    const text = formatRepoLine(repo2, 1).chunks.map(c => c.text).join("");
     expect(text).toContain("▼");
     expect(text).toContain("-50 today");
   });
 
   test("includes language dot and name", () => {
-    const text = formatRepoLine(repo).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
     expect(text).toContain("●");
     expect(text).toContain("Rust");
   });
 
   test("rank 10+ still pads properly", () => {
-    const r10 = { ...repo, rank: 10, owner: "org", name: "repo" };
-    const text = formatRepoLine(r10).chunks.map(c => c.text).join("");
+    const r10: Repo = { ...repo, owner: "org", name: "repo", fullName: "org/repo" };
+    const text = formatRepoLine(r10, 10).chunks.map(c => c.text).join("");
     expect(text).toContain("[10]");
   });
 
   test("output fits within reasonable width", () => {
-    const text = formatRepoLine(repo).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
     // Two-line format with language name added; allow up to 90 chars
     expect(text.length).toBeLessThanOrEqual(90);
   });
 
   test("output is deterministic (same input → same output)", () => {
-    const a = formatRepoLine(repo);
-    const b = formatRepoLine(repo);
+    const a = formatRepoLine(repo, 1);
+    const b = formatRepoLine(repo, 1);
     expect(a.chunks.map(c => c.text).join("")).toBe(b.chunks.map(c => c.text).join(""));
   });
 });
