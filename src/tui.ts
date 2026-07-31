@@ -92,8 +92,30 @@ import {
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
+import { readFileSync, appendFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_DIR = join(__dirname, "..");
+import { stateDir } from "./config";
+import {
+  checkForUpdate,
+  shouldCheckUpdate,
+  markUpdateChecked,
+  snoozeUpdateNotices,
+  suppressUpdateNotices,
+  performUpdate,
+  readUpdateState,
+} from "./update-check";
 
-// ─── Theme ────────────────────────────────────────────────────────────
+const DEBUG_FILE = join(stateDir(), "ghfind-debug.log");
+
+function debugLog(msg: string): void {
+  if (!process.env.DEBUG) return;
+  try {
+    appendFileSync(DEBUG_FILE, `[${new Date().toISOString()}] ${msg}\n`, "utf-8");
+  } catch { /* ignore */ }
+}
 const colors = {
   bg: "#1e1e2e",
   surface: "#181825",
@@ -194,7 +216,8 @@ export async function launchBrowser(): Promise<void> {
     | "notifications"
     | "share"
     | "leader"
-    | "readme" = "none";
+    | "readme"
+    | "update" = "none";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
@@ -373,6 +396,8 @@ export async function launchBrowser(): Promise<void> {
     leaderBox.visible = false;
     leaderDim.visible = false;
     readmeBox.visible = false;
+    updateBox.visible = false;
+    updateDim.visible = false;
 
     if (type === "none") {
       currentOverlay = "none";
@@ -408,6 +433,10 @@ export async function launchBrowser(): Promise<void> {
       leaderBox.visible = true;
     } else if (type === "readme") {
       readmeBox.visible = true;
+    } else if (type === "update") {
+      updateDim.visible = true;
+      updateBox.visible = true;
+      updateSelect.focus();
     }
     renderer.requestRender();
   }
@@ -826,6 +855,129 @@ export async function launchBrowser(): Promise<void> {
   root.add(leaderDim);
   root.add(leaderBox);
 
+  // ── Update panel overlay ────────────────────────────────────────
+  const updateDim = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#00000088",
+  });
+
+  root.add(updateDim);
+
+  const updateBox = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    width: "55%",
+    height: 16,
+    left: "22.5%",
+    top: "25%",
+    backgroundColor: colors.surfaceDim,
+    border: true,
+    borderStyle: "rounded",
+    borderColor: colors.border,
+    title: " ghfind ",
+    titleColor: colors.accent,
+    titleAlignment: "left",
+    flexDirection: "column",
+    paddingX: 2,
+    paddingLeft: 2,
+    paddingRight: 2,
+  });
+  const updateText = new TextRenderable(renderer, {
+    content: "",
+    color: colors.accent,
+    backgroundColor: colors.surfaceDim,
+  });
+
+  // Horizontal option boxes
+  let updateSelectedOption = 0;
+
+  const updateOptionsRow = new BoxRenderable(renderer, {
+    flexDirection: "row",
+    gap: 1,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "100%",
+  });
+
+  const updateNowBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 0 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const updateNowText = new TextRenderable(renderer, {
+    content: "   Update Now  ",
+    color: updateSelectedOption === 0 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  updateNowBox.add(updateNowText);
+
+  const laterBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 1 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const laterText = new TextRenderable(renderer, {
+    content: "  Later",
+    color: updateSelectedOption === 1 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  laterBox.add(laterText);
+
+  const neverBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 2 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const neverText = new TextRenderable(renderer, {
+    content: "  Don't show again",
+    color: updateSelectedOption === 2 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  neverBox.add(neverText);
+
+  function renderUpdateOptions() {
+    updateNowBox.borderColor = updateSelectedOption === 0 ? colors.yellow : colors.border;
+    laterBox.borderColor = updateSelectedOption === 1 ? colors.yellow : colors.border;
+    neverBox.borderColor = updateSelectedOption === 2 ? colors.yellow : colors.border;
+    updateNowText.color = updateSelectedOption === 0 ? colors.yellow : colors.text;
+    laterText.color = updateSelectedOption === 1 ? colors.yellow : colors.text;
+    neverText.color = updateSelectedOption === 2 ? colors.yellow : colors.text;
+    renderer.requestRender();
+  }
+
+  updateOptionsRow.add(updateNowBox);
+  updateOptionsRow.add(laterBox);
+
+  const updateFooter = new TextRenderable(renderer, {
+    content: "  ←→ select  Enter  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.surfaceDim,
+    height: 1,
+    paddingX: 1,
+  });
+  updateBox.add(updateText);
+  updateBox.add(updateOptionsRow);
+  updateBox.add(updateFooter);
+  root.add(updateDim);
+  root.add(updateBox);
+
   // ── Hierarchical menu types ──────────────────────────────────────
   interface MenuAction {
     type: "action";
@@ -1094,6 +1246,15 @@ export async function launchBrowser(): Promise<void> {
     const sysItems: MenuEntry[] = [
       {
         type: "action",
+        name: "Check for updates",
+        description: "Check npm for a newer version (debug)",
+        action: () => {
+          showOverlay("none");
+          checkForUpdateAndShow();
+        },
+      },
+      {
+        type: "action",
         name: "Help",
         description: "Keybindings reference",
         action: () => showOverlay("help"),
@@ -1149,6 +1310,24 @@ export async function launchBrowser(): Promise<void> {
     pushMenuLevel(" ⚙ Menu ", "", topLevel, 0);
     leaderSelect.focus();
     showOverlay("leader");
+  }
+
+  async function checkForUpdateAndShow() {
+    if (!shouldCheckUpdate()) return;
+    const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+    const currentVersion = pkg.version;
+    // ponytail: DEBUG_FORCE_UPDATE lets you test the panel without a real newer version
+    const latest = process.env.DEBUG_FORCE_UPDATE || await checkForUpdate(currentVersion);
+    markUpdateChecked(latest ?? undefined);
+    if (latest) {
+      updateSelectedOption = 0;
+      updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
+      renderUpdateOptions();
+      showOverlay("update");
+    } else {
+      // ponytail: debug to file so it's not swallowed by TUI renderer
+      debugLog(`No update available (current: ${currentVersion})`);
+    }
   }
 
   function openUrlIfSelected() {
@@ -2044,6 +2223,49 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
+      // Update panel
+      if (currentOverlay === "update") {
+        if (key.name === "escape" || key.name === "q") {
+          showOverlay("none");
+          renderer.requestRender();
+          return;
+        }
+        if (key.name === "left" || key.name === "h") {
+          updateSelectedOption = Math.max(0, updateSelectedOption - 1);
+          renderUpdateOptions();
+          return;
+        }
+        if (key.name === "right" || key.name === "l") {
+          updateSelectedOption = Math.min(2, updateSelectedOption + 1);
+          renderUpdateOptions();
+          return;
+        }
+        if (key.name === "enter" || key.name === "return") {
+          const action = ["now", "later", "never"][updateSelectedOption] as "now" | "later" | "never" | undefined;
+          if (action === "now") {
+            showOverlay("none");
+            performUpdate().then((ok) => {
+              if (ok) {
+                setStatus("✓ Update complete — restart ghfind");
+              } else {
+                setStatus("✗ Update failed — check terminal output");
+              }
+            });
+          } else if (action === "never") {
+            suppressUpdateNotices();
+            showOverlay("none");
+            setStatus("Update notices suppressed");
+          } else {
+            snoozeUpdateNotices(3);
+            showOverlay("none");
+            setStatus("Update reminder snoozed for 3 days");
+          }
+          renderer.requestRender();
+          return;
+        }
+        return;
+      }
+
       return;
     }
 
@@ -2171,6 +2393,8 @@ export async function launchBrowser(): Promise<void> {
   });
 
   // ── Start ──────────────────────────────────────────────────────────
+  // Check for updates (non-blocking — doesn't delay TUI startup)
+  checkForUpdateAndShow();
   renderer.start();
   if (currentMode === "trending") {
     loadTrending();
