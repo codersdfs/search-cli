@@ -92,12 +92,13 @@ import {
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
-import { readFileSync, appendFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
-import { stateDir } from "./config";
+
+let cachedVersion: string | null = null;
 import {
   checkForUpdate,
   shouldCheckUpdate,
@@ -105,17 +106,8 @@ import {
   snoozeUpdateNotices,
   suppressUpdateNotices,
   performUpdate,
-  readUpdateState,
 } from "./update-check";
-
-const DEBUG_FILE = join(stateDir(), "ghfind-debug.log");
-
-function debugLog(msg: string): void {
-  if (!process.env.DEBUG) return;
-  try {
-    appendFileSync(DEBUG_FILE, `[${new Date().toISOString()}] ${msg}\n`, "utf-8");
-  } catch { /* ignore */ }
-}
+import { debugLog } from "./storage";
 const colors = {
   bg: "#1e1e2e",
   surface: "#181825",
@@ -1250,7 +1242,7 @@ export async function launchBrowser(): Promise<void> {
         description: "Check npm for a newer version (debug)",
         action: () => {
           showOverlay("none");
-          checkForUpdateAndShow();
+          checkForUpdateAndShow(true);
         },
       },
       {
@@ -1312,10 +1304,18 @@ export async function launchBrowser(): Promise<void> {
     showOverlay("leader");
   }
 
-  async function checkForUpdateAndShow() {
-    if (!shouldCheckUpdate()) return;
-    const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
-    const currentVersion = pkg.version;
+  async function checkForUpdateAndShow(force: boolean = false) {
+    if (!force && !shouldCheckUpdate()) return;
+    if (cachedVersion === null) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+        cachedVersion = pkg.version;
+      } catch {
+        debugLog("Failed to read package.json");
+        return;
+      }
+    }
+    const currentVersion = cachedVersion;
     // ponytail: DEBUG_FORCE_UPDATE lets you test the panel without a real newer version
     const latest = process.env.DEBUG_FORCE_UPDATE || await checkForUpdate(currentVersion);
     markUpdateChecked(latest ?? undefined);
@@ -2250,6 +2250,8 @@ export async function launchBrowser(): Promise<void> {
               } else {
                 setStatus("✗ Update failed — check terminal output");
               }
+            }).catch(() => {
+              setStatus("✗ Update failed — check terminal output");
             });
           } else if (action === "never") {
             suppressUpdateNotices();

@@ -67,6 +67,14 @@ export function deleteFile(filename: string): void {
   }
 }
 
+/** Append a timestamped debug line to ghfind-debug.log (only when DEBUG is set). */
+export function debugLog(msg: string): void {
+  if (!process.env.DEBUG) return;
+  try {
+    appendFileSync(join(stateDir(), "ghfind-debug.log"), `[${new Date().toISOString()}] ${msg}\n`, "utf-8");
+  } catch { /* ignore */ }
+}
+
 /** Check if a file exists in the state dir. */
 export function fileExists(filename: string): boolean {
   return existsSync(join(stateDir(), filename));

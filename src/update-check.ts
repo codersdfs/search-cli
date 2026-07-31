@@ -4,17 +4,8 @@
  * Uses the npm registry HTTP API (no subprocess needed — Bun has native fetch).
  * Persists check state in the XDG state dir via storage.ts.
  */
-import { readJSON, writeJSON } from "./storage";
+import { readJSON, writeJSON, debugLog } from "./storage";
 import { stateDir } from "./config";
-import { appendFileSync } from "fs";
-import { join } from "path";
-
-function debugLog(msg: string): void {
-  if (!process.env.DEBUG) return;
-  try {
-    appendFileSync(join(stateDir(), "ghfind-debug.log"), `[${new Date().toISOString()}] ${msg}\n`, "utf-8");
-  } catch { /* ignore */ }
-}
 
 const REGISTRY_URL = "https://registry.npmjs.org/github-search-cli/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -69,9 +60,9 @@ export function isNewerVersion(current: string, latest: string): boolean {
   if (typeof Bun !== "undefined" && Bun.semver) {
     return Bun.semver.order(current, latest) < 0;
   }
-  // Fallback: naive string comparison (works for simple semver)
-  const curParts = current.split(".").map(Number);
-  const newParts = latest.split(".").map(Number);
+  // Fallback: naive string comparison (works for simple semver; does not handle pre-release tags)
+  const curParts = current.split(".").map((s) => Number(s.split("-")[0]));
+  const newParts = latest.split(".").map((s) => Number(s.split("-")[0]));
   for (let i = 0; i < Math.max(curParts.length, newParts.length); i++) {
     const c = curParts[i] ?? 0;
     const n = newParts[i] ?? 0;
@@ -146,11 +137,10 @@ export function suppressUpdateNotices(): void {
 
 /**
  * Attempt to update ghfind in-place.
- * Detects installation method via process.env._ and runs the appropriate command.
+ * Uses `process.versions.bun` for reliable runtime detection (works on all platforms).
  */
 export async function performUpdate(): Promise<boolean> {
-  const execPath = process.env._ || "";
-  const isBun = execPath.includes("bun");
+  const isBun = typeof process.versions !== "undefined" && "bun" in process.versions;
   const cmd = isBun
     ? ["bun", "install", "-g", "ghfind"]
     : ["npm", "install", "-g", "ghfind"];
@@ -161,6 +151,10 @@ export async function performUpdate(): Promise<boolean> {
       stderr: "pipe",
     });
     await proc.exited;
+    if (proc.exitCode !== 0) {
+      const err = await proc.stderr.text();
+      debugLog(`Install failed (code ${proc.exitCode}): ${err}`);
+    }
     return proc.exitCode === 0;
   } catch {
     return false;
