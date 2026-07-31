@@ -27,7 +27,7 @@ export function cacheDir(): string {
 const DEFAULTS: Config = {
   defaultSort: "best-match",
   defaultLimit: 50,
-  theme: "tokyo-night",
+  theme: "premium-dark",  // New default: premium dark with sharp edges
   cacheTtlSeconds: 300,
   defaultTab: "search",
 };

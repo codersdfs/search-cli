@@ -109,17 +109,22 @@ import {
 } from "./update-check";
 import { debugLog } from "./storage";
 const colors = {
-  bg: "#1e1e2e",
-  surface: "#181825",
-  text: "#cdd6f4",
-  muted: "#6c7086",
+  bg: "#3D3B3B",
+  surface: "#4a4848",
+  surfaceAlt: "#525050",
+  text: "#e0e4f0",
+  muted: "#a8a6a6",
   blue: "#89b4fa",
   green: "#a6e3a1",
   yellow: "#f9e2af",
   red: "#f38ba8",
   teal: "#94e2d5",
-  border: "#45475a",
-  selectionBg: "#2d5bcf",
+  purple: "#cba6f7",
+  orange: "#fab387",
+  border: "#1C1C1C",
+  borderAlt: "#2a2a2a",
+  separator: "#1C1C1C",  // Dark thin colorblock - thicker than border, visible separation
+  selectionBg: "#2A2A9C",
   selectionText: "#ffffff",
   // Premium accents for the command menu
   accent: "#89b4fa",
@@ -223,14 +228,16 @@ export async function launchBrowser(): Promise<void> {
     backgroundColor: colors.bg,
     color: colors.muted,
     height: 1,
+    borderBottom: true,
+    borderBottomColor: colors.border,
   });
-  root.add(header);
 
   // ── Trending tab bar (hidden in search mode) ────────────────────────
   const trendingTabBox = new BoxRenderable(renderer, {
     flexDirection: "row",
     height: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
+    // No border — pure contract-edge separation via text contrast
     paddingX: 1,
     visible: false,
   });
@@ -263,31 +270,45 @@ export async function launchBrowser(): Promise<void> {
       }
     });
   }
+  root.add(header);
   root.add(trendingTabBox);
 
   // ── Search input row ────────────────────────────────────────────────
   const searchBox = new BoxRenderable(renderer, {
-    visible: true, // hidden in trending mode
-    border: true,
-    borderColor: colors.blue,
-    paddingX: 1,
-    height: 3,
+    visible: true,
+    borderBottom: true,
+    borderBottomColor: colors.border,
+    title: " SEARCH ",
+    titleColor: colors.blue,
+    width: "100%",
+    flexDirection: "row",
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: colors.surface,
   });
   const searchInput = new InputRenderable(renderer, {
     placeholder:
       "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)",
     value: "",
+    backgroundColor: colors.surface,
+    textColor: colors.text,
+    borderColor: colors.blue,
+    selectedBorderColor: colors.blue,
+    paddingX: 0,
+    flexGrow: 1,
   });
   searchBox.add(searchInput);
   root.add(searchBox);
 
   // ── Toolbar (sort + limit indicator) ────────────────────────────────
   const toolbarText = new TextRenderable(renderer, {
-    content: formatToolbar(currentSort, currentLimit),
+    content: formatToolbar(currentSort, currentLimit, totalCount),
     visible: true, // hidden in trending mode
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,                  // Surface panel
     color: colors.muted,
     height: 1,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     paddingX: 1,
   });
   root.add(toolbarText);
@@ -303,8 +324,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Results pane
   const resultsBox = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Results ",
     titleColor: colors.blue,
     width: "50%",
@@ -323,7 +344,6 @@ export async function launchBrowser(): Promise<void> {
     showDescription: false,
     showSelectionIndicator: false,
     flexGrow: 1,
-    backgroundColor: colors.bg,
     textColor: colors.text,
     selectedBackgroundColor: colors.selectionBg,
     selectedTextColor: colors.selectionText,
@@ -335,8 +355,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Detail / Graph pane
   const detailBox = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Details ",
     titleColor: colors.green,
     width: "50%",
@@ -344,6 +364,7 @@ export async function launchBrowser(): Promise<void> {
     paddingX: 1,
     paddingY: 1,
     focusable: false,
+    backgroundColor: colors.surface,
   });
   const detailText = new TextRenderable(renderer, {
     content: "",
@@ -439,8 +460,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
   });
   const helpScroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
@@ -458,8 +479,8 @@ export async function launchBrowser(): Promise<void> {
   });
   for (const section of helpSections) {
     const sectionBox = new BoxRenderable(renderer, {
-      border: true,
-      borderColor: colors.border,
+      borderBottom: true,
+      borderBottomColor: colors.border,
       title: section.title,
       titleColor:
         (colors as Record<string, string>)[section.titleColor] ??
@@ -497,8 +518,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Search History ",
     titleColor: colors.blue,
   });
@@ -537,8 +558,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Bookmarks ",
     titleColor: colors.green,
   });
@@ -577,8 +598,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Saved Searches ",
     titleColor: colors.yellow,
   });
@@ -601,8 +622,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Topics ",
     titleColor: colors.purple ?? colors.blue,
   });
@@ -641,8 +662,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Export ",
     titleColor: colors.green,
   });
@@ -682,8 +703,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Comparison ",
     titleColor: colors.yellow,
   });
@@ -700,8 +721,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Notifications ",
     titleColor: colors.yellow,
   });
@@ -729,8 +750,8 @@ export async function launchBrowser(): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.border,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " Share Repo ",
     titleColor: colors.blue,
   });
@@ -836,11 +857,13 @@ export async function launchBrowser(): Promise<void> {
     itemSpacing: 0,
   });
   const leaderFooter = new TextRenderable(renderer, {
-    content: "  ↑↓ select  Enter run  Esc/q close",
+    content: " ↑↓ select   Enter run   Esc/q close ",
     color: colors.muted,
     backgroundColor: colors.surfaceDim,
     height: 1,
-    paddingX: 1,
+    borderTop: true,
+    borderTopColor: colors.border,
+    paddingX: 2,
   });
   leaderBox.add(leaderSelect);
   leaderBox.add(leaderFooter);
@@ -1056,7 +1079,7 @@ export async function launchBrowser(): Promise<void> {
 
     const groups: MenuCategory[] = [];
 
-    // 🔍 Search group (search mode only)
+    // Search group 
     const searchItems: MenuEntry[] = [];
     if (currentMode === "search") {
       searchItems.push(
@@ -1107,7 +1130,7 @@ export async function launchBrowser(): Promise<void> {
       });
     }
 
-    // 📋 Repo group (when a repo is selected)
+    //  Repo group 
     const repoItems: MenuEntry[] = [];
     if (hasRepo) {
       repoItems.push(
@@ -1174,7 +1197,7 @@ export async function launchBrowser(): Promise<void> {
       });
     }
 
-    // 🧭 Navigate group (always available)
+    //  Navigate group 
     const navItems: MenuEntry[] = [];
     if (currentMode === "search") {
       navItems.push({
@@ -1421,9 +1444,9 @@ export async function launchBrowser(): Promise<void> {
   const readmeBox = new BoxRenderable(renderer, {
     visible: false,
     flexGrow: 1,
-    backgroundColor: colors.bg,
-    border: true,
-    borderColor: colors.green,
+    backgroundColor: colors.surface,
+    borderBottom: true,
+    borderBottomColor: colors.border,
     title: " README ",
     titleColor: colors.green,
   });
@@ -1457,6 +1480,67 @@ export async function launchBrowser(): Promise<void> {
   });
   readmeBox.add(readmeFooter);
   root.add(readmeBox);
+
+  // ── Update modal (blocking Yes/No/Later) ─────────────────────────────
+  const updateBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderTop: true,
+    borderTopColor: colors.yellow,
+    borderBottom: true,
+    borderBottomColor: colors.yellow,
+    title: " UPDATE AVAILABLE ",
+    titleColor: colors.yellow,
+    titleAlign: "center",
+    flexDirection: "column",
+    paddingX: 2,
+    paddingTop: 2,
+    paddingBottom: 1,
+    gap: 1,
+  });
+  const updateTitle = new TextRenderable(renderer, {
+    content: "",
+    color: colors.text,
+    backgroundColor: colors.surface,
+  });
+  const updateBody = new TextRenderable(renderer, {
+    content: "",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+  });
+  const updateFooter = new TextRenderable(renderer, {
+    content: " [Y]es  [N]o  [L]ater ",
+    color: colors.muted,
+    backgroundColor: colors.surface,
+    height: 1,
+    borderTop: true,
+    borderTopColor: colors.yellow,
+  });
+  updateBox.add(updateTitle);
+  updateBox.add(updateBody);
+  updateBox.add(updateFooter);
+  root.add(updateBox);
+
+  function showUpdateModal(info: UpdateInfo): void {
+    updateInfo = info;
+    updateChoice = "later";
+    updateTitle.content = `ghfind ${info.current} → ${info.latest} is available`;
+    updateBody.content = `A newer version (${info.latest}) is published on npm.\n  Run npm install -g github-search-cli to upgrade.\n  Press Y to install now, N to skip, L to dismiss.`;
+    showOverlay("update");
+  }
+
+  async function handleUpdateChoice(): Promise<void> {
+    if (!updateInfo) return;
+    showOverlay("none");
+    if (updateChoice === "yes") {
+      const result = installUpdate();
+      addNotification("upgrade", result.message);
+      if (result.success) {
+        process.exit(0);
+      }
+    }
+  }
 
   async function showReadme() {
     const opt = resultsSelect.getSelectedOption();
@@ -1508,10 +1592,12 @@ export async function launchBrowser(): Promise<void> {
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     color: colors.muted,
     height: 1,
     paddingX: 1,
+    borderTop: true,
+    borderTopColor: colors.border,
   });
   root.add(statusBar);
 
@@ -1537,7 +1623,7 @@ export async function launchBrowser(): Promise<void> {
   }
 
   function setToolbar() {
-    toolbarText.content = formatToolbar(currentSort, currentLimit);
+    toolbarText.content = formatToolbar(currentSort, currentLimit, totalCount);
     renderer.requestRender();
   }
 
@@ -1550,20 +1636,26 @@ export async function launchBrowser(): Promise<void> {
       ? repo.topics.slice(0, 8).join(", ")
       : "—";
     const desc = repo.description ?? "(no description)";
+    const stars = repo.stars.toLocaleString();
+    const forks = repo.forks.toLocaleString();
+    const lang = repo.language ?? "—";
+    const updated = repo.updatedAt.slice(0, 10);
+    const statusTags: string[] = [];
+    if (repo.archived) statusTags.push("archived");
+    if (repo.isFork) statusTags.push("fork");
+    const tagStr = statusTags.length ? `  [${statusTags.join(", ")}]` : "";
+    
     const lines = [
-      `Name     ${repo.fullName}`,
-      `Stars    ${repo.stars.toLocaleString()}`,
-      `Forks    ${repo.forks.toLocaleString()}`,
-      `Lang     ${repo.language ?? "—"}`,
-      `Updated  ${repo.updatedAt.slice(0, 10)}`,
-      repo.archived ? "Status   archived" : "",
-      repo.isFork ? "Status   fork" : "",
-      `Topics   ${topics}`,
-      "",
-      desc,
-      "",
-      repo.url,
-    ].filter((l) => l !== "");
+      `  ${repo.fullName}${tagStr}`,
+      ``,
+      `  ★  ${stars}    ♡  ${forks}    ${lang}`,
+      `  Updated  ${updated}`,
+      `  Topics   ${topics}`,
+      ``,
+      `  ${desc}`,
+      ``,
+      `  ${repo.url}`,
+    ];
     detailText.content = lines.join("\n");
   }
 
@@ -1661,13 +1753,18 @@ export async function launchBrowser(): Promise<void> {
       ];
       const idx = labelRows.indexOf(tr);
       let label = "     ";
-      if (idx >= 0) label = String(labelVals[idx]).padStart(4) + " ";
-      lines.push(`${label}\u2524${chars.join("")}`);
+      if (idx >= 0) {
+        const val = labelVals[idx];
+        label = val >= 1000 ? `${(val/1000).toFixed(1).replace(/\.0$/, "")}k` : String(val);
+        label = label.padStart(5) + " ";
+      }
+      lines.push(`${label}┆${chars.join("")}`);
     }
 
-    // X-axis
-    lines.push(`     \u2514${String.fromCharCode(0x2500).repeat(termW)}`);
-    return lines;
+    // X-axis with week labels
+    const xAxis = `     ┆${"─".repeat(termW)}`;
+    const weekLabels = `     ┆ ${"1w".padEnd(Math.floor(termW/4))} ${"13w".padEnd(Math.floor(termW/4))} ${"26w".padEnd(Math.floor(termW/4))} ${"52w"}`;
+    return [xAxis, weekLabels];
   }
 
   async function loadChart(repo: Repo) {
@@ -1699,7 +1796,7 @@ export async function launchBrowser(): Promise<void> {
       }
 
       const desc = repo.description ?? "";
-      const lang = repo.language ?? "\u2014";
+      const lang = repo.language ?? "—";
       const updated = repo.updatedAt ? repo.updatedAt.slice(0, 10) : "";
       const topics = repoRes?.topics?.length
         ? repoRes.topics.slice(0, 8).join(", ")
@@ -1711,8 +1808,9 @@ export async function launchBrowser(): Promise<void> {
           : "";
 
       const detailLines = [
-        ` ${repo.fullName}`,
-        ` \u2606 ${repo.stars.toLocaleString()}  \u2666 ${repo.forks.toLocaleString()}  ${lang}`,
+        `  ${repo.fullName}`,
+        ``,
+        `  ★  ${repo.stars.toLocaleString()}    ♡  ${repo.forks.toLocaleString()}    ${lang}`,
         growthLine,
         updated ? ` Updated ${updated}` : "",
         topics ? ` Topics  ${topics}` : "",
@@ -2394,6 +2492,24 @@ export async function launchBrowser(): Promise<void> {
     }
   });
 
+  // ── Update check (before start) ──────────────────────────────────────
+  const pkgPath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "package.json",
+  );
+  let currentVersion = "0.0.0";
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    currentVersion = pkg.version;
+  } catch {
+    // non-critical
+  }
+  const updateResult = await checkForUpdate(currentVersion);
+  if (updateResult.info) {
+    showUpdateModal(updateResult.info);
+  }
+
   // ── Start ──────────────────────────────────────────────────────────
   // Check for updates (non-blocking — doesn't delay TUI startup)
   checkForUpdateAndShow();
@@ -2417,17 +2533,19 @@ export async function launchBrowser(): Promise<void> {
 function formatResultLine(repo: Repo): string {
   const stars = formatStars(repo.stars);
   const lang = (repo.language ?? "?").padEnd(12).slice(0, 12);
-  return `${repo.fullName}  ${stars}`;
+  const name = repo.fullName.padEnd(40).slice(0, 40);
+  return `${name}  ${lang}  ${stars}`;
 }
 
 function formatStars(n: number): string {
+  if (n >= 1000000) return `★ ${(n / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1000) return `★ ${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
   return `★ ${n}`;
 }
 
-function formatToolbar(sort: SortStrategy, limit: number): string {
+function formatToolbar(sort: SortStrategy, limit: number, totalCount: number): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
-  return ` sort: ${sortLabel}   limit: ${limit}`;
+  return ` sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}`;
 }
 
 function cleanup(): void {
