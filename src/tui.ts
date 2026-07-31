@@ -1481,67 +1481,6 @@ export async function launchBrowser(): Promise<void> {
   readmeBox.add(readmeFooter);
   root.add(readmeBox);
 
-  // ── Update modal (blocking Yes/No/Later) ─────────────────────────────
-  const updateBox = new BoxRenderable(renderer, {
-    visible: false,
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderTop: true,
-    borderTopColor: colors.yellow,
-    borderBottom: true,
-    borderBottomColor: colors.yellow,
-    title: " UPDATE AVAILABLE ",
-    titleColor: colors.yellow,
-    titleAlign: "center",
-    flexDirection: "column",
-    paddingX: 2,
-    paddingTop: 2,
-    paddingBottom: 1,
-    gap: 1,
-  });
-  const updateTitle = new TextRenderable(renderer, {
-    content: "",
-    color: colors.text,
-    backgroundColor: colors.surface,
-  });
-  const updateBody = new TextRenderable(renderer, {
-    content: "",
-    color: colors.muted,
-    backgroundColor: colors.surface,
-  });
-  const updateFooter = new TextRenderable(renderer, {
-    content: " [Y]es  [N]o  [L]ater ",
-    color: colors.muted,
-    backgroundColor: colors.surface,
-    height: 1,
-    borderTop: true,
-    borderTopColor: colors.yellow,
-  });
-  updateBox.add(updateTitle);
-  updateBox.add(updateBody);
-  updateBox.add(updateFooter);
-  root.add(updateBox);
-
-  function showUpdateModal(info: UpdateInfo): void {
-    updateInfo = info;
-    updateChoice = "later";
-    updateTitle.content = `ghfind ${info.current} → ${info.latest} is available`;
-    updateBody.content = `A newer version (${info.latest}) is published on npm.\n  Run npm install -g github-search-cli to upgrade.\n  Press Y to install now, N to skip, L to dismiss.`;
-    showOverlay("update");
-  }
-
-  async function handleUpdateChoice(): Promise<void> {
-    if (!updateInfo) return;
-    showOverlay("none");
-    if (updateChoice === "yes") {
-      const result = installUpdate();
-      addNotification("upgrade", result.message);
-      if (result.success) {
-        process.exit(0);
-      }
-    }
-  }
-
   async function showReadme() {
     const opt = resultsSelect.getSelectedOption();
     const repo = opt?.value as Repo | undefined;
@@ -2505,11 +2444,6 @@ export async function launchBrowser(): Promise<void> {
   } catch {
     // non-critical
   }
-  const updateResult = await checkForUpdate(currentVersion);
-  if (updateResult.info) {
-    showUpdateModal(updateResult.info);
-  }
-
   // ── Start ──────────────────────────────────────────────────────────
   // Check for updates (non-blocking — doesn't delay TUI startup)
   checkForUpdateAndShow();
