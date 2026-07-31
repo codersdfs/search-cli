@@ -39,14 +39,14 @@ import {
   suggestFor,
   rankRepos,
   createGitHubSearch,
+  SearchModule,
+  TrendingAdapter,
   type Logger,
 } from "./search";
 import {
-  fetchTrendingRepos,
   tabSince,
   TAB_NAMES,
   fmtStars,
-  type TrendingRepo,
 } from "./trending";
 import { loadConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
@@ -80,7 +80,7 @@ import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { fetchTopics, type TopicItem } from "./explore";
-import { exportToFile, type ExportFormat } from "./export";
+import { exportToFile, type ExportFormat } from "./output";
 import { loadTheme } from "./themes";
 import { StatusManager } from "./status";
 import {
@@ -92,13 +92,22 @@ import {
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
-import { checkForUpdate, installUpdate, type UpdateInfo } from "./update-check";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_DIR = join(__dirname, "..");
 
-// ─── Theme ────────────────────────────────────────────────────────────
-// Premium color system with layered surfaces and semantic colors
+let cachedVersion: string | null = null;
+import {
+  checkForUpdate,
+  shouldCheckUpdate,
+  markUpdateChecked,
+  snoozeUpdateNotices,
+  suppressUpdateNotices,
+  performUpdate,
+} from "./update-check";
+import { debugLog } from "./storage";
 const colors = {
   bg: "#3D3B3B",
   surface: "#4a4848",
@@ -117,9 +126,11 @@ const colors = {
   separator: "#1C1C1C",  // Dark thin colorblock - thicker than border, visible separation
   selectionBg: "#2A2A9C",
   selectionText: "#ffffff",
-  success: "#a6e3a1",
-  warning: "#f9e2af",
-  error: "#f38ba8",
+  // Premium accents for the command menu
+  accent: "#89b4fa",
+  accentDim: "#587cf5",
+  surfaceDim: "#1a1919",
+  borderAccent: "#1a1919",
 };
 
 // ─── Logger ───────────────────────────────────────────────────────────
@@ -204,8 +215,6 @@ export async function launchBrowser(): Promise<void> {
     | "leader"
     | "readme"
     | "update" = "none";
-  let updateInfo: UpdateInfo | null = null;
-  let updateChoice: "yes" | "no" | "later" = "later";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
@@ -215,9 +224,9 @@ export async function launchBrowser(): Promise<void> {
   // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
-      " ghfind — GitHub repo browser   [/]search  [Space]menu  [?]help  [q]uit",
-    backgroundColor: colors.surface,
-    color: colors.text,
+      " ghfind — GitHub repo browser   [/]search  [Space]menu  [\u2192]open  [?]help  [q]uit",
+    backgroundColor: colors.bg,
+    color: colors.muted,
     height: 1,
     borderBottom: true,
     borderBottomColor: colors.border,
@@ -398,7 +407,10 @@ export async function launchBrowser(): Promise<void> {
     notifsBox.visible = false;
     shareBox.visible = false;
     leaderBox.visible = false;
+    leaderDim.visible = false;
     readmeBox.visible = false;
+    updateBox.visible = false;
+    updateDim.visible = false;
 
     if (type === "none") {
       currentOverlay = "none";
@@ -407,7 +419,10 @@ export async function launchBrowser(): Promise<void> {
       return;
     }
     currentOverlay = type;
-    hideMainContent();
+    // Leader menu is a floating overlay — main content stays visible behind it
+    if (type !== "leader") {
+      hideMainContent();
+    }
     if (type === "help") {
       helpBox.visible = true;
     } else if (type === "history") {
@@ -427,11 +442,14 @@ export async function launchBrowser(): Promise<void> {
     } else if (type === "share") {
       shareBox.visible = true;
     } else if (type === "leader") {
+      leaderDim.visible = true;
       leaderBox.visible = true;
     } else if (type === "readme") {
       readmeBox.visible = true;
     } else if (type === "update") {
+      updateDim.visible = true;
       updateBox.visible = true;
+      updateSelect.focus();
     }
     renderer.requestRender();
   }
@@ -794,36 +812,54 @@ export async function launchBrowser(): Promise<void> {
   }
 
   // ── Leader menu overlay (Space key) ─────────────────────────────
+  // Dim overlay — sits behind the menu, above main content
+  const leaderDim = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#00000099", // 60% opacity black (hex alpha: 0x99 ≈ 153/255)
+  });
+  root.add(leaderDim);
+
   const leaderBox = new BoxRenderable(renderer, {
     visible: false,
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderBottom: true,
-    borderBottomColor: colors.border,
-    title: " MENU ",
-    titleColor: colors.blue,
-    titleAlign: "center",
-    paddingX: 2,
-    paddingTop: 1,
-    paddingBottom: 1,
+    position: "absolute",
+    width: "80%",
+    height: 18,
+    left: "10%",
+    top: "30%",
+    backgroundColor: colors.surfaceDim,
+    border: true,
+    borderStyle: "rounded",
+    borderColor: colors.borderAccent,
+    title: " ⚙ Menu ",
+    titleColor: colors.accent,
+    titleAlignment: "left",
     flexDirection: "column",
+    paddingX: 1,
   });
   const leaderSelect = new SelectRenderable(renderer, {
     options: [{ name: "(empty)", description: "", value: null }],
     showDescription: true,
     showSelectionIndicator: true,
     flexGrow: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceDim,
     textColor: colors.text,
-    selectedBackgroundColor: colors.selectionBg,
+    focusedBackgroundColor: colors.surfaceDim,
+    focusedTextColor: colors.text,
+    selectedBackgroundColor: colors.accent,
     selectedTextColor: colors.selectionText,
-    itemSpacing: 2,
-    borderColor: colors.border,
+    descriptionColor: colors.muted,
+    selectedDescriptionColor: colors.selectionText,
+    itemSpacing: 0,
   });
   const leaderFooter = new TextRenderable(renderer, {
     content: " ↑↓ select   Enter run   Esc/q close ",
     color: colors.muted,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceDim,
     height: 1,
     borderTop: true,
     borderTopColor: colors.border,
@@ -831,115 +867,357 @@ export async function launchBrowser(): Promise<void> {
   });
   leaderBox.add(leaderSelect);
   leaderBox.add(leaderFooter);
+  root.add(leaderDim);
   root.add(leaderBox);
 
-  interface LeaderItem {
+  // ── Update panel overlay ────────────────────────────────────────
+  const updateDim = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#00000088",
+  });
+
+  root.add(updateDim);
+
+  const updateBox = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    width: "55%",
+    height: 16,
+    left: "22.5%",
+    top: "25%",
+    backgroundColor: colors.surfaceDim,
+    border: true,
+    borderStyle: "rounded",
+    borderColor: colors.border,
+    title: " ghfind ",
+    titleColor: colors.accent,
+    titleAlignment: "left",
+    flexDirection: "column",
+    paddingX: 2,
+    paddingLeft: 2,
+    paddingRight: 2,
+  });
+  const updateText = new TextRenderable(renderer, {
+    content: "",
+    color: colors.accent,
+    backgroundColor: colors.surfaceDim,
+  });
+
+  // Horizontal option boxes
+  let updateSelectedOption = 0;
+
+  const updateOptionsRow = new BoxRenderable(renderer, {
+    flexDirection: "row",
+    gap: 1,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "100%",
+  });
+
+  const updateNowBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 0 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const updateNowText = new TextRenderable(renderer, {
+    content: "   Update Now  ",
+    color: updateSelectedOption === 0 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  updateNowBox.add(updateNowText);
+
+  const laterBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 1 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const laterText = new TextRenderable(renderer, {
+    content: "  Later",
+    color: updateSelectedOption === 1 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  laterBox.add(laterText);
+
+  const neverBox = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: updateSelectedOption === 2 ? colors.yellow : colors.border,
+    backgroundColor: colors.surfaceDim,
+    height: 3,
+    width: "50%",
+    paddingLeft: 1,
+    paddingRight: 1,
+  });
+  const neverText = new TextRenderable(renderer, {
+    content: "  Don't show again",
+    color: updateSelectedOption === 2 ? colors.yellow : colors.text,
+    backgroundColor: colors.surfaceDim,
+  });
+  neverBox.add(neverText);
+
+  function renderUpdateOptions() {
+    updateNowBox.borderColor = updateSelectedOption === 0 ? colors.yellow : colors.border;
+    laterBox.borderColor = updateSelectedOption === 1 ? colors.yellow : colors.border;
+    neverBox.borderColor = updateSelectedOption === 2 ? colors.yellow : colors.border;
+    updateNowText.color = updateSelectedOption === 0 ? colors.yellow : colors.text;
+    laterText.color = updateSelectedOption === 1 ? colors.yellow : colors.text;
+    neverText.color = updateSelectedOption === 2 ? colors.yellow : colors.text;
+    renderer.requestRender();
+  }
+
+  updateOptionsRow.add(updateNowBox);
+  updateOptionsRow.add(laterBox);
+
+  const updateFooter = new TextRenderable(renderer, {
+    content: "  ←→ select  Enter  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.surfaceDim,
+    height: 1,
+    paddingX: 1,
+  });
+  updateBox.add(updateText);
+  updateBox.add(updateOptionsRow);
+  updateBox.add(updateFooter);
+  root.add(updateDim);
+  root.add(updateBox);
+
+  // ── Hierarchical menu types ──────────────────────────────────────
+  interface MenuAction {
+    type: "action";
     name: string;
     description: string;
     action: () => void;
   }
 
-  function showLeaderMenu() {
-    const items: LeaderItem[] = [];
+  interface MenuCategory {
+    type: "category";
+    name: string;
+    description: string;
+    icon: string;
+    children: MenuEntry[];
+  }
 
+  type MenuEntry = MenuAction | MenuCategory;
+
+  // ── Submenu navigation ──────────────────────────────────────────
+  interface MenuLevel {
+    title: string;
+    parentTitle: string;
+    entries: MenuEntry[];
+    selectedIndex: number;
+  }
+
+  const menuStack: MenuLevel[] = [];
+
+  function pushMenuLevel(
+    title: string,
+    parentTitle: string,
+    entries: MenuEntry[],
+    selectIndex = 0,
+  ) {
+    menuStack.push({
+      title,
+      parentTitle,
+      entries,
+      selectedIndex: leaderSelect.getSelectedIndex?.(),
+    });
+    leaderSelect.options = entries.map((e) => ({
+      name:
+        e.type === "category" ? `  ${e.icon} ${e.name} \u2192` : `  ${e.name}`,
+      description: e.description,
+      value: e,
+    }));
+    leaderSelect.setSelectedIndex(selectIndex);
+    leaderBox.title = title;
+    const isTop = menuStack.length === 1;
+    leaderFooter.content = isTop
+      ? "  \u2191\u2193 select  \u2192 open category  Enter run  Esc/q close"
+      : "  Esc back  \u2191\u2193 select  Enter run";
+  }
+
+  function popMenuLevel(): boolean {
+    if (menuStack.length <= 1) return false;
+    const prev = menuStack[menuStack.length - 2];
+    const current = menuStack.pop()!;
+    leaderSelect.options = prev.entries.map((e) => ({
+      name:
+        e.type === "category" ? `  ${e.icon} ${e.name} \u2192` : `  ${e.name}`,
+      description: e.description,
+      value: e,
+    }));
+    leaderSelect.setSelectedIndex(current.selectedIndex);
+    leaderBox.title = prev.title;
+    const isTop = menuStack.length === 1;
+    leaderFooter.content = isTop
+      ? "  \u2191\u2193 select  \u2192 open category  Enter run  Esc/q close"
+      : "  Esc back  \u2191\u2193 select  Enter run";
+    return true;
+  }
+
+  function resetMenu() {
+    menuStack.length = 0;
+  }
+
+  // ── Build hierarchical menu ─────────────────────────────────────
+  function buildMenuHierarchy(): MenuCategory[] {
+    const hasRepo = (() => {
+      const opt = resultsSelect.getSelectedOption();
+      return opt?.value && typeof (opt.value as any)?.fullName === "string";
+    })();
+
+    const groups: MenuCategory[] = [];
+
+    // Search group 
+    const searchItems: MenuEntry[] = [];
     if (currentMode === "search") {
-      items.push(
+      searchItems.push(
         {
-          name: "  Sort",
+          type: "action",
+          name: "Sort",
           description: `Cycle sort (current: ${currentSort})`,
           action: () => changeSort(),
         },
         {
-          name: "  Limit",
+          type: "action",
+          name: "Limit",
           description: `Cycle result limit (current: ${currentLimit})`,
           action: () => changeLimit(),
         },
         {
-          name: "  Refresh",
+          type: "action",
+          name: "Refresh",
           description: "Re-run current search",
           action: () => {
             if (currentQueryInput) doSearch(currentQueryInput);
           },
         },
         {
-          name: "  Toggle trending",
-          description: "Browse GitHub trending repos",
-          action: () => loadTrending(),
+          type: "action",
+          name: "Save search",
+          description: "Save current query as a named search",
+          action: () => saveCurrentSearch(),
         },
         {
-          name: "  Deep-dive",
+          type: "action",
+          name: "Saved searches",
+          description: "Load a saved search",
+          action: () => {
+            refreshSavedSearches();
+            showOverlay("saved");
+          },
+        },
+      );
+    }
+    if (searchItems.length > 0) {
+      groups.push({
+        type: "category",
+        name: "Search",
+        description: "Sort, limit, refresh, save searches",
+        icon: "\uD83D\uDD0D",
+        children: searchItems,
+      });
+    }
+
+    //  Repo group 
+    const repoItems: MenuEntry[] = [];
+    if (hasRepo) {
+      repoItems.push(
+        {
+          type: "action",
+          name: "Open in browser",
+          description: "Open selected repo in browser",
+          action: () => openUrlIfSelected(),
+        },
+        {
+          type: "action",
+          name: "Readme",
+          description: "Full README viewer",
+          action: () => {
+            showReadme();
+          },
+        },
+        {
+          type: "action",
+          name: "Activity graph",
+          description: "Toggle commit chart fullscreen",
+          action: () => toggleGraph(),
+        },
+      );
+      if (currentMode === "search") {
+        repoItems.push({
+          type: "action",
+          name: "Deep-dive",
           description: "Languages, contributors, README excerpt",
           action: () => {
             showOverlay("none");
             triggerDeepDive();
           },
-        },
+        });
+      }
+      repoItems.push(
         {
-          name: "  Readme",
-          description: "Full README viewer",
-          action: () => {
-            showReadme();
-          },
-        },
-        {
-          name: "  Activity graph",
-          description: "Toggle commit chart fullscreen",
-          action: () => toggleGraph(),
-        },
-        {
-          name: "  Bookmark",
+          type: "action",
+          name: "Bookmark",
           description: "Save / unsave selected repo",
           action: () => toggleBookmarkOnSelected(),
         },
         {
-          name: "  Compare",
+          type: "action",
+          name: "Compare",
           description: "Add/remove repo to comparison",
           action: () => toggleCompareOnSelected(),
         },
-      );
-    }
-
-    if (currentMode === "trending") {
-      items.push(
         {
-          name: "  Refresh",
-          description: "Reload trending repos",
-          action: () => loadTrending(),
-        },
-        {
-          name: "  Search mode",
-          description: "Switch to query search",
-          action: () => showSearchMode(),
-        },
-        {
-          name: "  Readme",
-          description: "Full README viewer",
-          action: () => {
-            showReadme();
-          },
-        },
-        {
-          name: "  Bookmark",
-          description: "Save / unsave selected repo",
-          action: () => toggleBookmarkOnSelected(),
+          type: "action",
+          name: "Share",
+          description: "Copy repo link to clipboard",
+          action: () => showShareIfRepo(),
         },
       );
     }
+    if (repoItems.length > 0) {
+      groups.push({
+        type: "category",
+        name: "Repo",
+        description: "Open, readme, bookmark, share, compare",
+        icon: "\uD83D\uDCCB",
+        children: repoItems,
+      });
+    }
 
-    // Common items (always available when repos exist)
-    const hasRepo = (() => {
-      const opt = resultsSelect.getSelectedOption();
-      return opt?.value && typeof (opt.value as any)?.fullName === "string";
-    })();
-
-    items.push(
+    //  Navigate group 
+    const navItems: MenuEntry[] = [];
+    if (currentMode === "search") {
+      navItems.push({
+        type: "action",
+        name: "Trending",
+        description: "Browse GitHub trending repos",
+        action: () => loadTrending(),
+      });
+    } else {
+      navItems.push({
+        type: "action",
+        name: "Search mode",
+        description: "Switch to query search",
+        action: () => showSearchMode(),
+      });
+    }
+    navItems.push(
       {
-        name: "  Open in browser",
-        description: "Open selected repo in browser",
-        action: () => openUrlIfSelected(),
-      },
-      {
-        name: "  History",
+        type: "action",
+        name: "History",
         description: "Search history",
         action: () => {
           refreshHistory();
@@ -947,49 +1225,8 @@ export async function launchBrowser(): Promise<void> {
         },
       },
       {
-        name: "  Saved searches",
-        description: "Load a saved search",
-        action: () => {
-          refreshSavedSearches();
-          showOverlay("saved");
-        },
-      },
-      {
-        name: "  Export",
-        description: "Export results to JSON/CSV/Markdown",
-        action: () => showOverlay("export"),
-      },
-      {
-        name: "  Share repo",
-        description: "Copy repo link to clipboard",
-        action: () => showShareIfRepo(),
-      },
-      {
-        name: "  Notifications",
-        description: "View alerts",
-        action: () => {
-          refreshNotifications();
-          showOverlay("notifications");
-        },
-      },
-      {
-        name: "  Topics",
-        description: "Browse popular GitHub topics",
-        action: () => {
-          refreshTopics();
-          showOverlay("topics");
-        },
-      },
-      {
-        name: "  Compare view",
-        description: "Show side-by-side comparison",
-        action: () => {
-          refreshCompare();
-          showOverlay("compare");
-        },
-      },
-      {
-        name: "  Bookmarks panel",
+        type: "action",
+        name: "Bookmarks",
         description: "Browse saved repos",
         action: () => {
           refreshBookmarks();
@@ -997,25 +1234,123 @@ export async function launchBrowser(): Promise<void> {
         },
       },
       {
-        name: "  Save search",
-        description: "Save current query",
-        action: () => saveCurrentSearch(),
+        type: "action",
+        name: "Topics",
+        description: "Browse popular GitHub topics",
+        action: () => {
+          refreshTopics();
+          showOverlay("topics");
+        },
       },
       {
-        name: "  Help",
+        type: "action",
+        name: "Export",
+        description: "Export results to JSON/CSV/Markdown",
+        action: () => showOverlay("export"),
+      },
+    );
+    groups.push({
+      type: "category",
+      name: "Navigate",
+      description: "Trending, history, bookmarks, topics, export",
+      icon: "\uD83E\uDDED",
+      children: navItems,
+    });
+
+    // ⚙️ System group
+    const sysItems: MenuEntry[] = [
+      {
+        type: "action",
+        name: "Check for updates",
+        description: "Check npm for a newer version (debug)",
+        action: () => {
+          showOverlay("none");
+          checkForUpdateAndShow(true);
+        },
+      },
+      {
+        type: "action",
+        name: "Help",
         description: "Keybindings reference",
         action: () => showOverlay("help"),
       },
-    );
+      {
+        type: "action",
+        name: "Notifications",
+        description: "View alerts",
+        action: () => {
+          refreshNotifications();
+          showOverlay("notifications");
+        },
+      },
+      {
+        type: "action",
+        name: "Compare view",
+        description: "Show side-by-side comparison",
+        action: () => {
+          refreshCompare();
+          showOverlay("compare");
+        },
+      },
+      {
+        type: "action",
+        name: "Quit",
+        description: "Exit ghfind",
+        action: () => {
+          saveSession({
+            mode: currentMode,
+            query: currentQueryInput,
+            sort: currentSort,
+            limit: currentLimit,
+            trendingTab,
+          });
+          cleanup();
+        },
+      },
+    ];
+    groups.push({
+      type: "category",
+      name: "System",
+      description: "Help, notifications, compare, quit",
+      icon: "\u2699\uFE0F",
+      children: sysItems,
+    });
 
-    leaderSelect.options = items.map((it) => ({
-      name: it.name,
-      description: it.description,
-      value: it,
-    }));
-    leaderSelect.setSelectedIndex(0);
+    return groups;
+  }
+
+  function showLeaderMenu() {
+    resetMenu();
+    const topLevel = buildMenuHierarchy();
+    pushMenuLevel(" ⚙ Menu ", "", topLevel, 0);
     leaderSelect.focus();
     showOverlay("leader");
+  }
+
+  async function checkForUpdateAndShow(force: boolean = false) {
+    if (!force && !shouldCheckUpdate()) return;
+    if (cachedVersion === null) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+        cachedVersion = pkg.version;
+      } catch {
+        debugLog("Failed to read package.json");
+        return;
+      }
+    }
+    const currentVersion = cachedVersion;
+    // ponytail: DEBUG_FORCE_UPDATE lets you test the panel without a real newer version
+    const latest = process.env.DEBUG_FORCE_UPDATE || await checkForUpdate(currentVersion);
+    markUpdateChecked(latest ?? undefined);
+    if (latest) {
+      updateSelectedOption = 0;
+      updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
+      renderUpdateOptions();
+      showOverlay("update");
+    } else {
+      // ponytail: debug to file so it's not swallowed by TUI renderer
+      debugLog(`No update available (current: ${currentVersion})`);
+    }
   }
 
   function openUrlIfSelected() {
@@ -1401,7 +1736,7 @@ export async function launchBrowser(): Promise<void> {
         chars.push(brailleChar(bits));
       }
 
-      // Y-axis labels with gradient indicators
+      // Y-axis labels
       const labelRows = [
         0,
         Math.floor(termH / 4),
@@ -1454,7 +1789,7 @@ export async function launchBrowser(): Promise<void> {
           const chartW = 60;
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
-          chartSection = ["", " Weekly commits (52 weeks)", ...chartLines].join(
+          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join(
             "\n",
           );
         }
@@ -1469,7 +1804,7 @@ export async function launchBrowser(): Promise<void> {
 
       const growthLine =
         currentMode === "trending" && repo.score > 0
-          ? `  ▲ Growth  ${fmtStars(repo.score)} ${trendingPeriod}`
+          ? ` Growth \u25b2 ${fmtStars(repo.score)} ${trendingPeriod}`
           : "";
 
       const detailLines = [
@@ -1477,12 +1812,12 @@ export async function launchBrowser(): Promise<void> {
         ``,
         `  ★  ${repo.stars.toLocaleString()}    ♡  ${repo.forks.toLocaleString()}    ${lang}`,
         growthLine,
-        `  Updated  ${updated}`,
-        topics ? `  Topics   ${topics}` : "",
-        ``,
-        `  ${desc}`,
-        ``,
-        `  ${repo.url}`,
+        updated ? ` Updated ${updated}` : "",
+        topics ? ` Topics  ${topics}` : "",
+        "",
+        desc,
+        "",
+        ` ${repo.url}`,
       ].filter((l) => l !== "");
 
       detailText.content = [...detailLines, chartSection].join("\n");
@@ -1515,44 +1850,14 @@ export async function launchBrowser(): Promise<void> {
 
   // ── Trending helpers ────────────────────────────────────────────────
 
-  function formatTrendingLine(r: {
-    rank: number;
-    owner: string;
-    name: string;
-    stars: number;
-    starsToday: number;
-    language: string;
-  }): string {
-    const rank = String(r.rank).padStart(2, "0");
-    const name = `${r.owner}/${r.name}`.padEnd(35).slice(0, 35);
+  function formatTrendingLine(r: Repo, rank: number): string {
+    const rankStr = String(rank).padStart(2, "0");
+    const name = `${r.owner}/${r.name}`.padEnd(30).slice(0, 30);
     const lang = (r.language || "?").padEnd(12).slice(0, 12);
-    const stars = `★ ${fmtStars(r.stars)}`.padEnd(10).slice(0, 10);
-    const arrow = r.starsToday > 0 ? "▲" : r.starsToday < 0 ? "▼" : "●";
-    const growth = `${arrow} ${fmtStars(r.starsToday)} ${trendingPeriod}`;
-    return `[${rank}] ${name} ${lang} ${stars} ${growth}`;
-  }
-
-  function trendingRepoToSelectValue(r: TrendingRepo): Repo {
-    return {
-      id: 0,
-      fullName: `${r.owner}/${r.name}`,
-      name: r.name,
-      owner: r.owner,
-      description: r.description,
-      url: `https://github.com/${r.owner}/${r.name}`,
-      stars: r.stars,
-      forks: 0,
-      watchers: 0,
-      language: r.language,
-      topics: [],
-      archived: false,
-      isFork: false,
-      private: false,
-      createdAt: "",
-      updatedAt: "",
-      pushedAt: "",
-      score: r.starsToday,
-    };
+    const stars = `★ ${fmtStars(r.stars)}`.padEnd(9).slice(0, 9);
+    const arrow = r.score > 0 ? "▲" : r.score < 0 ? "▼" : "—";
+    const growth = `${arrow} ${fmtStars(r.score)} ${trendingPeriod}`;
+    return `[${rankStr}] ${name} ${lang} ${stars} ${growth}`;
   }
 
   async function loadTrending() {
@@ -1570,7 +1875,12 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
 
     try {
-      const fetched = await fetchTrendingRepos(tabSince(trendingTab));
+      const searchModule = new SearchModule(new TrendingAdapter());
+      const response = await searchModule.search(
+        { keywords: [], qualifiers: [], raw: "trending" },
+        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: tabSince(trendingTab) },
+      );
+      const fetched = response.repos;
       const since = tabSince(trendingTab);
       trendingPeriod =
         since === "daily"
@@ -1578,14 +1888,14 @@ export async function launchBrowser(): Promise<void> {
           : since === "weekly"
             ? "this week"
             : "this month";
-      resultsSelect.options = fetched.map((r) => ({
-        name: formatTrendingLine(r),
-        description: r.description,
-        value: trendingRepoToSelectValue(r),
+      resultsSelect.options = fetched.map((r, i) => ({
+        name: formatTrendingLine(r, i + 1),
+        description: r.description ?? "",
+        value: r,
       }));
       if (fetched.length > 0) {
         resultsSelect.setSelectedIndex(0);
-        updateDetail(trendingRepoToSelectValue(fetched[0]));
+        updateDetail(fetched[0]);
       } else {
         throw new NoResultsError(trendingTab);
       }
@@ -1766,21 +2076,56 @@ export async function launchBrowser(): Promise<void> {
   renderer.keyInput.on("keypress", (key) => {
     // ── Overlay-mode handling ────────────────────────────────────────
     if (currentOverlay !== "none") {
-      // Escape or q closes any overlay
-      if (key.name === "escape" || key.name === "q") {
+      // Escape or q closes any overlay (except: leader uses Esc for back-nav, q to close)
+      if (key.name === "escape") {
+        if (currentOverlay === "leader") {
+          if (!popMenuLevel()) {
+            showOverlay("none");
+          }
+          setToolbar();
+          renderer.requestRender();
+        } else {
+          showOverlay("none");
+          renderer.requestRender();
+        }
+        return;
+      }
+      if (key.name === "q") {
         showOverlay("none");
         renderer.requestRender();
         return;
       }
 
-      // Leader menu: Enter dispatches action, up/down navigates
+      // Leader menu: hierarchical submenu navigation
       if (currentOverlay === "leader") {
-        if (key.name === "enter" || key.name === "return") {
+        if (
+          key.name === "enter" ||
+          key.name === "return" ||
+          key.name === "right" ||
+          key.name === "l"
+        ) {
           const sel = leaderSelect.getSelectedOption();
-          const item = sel?.value as LeaderItem | undefined;
-          if (item) {
+          const entry = sel?.value as MenuEntry | undefined;
+          if (!entry) return;
+          if (entry.type === "category") {
+            pushMenuLevel(
+              `  Menu > ${entry.name}`,
+              entry.name,
+              entry.children,
+              0,
+            );
+            renderer.requestRender();
+          } else {
+            resetMenu();
             showOverlay("none");
-            item.action();
+            entry.action();
+            renderer.requestRender();
+          }
+          return;
+        }
+        if (key.name === "left" || key.name === "h") {
+          if (popMenuLevel()) {
+            setToolbar();
             renderer.requestRender();
           }
           return;
@@ -1976,21 +2321,46 @@ export async function launchBrowser(): Promise<void> {
         return;
       }
 
-      // Update modal: Y/N/L
+      // Update panel
       if (currentOverlay === "update") {
-        if (key.name === "y" || key.name === "Y") {
-          updateChoice = "yes";
-          void handleUpdateChoice();
+        if (key.name === "escape" || key.name === "q") {
+          showOverlay("none");
+          renderer.requestRender();
           return;
         }
-        if (key.name === "n" || key.name === "N") {
-          updateChoice = "no";
-          showOverlay("none");
+        if (key.name === "left" || key.name === "h") {
+          updateSelectedOption = Math.max(0, updateSelectedOption - 1);
+          renderUpdateOptions();
           return;
         }
-        if (key.name === "l" || key.name === "L") {
-          updateChoice = "later";
-          showOverlay("none");
+        if (key.name === "right" || key.name === "l") {
+          updateSelectedOption = Math.min(2, updateSelectedOption + 1);
+          renderUpdateOptions();
+          return;
+        }
+        if (key.name === "enter" || key.name === "return") {
+          const action = ["now", "later", "never"][updateSelectedOption] as "now" | "later" | "never" | undefined;
+          if (action === "now") {
+            showOverlay("none");
+            performUpdate().then((ok) => {
+              if (ok) {
+                setStatus("✓ Update complete — restart ghfind");
+              } else {
+                setStatus("✗ Update failed — check terminal output");
+              }
+            }).catch(() => {
+              setStatus("✗ Update failed — check terminal output");
+            });
+          } else if (action === "never") {
+            suppressUpdateNotices();
+            showOverlay("none");
+            setStatus("Update notices suppressed");
+          } else {
+            snoozeUpdateNotices(3);
+            showOverlay("none");
+            setStatus("Update reminder snoozed for 3 days");
+          }
+          renderer.requestRender();
           return;
         }
         return;
@@ -2141,6 +2511,8 @@ export async function launchBrowser(): Promise<void> {
   }
 
   // ── Start ──────────────────────────────────────────────────────────
+  // Check for updates (non-blocking — doesn't delay TUI startup)
+  checkForUpdateAndShow();
   renderer.start();
   if (currentMode === "trending") {
     loadTrending();

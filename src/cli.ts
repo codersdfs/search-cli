@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /** CLI entry point — routes between TUI browser and non-interactive modes. */
-import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
-import { formatRepos, type ExportFormat } from "./export";
-import { formatLines, pipeExec, type FormatLine } from "./pipe";
+import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch, createTrendingSearch } from "./search";
+import { format as formatOutput, exportToFile, pipeExec, type Format, type ExportFormat, type FormatLine } from "./output";
 import { runWatch } from "./watch";
 import { runInitWizard } from "./init";
 import { readFileSync } from "fs";
@@ -158,13 +157,13 @@ Options:
   }
 
   // Determine output format
-  const format: ExportFormat | undefined =
+  const outputFormat: ExportFormat | undefined =
     flags.json ? "json" : flags.csv ? "csv" : flags.markdown ? "markdown" : undefined;
-  const isNonInteractive = format || flags.count || flags.format || flags.pipe || flags.watch;
+  const isNonInteractive = outputFormat || flags.count || flags.format || flags.pipe || flags.watch;
 
   // Non-interactive mode
   if (isNonInteractive) {
-    await runNonInteractive(flags, format);
+    await runNonInteractive(flags, outputFormat);
     return;
   }
 
@@ -172,65 +171,95 @@ Options:
   await launchBrowser();
 }
 
-async function runNonInteractive(flags: CLIFlags, format?: ExportFormat) {
-  const query = flags.query;
-  const provider = createGitHubSearch(undefined, flags.token ? [flags.token] : []);
+interface SearchContext {
+  query: string;
+  parsed: ReturnType<typeof parseQuery> & { raw: string };
+  provider: ReturnType<typeof createGitHubSearch>;
+}
 
-  // --watch mode
-  if (flags.watch) {
-    let tick = 0;
-    await runWatch(
-      { query, sort: flags.sort, limit: flags.limit, token: flags.token, intervalMs: flags.interval * 1000, trending: flags.trending },
-      (repos, delta) => {
-        tick++;
-        if (format) {
-          console.log(`[Watch #${tick}] ${repos.length} results (${delta >= 0 ? "+" : ""}${delta} since last check)`);
-          console.log(formatRepos(repos, format));
-        } else {
-          console.log(`[Watch #${tick}] ${repos.length} results — ${delta >= 0 ? "+" : ""}${delta} since last check`);
+function buildSearchContext(flags: CLIFlags): SearchContext {
+  const parsed = applyFlagFilters(parseQuery(flags.query), {});
+  return {
+    query: flags.query,
+    parsed,
+    provider: createGitHubSearch(undefined, flags.token ? [flags.token] : []),
+  };
+}
+
+async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
+  // Dispatch table: each handler receives shared context + flags, returns void.
+  const handlers: Record<string, (ctx: SearchContext) => Promise<void>> = {
+    trending: async (ctx) => {
+      const since = flags.since === "weekly" ? "weekly" : flags.since === "monthly" ? "monthly" : "daily";
+      const trendingSearch = createTrendingSearch();
+      const response = await trendingSearch.search(
+        { keywords: [], qualifiers: [], raw: "trending" },
+        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: since },
+      );
+      if (outputFormat) {
+        console.log(formatOutput(response.repos, outputFormat));
+      } else if (flags.count) {
+        console.log(response.totalCount);
+      } else {
+        for (const r of response.repos) {
+          console.log(r.fullName + "  ★ " + r.stars + "  ▲ +" + r.score + " " + since + "  ● " + (r.language ?? ""));
         }
-      },
-      (err) => console.error(`[Watch error] ${err.message}`),
-    );
-    return;
-  }
+      }
+    },
+    watch: async (ctx) => {
+      let tick = 0;
+      await runWatch(
+        { query: ctx.query, sort: flags.sort, limit: flags.limit, token: flags.token, intervalMs: flags.interval * 1000, trending: flags.trending },
+        (repos, delta) => {
+          tick++;
+          if (outputFormat) {
+            console.log(`[Watch #${tick}] ${repos.length} results (${delta >= 0 ? "+" : ""}${delta} since last check)`);
+            console.log(formatOutput(repos, outputFormat));
+          } else {
+            console.log(`[Watch #${tick}] ${repos.length} results — ${delta >= 0 ? "+" : ""}${delta} since last check`);
+          }
+        },
+        (err) => console.error(`[Watch error] ${err.message}`),
+      );
+    },
+    pipe: async (ctx) => {
+      const response = await ctx.provider.search(ctx.parsed, {
+        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+      });
+      const repos = rankRepos(response.repos, flags.sort);
+      await pipeExec(repos, flags.pipe!);
+    },
+    format: async (ctx) => {
+      const response = await ctx.provider.search(ctx.parsed, {
+        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+      });
+      const repos = rankRepos(response.repos, flags.sort);
+      console.log(formatOutput(repos, flags.format as Format));
+    },
+    search: async (ctx) => {
+      const response = await ctx.provider.search(ctx.parsed, {
+        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+      });
+      const repos = rankRepos(response.repos, flags.sort);
+      if (flags.count) {
+        console.log(response.totalCount);
+        return;
+      }
+      if (outputFormat) {
+        console.log(formatOutput(repos, outputFormat));
+      }
+    },
+  };
 
-  // --pipe mode
-  if (flags.pipe) {
-    const parsed = applyFlagFilters(parseQuery(query), {});
-    const response = await provider.search(parsed, { limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token });
-    const repos = rankRepos(response.repos, flags.sort);
-    await pipeExec(repos, flags.pipe);
-    return;
-  }
+  // Determine which handler to run
+  const key = flags.trending && !flags.watch ? "trending"
+    : flags.watch ? "watch"
+    : flags.pipe ? "pipe"
+    : flags.format ? "format"
+    : "search";
 
-  // --format mode
-  if (flags.format) {
-    const parsed = applyFlagFilters(parseQuery(query), {});
-    const response = await provider.search(parsed, { limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token });
-    const repos = rankRepos(response.repos, flags.sort);
-    console.log(formatLines(repos, flags.format as FormatLine));
-    return;
-  }
-
-  // Standard search with format
-  const parsed = applyFlagFilters(parseQuery(query), {});
-  const response = await provider.search(parsed, {
-    limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
-  });
-  const repos = rankRepos(response.repos, flags.sort);
-
-  // --count
-  if (flags.count) {
-    console.log(response.totalCount);
-    return;
-  }
-
-  // --json, --csv, --markdown
-  if (format) {
-    console.log(formatRepos(repos, format));
-    return;
-  }
+  const ctx = buildSearchContext(flags);
+  await handlers[key](ctx);
 }
 
 main().catch((err) => {

@@ -467,6 +467,96 @@ function appendPage(url: string, page: number, perPage: number): string {
   return u.toString();
 }
 
+// ─── Trending adapter ─────────────────────────────────────────────────
+
+const TRENDING_URL = "https://github.com/trending";
+
+interface RawTrendingRepo {
+  rank: number;
+  owner: string;
+  name: string;
+  stars: number;
+  starsToday: number;
+  language: string;
+  description: string;
+}
+
+function parseTrendingHtml(html: string): RawTrendingRepo[] {
+  const flat = html.replace(/>\s+</g, "><").replace(/\s+/g, " ");
+  const repos: RawTrendingRepo[] = [];
+  const articleRe = /<article class="Box-row">(.*?)<\/article>/gi;
+  let match: RegExpExecArray | null;
+  let rank = 0;
+  while ((match = articleRe.exec(flat)) !== null) {
+    rank++;
+    const block = match[1];
+    const repoMatch = block.match(/href="\/([^\/\"]+)\/([^\"?#]+)"[^>]*class="Link"/);
+    if (!repoMatch) continue;
+    const owner = repoMatch[1];
+    const name = repoMatch[2];
+    const starsMatch = block.match(/href="\/[^\/\"]+\/[^\/\"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/);
+    const stars = starsMatch ? parseInt(starsMatch[1].replace(/,/g, ""), 10) : 0;
+    const growthMatch = block.match(/(\d[\d,]*)\s+stars\s+(today|this\s+\w+)/);
+    const starsToday = growthMatch ? parseInt(growthMatch[1].replace(/,/g, ""), 10) : 0;
+    const langMatch = block.match(/itemprop="programmingLanguage">([^<]+)</);
+    const language = langMatch ? langMatch[1].trim() : "";
+    const descMatch = block.match(/<p[^>]*class="[^"]*color-fg-muted[^"]*"[^>]*>([^<]+)</);
+    const description = descMatch ? descMatch[1].trim() : "";
+    repos.push({ rank, owner, name, stars, starsToday, language, description });
+  }
+  return repos;
+}
+
+function trendingRepoToRepo(r: RawTrendingRepo): Repo {
+  return {
+    id: 0,
+    fullName: `${r.owner}/${r.name}`,
+    name: r.name,
+    owner: r.owner,
+    description: r.description,
+    url: `https://github.com/${r.owner}/${r.name}`,
+    stars: r.stars,
+    forks: 0,
+    watchers: 0,
+    language: r.language,
+    topics: [],
+    archived: false,
+    isFork: false,
+    private: false,
+    createdAt: "",
+    updatedAt: "",
+    pushedAt: "",
+    score: r.starsToday,
+  };
+}
+
+/**
+ * Trending adapter — scrapes github.com/trending HTML and returns SearchResponse.
+ */
+export class TrendingAdapter implements SearchAdapter {
+  readonly name = "trending";
+  private readonly logger: Logger;
+
+  constructor(logger: Logger = noopLogger) {
+    this.logger = logger;
+  }
+
+  async search(_query: ParsedQuery, options: SearchOptions): Promise<SearchResponse> {
+    const since = options.trendingSince ?? "daily";
+    const url = since === "daily" ? TRENDING_URL : `${TRENDING_URL}?since=${since}`;
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { "User-Agent": "ghfind" } });
+    } catch {
+      throw new NetworkError();
+    }
+    if (!res.ok) throw new NetworkError();
+    const html = await res.text();
+    const repos = parseTrendingHtml(html).map(trendingRepoToRepo);
+    return { totalCount: repos.length, repos, rateLimited: false };
+  }
+}
+
 // ─── In-memory adapter (for tests) ────────────────────────────────────
 
 /**
@@ -551,5 +641,12 @@ export function createGitHubSearch(
   return new SearchModule(new GitHubSearchAdapter(logger, tokens), logger);
 }
 
-// Re-export types that callers need
-export type { GitHubApiItem, GitHubSearchEnvelope };
+/**
+ * Create a SearchModule backed by the Trending adapter.
+ */
+export function createTrendingSearch(
+  logger: Logger = noopLogger,
+): SearchModule {
+  return new SearchModule(new TrendingAdapter(logger), logger);
+}
+

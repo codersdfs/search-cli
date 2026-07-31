@@ -1,25 +1,17 @@
 /**
  * Saved searches — named queries you can re-run anytime.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
 import type { SavedSearch, SortStrategy } from "./types";
-import { stateDir } from "./config";
+import { readJSON, writeJSON } from "./storage";
 
-const SAVED_FILE = join(stateDir(), "saved-searches.json");
+const SAVED_FILE = "saved-searches.json";
 
 function loadRaw(): SavedSearch[] {
-  mkdirSync(stateDir(), { recursive: true });
-  try {
-    return JSON.parse(readFileSync(SAVED_FILE, "utf-8")) as SavedSearch[];
-  } catch {
-    return [];
-  }
+  return readJSON<SavedSearch[]>(SAVED_FILE, []);
 }
 
 function saveRaw(searches: SavedSearch[]): void {
-  mkdirSync(stateDir(), { recursive: true });
-  writeFileSync(SAVED_FILE, JSON.stringify(searches, null, 2));
+  writeJSON(SAVED_FILE, searches);
 }
 
 /** Get all saved searches, sorted by last run time (most recent first). */

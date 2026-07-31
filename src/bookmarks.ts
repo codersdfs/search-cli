@@ -1,30 +1,17 @@
 /**
  * Bookmarks — saved repos with tags, persisted as JSON.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
 import type { Bookmark, Repo } from "./types";
-import { stateDir } from "./config";
+import { readJSON, writeJSON } from "./storage";
 
-const BOOKMARK_FILE = join(stateDir(), "bookmarks.json");
-
-function ensureDir() {
-  mkdirSync(stateDir(), { recursive: true });
-}
+const BOOKMARK_FILE = "bookmarks.json";
 
 function loadRaw(): Bookmark[] {
-  ensureDir();
-  try {
-    const raw = readFileSync(BOOKMARK_FILE, "utf-8");
-    return JSON.parse(raw) as Bookmark[];
-  } catch {
-    return [];
-  }
+  return readJSON<Bookmark[]>(BOOKMARK_FILE, []);
 }
 
 function saveRaw(bookmarks: Bookmark[]): void {
-  ensureDir();
-  writeFileSync(BOOKMARK_FILE, JSON.stringify(bookmarks, null, 2));
+  writeJSON(BOOKMARK_FILE, bookmarks);
 }
 
 /** Get all bookmarks, newest first. */

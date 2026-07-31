@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatJson, formatCsv, formatMarkdown, formatText } from "../src/export.ts";
+import { formatJson, formatCsv, formatMarkdown, formatText } from "../src/output.ts";
 import type { Repo } from "../src/types.ts";
 
 const makeRepo = (name: string, stars: number): Repo => ({
