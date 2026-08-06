@@ -41,7 +41,7 @@ const map = {
 
 const key = `${platform()}-${arch}`;
 const assetName = map[key];
-const version = "1.3.12";
+const version = "1.3.14";
 
 if (!assetName) {
   console.error(`[ghfind] Unsupported platform: ${key}. Install Bun manually: https://bun.sh`);
@@ -102,5 +102,5 @@ try {
 } catch (err) {
   console.error(`[ghfind] Failed to download Bun: ${err instanceof Error ? err.message : String(err)}`);
   console.error("[ghfind] Install Bun manually: https://bun.sh/docs/install");
-  process.exit(0);
+  process.exit(1);
 }
