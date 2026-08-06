@@ -203,7 +203,13 @@ npm run build    # build dist/
 
 ---
 
-## Changelog
+### v9.1.0
+
+- Bundle `vendor/` and `dist/` in npm package for offline install support
+- Remove dead Strategy 3 fallback in `bin/ghfind.js` (Node cannot import `.ts`)
+- Fix postinstall to exit with code 1 on Bun download failure
+- Update bundled Bun version from 1.3.12 to 1.3.14
+
 
 ### v0.8.2
 

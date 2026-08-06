@@ -10,9 +10,8 @@
 import { existsSync } from "fs";
 import { spawnSync } from "child_process";
 import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { platform } from "os";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
 
@@ -37,16 +36,7 @@ if (existsSync(BUN_BIN) && existsSync(srcCli)) {
 // Strategy 2: Use bundled dist/cli.js with Node (non-interactive only on Node 23+)
 if (existsSync(distCli)) {
   try {
-    await import(distCli);
-  } catch (err) {
-    console.error("Failed to start ghfind. Node.js >= 20 or Bun required.");
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  }
-} else {
-  // Strategy 3: Fallback to system Bun/Node running source
-  try {
-    await import("../src/cli.ts");
+    await import(pathToFileURL(distCli).href);
   } catch (err) {
     console.error("Failed to start ghfind. Node.js >= 20 or Bun required.");
     console.error(err instanceof Error ? err.message : String(err));

@@ -1,6 +1,6 @@
 {
   "name": "github-search-cli",
-  "version": "0.9.0",
+  "version": "9.1.0",
   "description": "Terminal-native GitHub search — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
   "type": "module",
   "packageManager": "bun@1",
@@ -15,6 +15,8 @@
   },
   "files": [
     "bin/",
+    "dist/",
+    "vendor/",
     "src/",
     "scripts/",
     "completions/",
