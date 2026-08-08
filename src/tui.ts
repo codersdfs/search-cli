@@ -48,7 +48,7 @@ import {
   TAB_NAMES,
   fmtStars,
 } from "./trending";
-import { loadConfig } from "./config";
+import { loadConfig, saveConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
 import {
   SearchCliError,
@@ -81,10 +81,16 @@ import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { fetchTopics, type TopicItem } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
-import { loadTheme } from "./themes";
+import { listThemes, loadTheme } from "./themes";
+import {
+  createPackageSearch,
+  sortPackages,
+  PACKAGE_SORT_MODES,
+  type Package,
+  type PackageSortMode,
+} from "./package";
 import { StatusManager } from "./status";
 import {
-  addNotification,
   getNotifications,
   dismissNotification,
   dismissAll,
@@ -114,7 +120,6 @@ const colors = {
   surfaceAlt: "#525050",
   text: "#e0e4f0",
   muted: "#a8a6a6",
-  blue: "#89b4fa",
   green: "#a6e3a1",
   yellow: "#f9e2af",
   red: "#f38ba8",
@@ -150,7 +155,7 @@ const SORT_MODES: { key: SortStrategy; label: string }[] = [
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────
-export async function launchBrowser(): Promise<void> {
+export async function launchBrowser(theme_override?: string): Promise<void> {
   let renderer;
   try {
     renderer = await createCliRenderer();
@@ -176,6 +181,12 @@ export async function launchBrowser(): Promise<void> {
 
   const root = renderer.root;
   root.flexDirection = "column";
+  root.border = true;
+  root.borderTop = true;
+  root.borderBottom = true;
+  root.borderLeft = true;
+  root.borderRight = true;
+  root.borderColor = colors.borderAccent;
   root.backgroundColor = colors.bg;
 
   // ── Config ──
@@ -183,7 +194,7 @@ export async function launchBrowser(): Promise<void> {
   const githubToken = config.githubToken || process.env.GITHUB_TOKEN;
 
   // Apply theme
-  const theme = loadTheme(config.theme);
+  const theme = loadTheme(theme_override || config.theme);
   Object.assign(colors, theme);
 
   // ── Session restore ──
@@ -195,7 +206,10 @@ export async function launchBrowser(): Promise<void> {
   let currentLimit = session?.limit ?? config.defaultLimit;
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
-  let currentMode: "search" | "trending" = session?.mode ?? "search";
+  let currentMode: "landing" | "search" | "trending" | "packages" = session?.mode ?? "search";
+  let packages: Package[] = [];
+  let currentPackageSort: PackageSortMode = "best-match";
+  let packageResultsRaw: Package[] = [];
   let trendingTab: (typeof TAB_NAMES)[number] =
     (session?.trendingTab as (typeof TAB_NAMES)[number]) ?? "This Week";
   let trendingPeriod = "this week";
@@ -214,14 +228,14 @@ export async function launchBrowser(): Promise<void> {
     | "share"
     | "leader"
     | "readme"
-    | "update" = "none";
+    | "update"
+    | "landing" = "none";
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
   let compareList: Repo[] = [];
   let quitArmed = false;
 
-  // ── Header bar ──────────────────────────────────────────────────────
   const header = new TextRenderable(renderer, {
     content:
       " ghfind — GitHub repo browser   [/]search  [Space]menu  [\u2192]open  [?]help  [q]uit",
@@ -272,18 +286,23 @@ export async function launchBrowser(): Promise<void> {
   }
   root.add(header);
   root.add(trendingTabBox);
+  // ── Gap between header/tabs and search ────────────────────────────────
+  const gapBox = new BoxRenderable(renderer, {
+    height: 1,
+    visible: true,
+  });
+  root.add(gapBox);
 
   // ── Search input row ────────────────────────────────────────────────
   const searchBox = new BoxRenderable(renderer, {
     visible: true,
-    borderBottom: true,
-    borderBottomColor: colors.border,
-    title: " SEARCH ",
+    bordered: true,
+    borderColor: colors.border,
+    title: "",
     titleColor: colors.blue,
     width: "100%",
     flexDirection: "row",
-    paddingTop: 0,
-    paddingBottom: 0,
+    marginTop: 1,
     backgroundColor: colors.surface,
   });
   const searchInput = new InputRenderable(renderer, {
@@ -324,7 +343,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Results pane
   const resultsBox = new BoxRenderable(renderer, {
-    borderBottom: true,
+    bordered: true,
+    borderColor: colors.border,
     borderBottomColor: colors.border,
     title: " Results ",
     titleColor: colors.blue,
@@ -355,7 +375,8 @@ export async function launchBrowser(): Promise<void> {
 
   // Detail / Graph pane
   const detailBox = new BoxRenderable(renderer, {
-    borderBottom: true,
+    bordered: true,
+    borderColor: colors.border,
     borderBottomColor: colors.border,
     title: " Details ",
     titleColor: colors.green,
@@ -375,12 +396,223 @@ export async function launchBrowser(): Promise<void> {
   body.add(resultsBox);
   body.add(detailBox);
   root.add(body);
+  // ── Landing screen ────────────────────────────────────────────────
+  const landingBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  });
+  root.add(landingBox);
 
-  // ── Overlay system ──────────────────────────────────────────────────
+  const landingTitle = new TextRenderable(renderer, {
+    content: "  ghfind",
+    color: colors.accent,
+    backgroundColor: colors.bg,
+    height: 1,
+  });
+  landingBox.add(landingTitle);
+
+  const landingTagline = new TextRenderable(renderer, {
+    content: "  Search GitHub from your terminal",
+    color: colors.muted,
+    backgroundColor: colors.bg,
+    height: 1,
+  });
+  landingBox.add(landingTagline);
+
+  const landingDivider = new TextRenderable(renderer, {
+    content: "",
+    backgroundColor: colors.bg,
+    height: 1,
+  });
+  landingBox.add(landingDivider);
+
+  // Three option cards
+  const landingOptions = [
+    {
+      icon: "\u{1F50D}",
+      title: "Repo Search",
+      desc: "Search GitHub repositories by query, language, stars, and more",
+      action: () => { currentMode = "search"; showLanding(false); showSearchMode(); },
+    },
+    {
+      icon: "\u{1F4E6}",
+      title: "Package Search",
+      desc: "Search npm packages by name, description, or tags",
+      action: () => { currentMode = "packages"; showLanding(false); showPackagesMode(); },
+    },
+    {
+      icon: "\u{1F525}",
+      title: "Trending",
+      desc: "Browse the hottest repos on GitHub right now",
+      action: () => { currentMode = "trending"; showLanding(false); loadTrending(); },
+    },
+  ];
+  let landingSelected = 0;
+
+  const landingCards: BoxRenderable[] = [];
+  for (let i = 0; i < landingOptions.length; i++) {
+    const opt = landingOptions[i];
+    const card = new BoxRenderable(renderer, {
+      flexDirection: "row",
+      height: 3,
+      width: "80%",
+      marginTop: 1,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      borderColor: i === 0 ? colors.accent : colors.border,
+      borderWidth: i === 0 ? 1 : 0,
+      paddingLeft: 2,
+      paddingRight: 2,
+      focusable: false,
+    });
+    landingCards.push(card);
+    landingBox.add(card);
+
+    // Icon column
+    const iconCol = new BoxRenderable(renderer, {
+      flexDirection: "column",
+      width: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+    });
+    card.add(iconCol);
+    const iconText = new TextRenderable(renderer, {
+      content: opt.icon,
+      color: i === 0 ? colors.accent : colors.text,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      height: 1,
+      width: 4,
+      textAlign: "center",
+    });
+    iconCol.add(iconText);
+    const iconSpacer = new TextRenderable(renderer, {
+      content: "",
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      height: 1,
+      width: 4,
+    });
+    iconCol.add(iconSpacer);
+
+    // Content column
+    const contentCol = new BoxRenderable(renderer, {
+      flexDirection: "column",
+      flexGrow: 1,
+      justifyContent: "center",
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+    });
+    card.add(contentCol);
+    const titleLine = new TextRenderable(renderer, {
+      content: `  ${opt.title}`,
+      color: i === 0 ? colors.accent : colors.text,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      height: 1,
+    });
+    contentCol.add(titleLine);
+    const descLine = new TextRenderable(renderer, {
+      content: `   ${opt.desc}`,
+      color: i === 0 ? colors.muted : colors.muted,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      height: 1,
+    });
+    contentCol.add(descLine);
+    const hintLine = new TextRenderable(renderer, {
+      content: `   \u21E9 Select`,
+      color: i === 0 ? colors.accentDim : colors.muted,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      height: 1,
+    });
+    contentCol.add(hintLine);
+  }
+
+  const landingHint = new TextRenderable(renderer, {
+    content: "   \u2191\u2193 Navigate  \u21E9 Select  [?]help  [q]uit",
+    color: colors.muted,
+    backgroundColor: colors.bg,
+    height: 1,
+    marginTop: 1,
+  });
+  landingBox.add(landingHint);
+
+  function showLanding(visible: boolean) {
+    landingBox.visible = visible;
+    if (visible) {
+      currentMode = "landing";
+      hideMainContent();
+      landingSelected = 0;
+      updateLandingCards();
+      renderer.requestRender();
+    }
+  }
+
+  function updateLandingCards() {
+    for (let i = 0; i < landingCards.length; i++) {
+      const opt = landingOptions[i];
+      const isSel = i === landingSelected;
+      landingCards[i].backgroundColor = isSel ? colors.selectionBg : colors.surface;
+      landingCards[i].borderColor = isSel ? colors.accent : colors.border;
+      landingCards[i].borderWidth = isSel ? 1 : 0;
+      const children = landingCards[i].children;
+      if (children[0]) {
+        const iconCol = children[0] as BoxRenderable;
+        const iconTextChild = iconCol.children[0] as TextRenderable;
+        if (iconTextChild) {
+          iconTextChild.color = isSel ? colors.accent : colors.text;
+          iconTextChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
+        }
+        const iconSpacerChild = iconCol.children[1] as TextRenderable;
+        if (iconSpacerChild) {
+          iconSpacerChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
+        }
+      }
+      if (children[1]) {
+        const contentCol = children[1] as BoxRenderable;
+        const titleChild = contentCol.children[0] as TextRenderable;
+        if (titleChild) {
+          titleChild.color = isSel ? colors.accent : colors.text;
+          titleChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
+        }
+        const descChild = contentCol.children[1] as TextRenderable;
+        if (descChild) {
+          descChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
+        }
+        const hintChild = contentCol.children[2] as TextRenderable;
+        if (hintChild) {
+          hintChild.color = isSel ? colors.accentDim : colors.muted;
+          hintChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
+        }
+      }
+    }
+  }
+
+  // Landing keyboard handler
+  renderer.keyInput.on("keypress", (key) => {
+    if (currentMode === "landing") {
+      if (key.name === "up" || key.name === "k") {
+        landingSelected = Math.max(0, landingSelected - 1);
+        updateLandingCards();
+        renderer.requestRender();
+      } else if (key.name === "down" || key.name === "j") {
+        landingSelected = Math.min(landingOptions.length - 1, landingSelected + 1);
+        updateLandingCards();
+        renderer.requestRender();
+      } else if (key.name === "enter" || key.name === "return") {
+        landingOptions[landingSelected].action();
+      } else if (key.name === "?" || key.name === "h") {
+        showOverlay(currentOverlay === "help" ? "none" : "help");
+      } else if (key.name === "q") {
+        cleanup();
+      }
+      return;
+    }
+  });
 
   // Hide main content so overlays can take 100% of the content area
   function hideMainContent() {
     trendingTabBox.visible = false;
+    gapBox.visible = false;
     searchBox.visible = false;
     toolbarText.visible = false;
     body.visible = false;
@@ -391,6 +623,7 @@ export async function launchBrowser(): Promise<void> {
       trendingTabBox.visible = true;
     } else {
       searchBox.visible = true;
+      gapBox.visible = true;
       toolbarText.visible = true;
     }
     body.visible = true;
@@ -411,10 +644,18 @@ export async function launchBrowser(): Promise<void> {
     readmeBox.visible = false;
     updateBox.visible = false;
     updateDim.visible = false;
-
     if (type === "none") {
       currentOverlay = "none";
-      showMainContent();
+      if (currentMode === "landing") {
+        landingBox.visible = true;
+        body.visible = false;
+        trendingTabBox.visible = false;
+        gapBox.visible = false;
+        searchBox.visible = false;
+        toolbarText.visible = false;
+      } else {
+        showMainContent();
+      }
       renderer.requestRender();
       return;
     }
@@ -1119,6 +1360,29 @@ export async function launchBrowser(): Promise<void> {
           },
         },
       );
+    } else if (currentMode === "packages") {
+      searchItems.push(
+        {
+          type: "action",
+          name: "Sort",
+          description: `Cycle package sort (current: ${currentPackageSort})`,
+          action: () => changePackageSort(),
+        },
+        {
+          type: "action",
+          name: "Limit",
+          description: `Cycle result limit (current: ${currentLimit})`,
+          action: () => changeLimit(),
+        },
+        {
+          type: "action",
+          name: "Refresh",
+          description: "Re-run current package search",
+          action: () => {
+            if (currentQueryInput) doPackageSearch(currentQueryInput);
+          },
+        },
+      );
     }
     if (searchItems.length > 0) {
       groups.push({
@@ -1199,6 +1463,15 @@ export async function launchBrowser(): Promise<void> {
 
     //  Navigate group 
     const navItems: MenuEntry[] = [];
+    navItems.push({
+        type: "action",
+        name: "Packages",
+        description: "Search npm packages",
+        action: () => {
+          showOverlay("none");
+          showPackagesMode();
+        },
+      });
     if (currentMode === "search") {
       navItems.push({
         type: "action",
@@ -1562,7 +1835,8 @@ export async function launchBrowser(): Promise<void> {
   }
 
   function setToolbar() {
-    toolbarText.content = formatToolbar(currentSort, currentLimit, totalCount);
+    const sort = currentMode === "packages" ? currentPackageSort : currentSort;
+    toolbarText.content = formatToolbar(sort, currentLimit, totalCount);
     renderer.requestRender();
   }
 
@@ -1868,6 +2142,7 @@ export async function launchBrowser(): Promise<void> {
   function showSearchMode() {
     currentMode = "search";
     trendingTabBox.visible = false;
+    gapBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
     searchInput.placeholder =
@@ -1876,6 +2151,61 @@ export async function launchBrowser(): Promise<void> {
     renderer.requestRender();
   }
 
+  function showPackagesMode() {
+    currentMode = "packages";
+    trendingTabBox.visible = false;
+    gapBox.visible = false;
+    searchBox.visible = true;
+    toolbarText.visible = true;
+    searchInput.placeholder = "Search npm packages (e.g. react, vue, typescript)";
+    searchInput.focus();
+    packages = [];
+    resultsSelect.options = [
+      { name: "", description: "Type a query and press Enter to search", value: null },
+    ];
+    detailText.content = "";
+    renderer.requestRender();
+  }
+  async function doPackageSearch(queryText: string) {
+    const q = queryText.trim();
+    if (q === "" || isLoading) return;
+    currentQueryInput = q;
+    isLoading = true;
+    resultsSelect.options = [
+      { name: "  Searching packages...", description: "", value: null },
+    ];
+    detailText.content = "";
+    statusMgr.set("searching", `Searching npm for "${q}"`);
+    renderer.requestRender();
+    try {
+      const search = createPackageSearch();
+      const result = await search.searchPackage(q, currentLimit);
+      totalCount = result.totalCount;
+      packageResultsRaw = result.packages;
+      packages = sortPackages(packageResultsRaw, currentPackageSort);
+      setToolbar();
+      if (packages.length > 0) {
+        resultsSelect.options = packages.map((p) => ({
+          name: `${p.name}@${p.version}`,
+          description: p.description ?? "",
+          value: p,
+        }));
+        resultsSelect.setSelectedIndex(0);
+        statusMgr.set("success", `${packages.length} packages found`);
+      } else {
+        throw new NoResultsError(q);
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : String(err);
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
+      statusMgr.set("error", msg.slice(0, 60));
+    }
+    isLoading = false;
+    renderer.requestRender();
+  }
   async function doSearch(queryText: string, append = false) {
     const q = queryText.trim();
     if (q === "" || isLoading) return;
@@ -1975,6 +2305,23 @@ export async function launchBrowser(): Promise<void> {
     }
   }
 
+  function changePackageSort() {
+    const idx = PACKAGE_SORT_MODES.findIndex((m) => m.key === currentPackageSort);
+    const next = PACKAGE_SORT_MODES[(idx + 1) % PACKAGE_SORT_MODES.length];
+    currentPackageSort = next.key;
+    setToolbar();
+    if (packageResultsRaw.length > 0) {
+      packages = sortPackages(packageResultsRaw, currentPackageSort);
+      resultsSelect.options = packages.map((p) => ({
+        name: `${p.name}@${p.version}`,
+        description: p.description ?? "",
+        value: p,
+      }));
+      resultsSelect.setSelectedIndex(0);
+      renderer.requestRender();
+    }
+  }
+
   function changeLimit() {
     const limits = [10, 25, 50, 100];
     const idx = limits.indexOf(currentLimit);
@@ -1989,17 +2336,30 @@ export async function launchBrowser(): Promise<void> {
   // Enter in search input → show results
   searchInput.on("enter", () => {
     if (searchInput.value.trim() === "" || isLoading) return;
-    showSearchMode();
-    doSearch(searchInput.value);
+    if (currentMode === "packages") {
+      doPackageSearch(searchInput.value);
+    } else {
+      doSearch(searchInput.value);
+    }
   });
 
   // Navigate results → update detail pane
   resultsSelect.on("selectionChanged", () => {
     const opt = resultsSelect.getSelectedOption();
-    const repo = opt?.value as Repo | undefined;
-    if (repo) {
-      if (graphFullscreen) loadChart(repo);
-      else updateDetail(repo);
+    if (currentMode === "packages") {
+      const pack = opt?.value as Package | undefined;
+      if (pack) {
+        detailText.content = `Package: ${pack.name}@${pack.version}
+Downloads: ${pack.downloads.toLocaleString()}
+Score: ${pack.score.toFixed(2)}
+${pack.description ?? ""}`;
+      }
+    } else {
+      const repo = opt?.value as Repo | undefined;
+      if (repo) {
+        if (graphFullscreen) loadChart(repo);
+        else updateDetail(repo);
+      }
     }
     renderer.requestRender();
   });
@@ -2007,8 +2367,13 @@ export async function launchBrowser(): Promise<void> {
   // Enter on a result → open URL
   resultsSelect.on("itemSelected", () => {
     const opt = resultsSelect.getSelectedOption();
-    const repo = opt?.value as Repo | undefined;
-    if (repo) openUrl(repo.url);
+    if (currentMode === "packages") {
+      const pack = opt?.value as Package | undefined;
+      if (pack?.url) openUrl(pack.url);
+    } else {
+      const repo = opt?.value as Repo | undefined;
+      if (repo) openUrl(repo.url);
+    }
   });
 
   // ── Global keyboard shortcuts ──────────────────────────────────────
@@ -2342,6 +2707,19 @@ export async function launchBrowser(): Promise<void> {
         showLeaderMenu();
       }
       return;
+    // 't' toggles theme and persists to config
+    if (key.name === "t" && !searchInput.focused) {
+      const current = config.theme;
+      const themes = listThemes();
+      const idx = themes.indexOf(current);
+      const next = themes[(idx + 1) % themes.length];
+      const nextTheme = loadTheme(next);
+      Object.assign(colors, nextTheme);
+      config.theme = next;
+      saveConfig(config);
+      renderer.requestRender();
+      return;
+    }
     }
 
     // '?' / Ctrl+H toggle help overlay (fast path)
@@ -2446,18 +2824,23 @@ export async function launchBrowser(): Promise<void> {
   }
   // ── Start ──────────────────────────────────────────────────────────
   // Check for updates (non-blocking — doesn't delay TUI startup)
+  if (!session || !session.mode) {
+    showLanding(true);
+  }
   checkForUpdateAndShow();
   renderer.start();
-  if (currentMode === "trending") {
-    loadTrending();
-  } else {
-    searchInput.value = currentQueryInput;
-    if (currentQueryInput) {
-      doSearch(currentQueryInput);
+  if (session && session.mode) {
+    if (currentMode === "trending") {
+      loadTrending();
     } else {
-      showSearchMode();
+      searchInput.value = currentQueryInput;
+      if (currentQueryInput) {
+        doSearch(currentQueryInput);
+      } else {
+        showSearchMode();
+      }
+      searchInput.focus();
     }
-    searchInput.focus();
   }
   renderer.requestRender();
 }
@@ -2477,7 +2860,11 @@ function formatStars(n: number): string {
   return `★ ${n}`;
 }
 
-function formatToolbar(sort: SortStrategy, limit: number, totalCount: number): string {
+function formatToolbar(
+  sort: SortStrategy | PackageSortMode,
+  limit: number,
+  totalCount: number,
+): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
   return ` sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}`;
 }
@@ -2494,6 +2881,6 @@ function cleanup(): void {
 // ── Auto-run ──────────────────────────────────────────────────────────
 // Only launch when run directly (bun run src/tui.ts), not when bundled
 // into cli.js or imported as a module.
-if (import.meta.main && !process.env.GHFIND_BUNDLED) {
+if (import.meta.main && !process.env.GHFIND_BUNDLED && !process.env.GHFIND_CLI_RUN) {
   launchBrowser();
 }

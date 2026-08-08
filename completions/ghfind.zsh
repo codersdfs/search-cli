@@ -15,6 +15,8 @@ _ghfind() {
     '--since[Trending period]:(daily weekly monthly)'
     '--pipe[Pipe target]:(clone open)'
     '--format[Output format]:(urls names ssh-urls clone-commands ids)'
+    '--registry[Registry for pkg]:(npm)'
+
     '--watch[Watch mode]'
     '--interval[Watch interval seconds]:seconds:'
     '--version[Print version]'

@@ -1,9 +1,9 @@
+// Tests for config loading with controlled env vars
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "path";
-import { mkdirSync, writeFileSync, unlinkSync, rmdirSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 import { tmpdir } from "os";
 
-// Tests for config loading with controlled env vars
 describe("config", () => {
   const origEnv = { ...process.env };
   let tmpDir: string;
@@ -25,7 +25,7 @@ describe("config", () => {
     const cfg = loadConfig();
     expect(cfg.defaultSort).toBe("best-match");
     expect(cfg.defaultLimit).toBe(50);
-    expect(cfg.theme).toBe("premium-dark");
+    expect(cfg.theme).toBe("tokyo-night");
     expect(cfg.cacheTtlSeconds).toBe(300);
     expect(cfg.defaultTab).toBe("search");
   });
@@ -56,12 +56,16 @@ describe("config", () => {
 
   it("merges partial config with defaults", async () => {
     const cfgPath = join(tmpDir, "config.json");
-    writeFileSync(cfgPath, JSON.stringify({ defaultLimit: 25 }));
+    writeFileSync(cfgPath, JSON.stringify({
+      defaultLimit: 20,
+    }));
     process.env.GHFIND_CONFIG = cfgPath;
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
-    expect(cfg.defaultLimit).toBe(25);
     expect(cfg.defaultSort).toBe("best-match");
-    expect(cfg.theme).toBe("premium-dark");
+    expect(cfg.defaultLimit).toBe(20);
+    expect(cfg.theme).toBe("tokyo-night");
+    expect(cfg.cacheTtlSeconds).toBe(300);
+    expect(cfg.defaultTab).toBe("search");
   });
 });

@@ -7,7 +7,7 @@ _ghfind() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  opts="--json --csv --markdown --count --limit --sort --token --trending --since --pipe --format --watch --interval --version --help --completion"
+  opts="--json --csv --markdown --count --limit --sort --token --trending --since --pipe --format --registry --watch --interval --version --help --completion pkg"
 
   case "${prev}" in
     --sort)
@@ -28,6 +28,10 @@ _ghfind() {
       ;;
     --completion)
       COMPREPLY=( $(compgen -W "bash zsh fish" -- "${cur}") )
+      return 0
+      ;;
+    --registry)
+      COMPREPLY=( $(compgen -W "npm" -- "${cur}") )
       return 0
       ;;
     --limit|--interval)

@@ -12,55 +12,60 @@
   <rect width="100%" height="100%" fill="#0d0d1a"/>
 
   <!-- Window -->
-  <rect x="12" y="10" width="876" height="783" fill="#1e1e2e" rx="8" filter="url(#shadow)"/>
-  <rect x="12" y="10" width="876" height="36" fill="#181825" rx="8"/>
-  <rect x="12" y="46" width="876" height="2" fill="#313244"/>
+  <rect x="12" y="10" width="876" height="783" fill="#1a1b26" rx="8" filter="url(#shadow)"/>
+  <rect x="12" y="10" width="876" height="36" fill="#16161e" rx="8"/>
+  <rect x="12" y="46" width="876" height="2" fill="#24283b"/>
 
   <!-- Traffic lights -->
-  <circle cx="24" cy="28" r="5" fill="#f38ba8"/>
-  <circle cx="42" cy="28" r="5" fill="#f9e2af"/>
-  <circle cx="60" cy="28" r="5" fill="#a6e3a1"/>
-  <text x="450" y="34" fill="#6c7086" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" text-anchor="middle">search-cli — terminal GitHub browser</text>
+  <circle cx="24" cy="28" r="5" fill="#f7768e"/>
+  <circle cx="42" cy="28" r="5" fill="#e0af68"/>
+  <circle cx="60" cy="28" r="5" fill="#9ece6a"/>
+  <text x="450" y="34" fill="#565f89" font-family="'JetBrains Mono','Fira Code',monospace" font-size="13" text-anchor="middle">ghfind — terminal GitHub browser</text>
 
   <g font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">
-    <text x="14" y="62" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">search-cli — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit</text>
-<rect x="14" y="69" width="860" height="54.5" fill="#1e1e2e" stroke="#89b4fa" stroke-width="1" rx="3"/>
-<text x="22" y="88" fill="#89b4fa" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">&gt; language:TypeScript stars:&gt;1000</text>
-<text x="14" y="150.2" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">sort: stars   limit: 50   (s=cycle sort  l=cycle limit)</text>
-<rect x="14" y="159.3" width="432" height="378" fill="#1e1e2e" stroke="#45475a" stroke-width="1" rx="3"/>
-<text x="22" y="177.5" fill="#89b4fa" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14"> Results </text>
-<rect x="18" y="178.20000000000002" width="424" height="20" fill="#2d5bcf" rx="3"/>
-<text x="24" y="198.5" fill="#ffffff" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">shadcn/ui  ★ 78.5k</text>
-<text x="24" y="221.6" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">vercel/next.js  ★ 129k</text>
-<text x="24" y="244.7" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">tailwindlabs/tailwindcss  ★ 84.2k</text>
-<text x="24" y="267.8" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">tauri-apps/tauri  ★ 84.1k</text>
-<text x="24" y="290.9" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">oven-sh/bun  ★ 74.5k</text>
-<text x="24" y="314" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">n8n-io/n8n  ★ 54.4k</text>
-<text x="24" y="337.1" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">astral-sh/ruff  ★ 36.1k</text>
-<text x="24" y="360.20000000000005" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">missive/emoji-mart  ★ 8.8k</text>
-<text x="24" y="383.3" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">sharkdp/bat  ★ 50.3k</text>
-<text x="24" y="406.4" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">BurntSushi/ripgrep  ★ 48.8k</text>
-<text x="24" y="429.5" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">jdx/mise  ★ 14.3k</text>
-<text x="24" y="452.6" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">nektos/act  ★ 56.1k</text>
-<text x="24" y="475.70000000000005" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">astral-sh/uv  ★ 40.2k</text>
-<text x="24" y="498.8" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">zed-industries/zed  ★ 52k</text>
-<rect x="450" y="159.3" width="432" height="378" fill="#1e1e2e" stroke="#45475a" stroke-width="1" rx="3"/>
-<text x="456" y="177.5" fill="#a6e3a1" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14"> Details </text>
-<text x="458" y="198.5" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Name     shadcn/ui</text>
-<text x="458" y="221.6" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Stars    78,500</text>
-<text x="458" y="244.7" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Forks    4,200</text>
-<text x="458" y="267.8" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Lang     TypeScript</text>
-<text x="458" y="290.9" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Updated  2026-07-12</text>
-<text x="458" y="314" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Topics   react, ui, components, shadcn</text>
-<text x="458" y="360.20000000000005" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Beautifully designed components built with Radix UI and</text>
-<text x="458" y="383.3" fill="#cdd6f4" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">Tailwind CSS.</text>
-<text x="458" y="429.5" fill="#89b4fa" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">https://github.com/shadcn/ui</text>
-<rect x="14" y="489" width="860" height="25" fill="#181825" rx="3"/>
-<rect x="14" y="489" width="860" height="2" fill="#45475a"/>
-<text x="18" y="521.9" fill="#6c7086" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">15,842 results  (↑↓ nav  Enter open  o browser  Ctrl+R history)</text>
-<rect x="338.79999999999995" y="70" width="5.76" height="16" fill="#89b4fa" opacity="0.8">
-  <animate attributeName="opacity" values="0.8;0.1;0.8" dur="1s" repeatCount="indefinite"/>
-</rect>
+    <text x="14" y="62" fill="#565f89" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">ghfind — GitHub repo browser   [t]rending  [/]search  [g]raph  [r]efresh  [q]uit</text>
+    <rect x="14" y="69" width="860" height="54.5" fill="#1a1b26" stroke="#7aa2f7" stroke-width="1" rx="3"/>
+    <text x="22" y="88" fill="#7aa2f7" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">&gt; language:TypeScript stars:&gt;1000</text>
+    <text x="14" y="150.2" fill="#565f89" font-family="'JetBrains Mono','Fira Code','Cascadia Code',monospace" font-size="14">sort: stars   limit: 50   (s=cycle sort  l=cycle limit)</text>
+    <rect x="14" y="159.3" width="432" height="378" fill="#24283b" stroke="#1f2335" stroke-width="1"/>
+    <!-- Search results list -->
+    <rect x="14" y="159.3" width="432" height="19" fill="#7aa2f7" opacity="0.15"/>
+    <text x="22" y="173" fill="#c0caf5">✓  facebook/react                          ★ 218k     JavaScript</text>
+    <text x="22" y="193" fill="#c0caf5">✓  vercel/next.js                          ★ 116k     TypeScript</text>
+    <text x="22" y="213" fill="#c0caf5">✓  microsoft/vscode                         ★ 158k     TypeScript</text>
+    <text x="22" y="233" fill="#c0caf5">✓  tanstack/router                          ★ 15k      TypeScript</text>
+    <text x="22" y="253" fill="#c0caf5">✓  tailwindlabs/tailwindcss                  ★ 81k      TypeScript</text>
+    <text x="22" y="273" fill="#c0caf5">✓  denoland/deno                             ★ 93k      Rust</text>
+    <text x="22" y="293" fill="#c0caf5">✓  oven-sh/bun                               ★ 65k      TypeScript</text>
+    <text x="22" y="313" fill="#c0caf5">✓  sagoie/open-tui                           ★ 3.2k     TypeScript</text>
+    <text x="22" y="333" fill="#e0af68">→  ghfind/cli                                ★ 4.8k     TypeScript</text>
+    <text x="22" y="353" fill="#c0caf5">✓  biomejs/biome                             ★ 28k      Rust</text>
+    <!-- ... more results ... -->
+    <text x="14" y="525" fill="#565f89">   10 of 847 results  [Page 1/85]</text>
 
+    <rect x="456" y="159.3" width="418" height="378" fill="#24283b" stroke="#1f2335" stroke-width="1"/>
+    <!-- Right panel: repo info -->
+    <text x="468" y="183" fill="#bb9af7" font-weight="bold">facebook/react</text>
+    <text x="468" y="203" fill="#565f89">React is a JavaScript library for building user interfaces</text>
+    <text x="468" y="228" fill="#e0af68">★ 218,847</text>
+    <text x="540" y="228" fill="#565f89">  Forks: 46,231</text>
+    <text x="468" y="248" fill="#9ece6a">License: MIT</text>
+    <text x="468" y="268" fill="#7aa2f7">Language: JavaScript</text>
+    <text x="468" y="293" fill="#c0caf5">Updated: today</text>
+    <text x="468" y="318" fill="#565f89">Topics: react, javascript, ui, frontend, framework</text>
+
+    <text x="468" y="348" fill="#7aa2f7" font-weight="bold">Description</text>
+    <text x="468" y="368" fill="#c0caf5">A declarative, efficient, and flexible JavaScript library</text>
+    <text x="468" y="383" fill="#c0caf5">for building user interfaces.</text>
+
+    <text x="468" y="413" fill="#7aa2f7" font-weight="bold">README Preview</text>
+    <text x="468" y="433" fill="#c0caf5"># React</text>
+    <text x="468" y="453" fill="#565f89">  A JavaScript library for building user interfaces</text>
+    <text x="468" y="478" fill="#565f89">  ──────────────────────────────────────────────────</text>
+    <text x="468" y="503" fill="#c0caf5">React lets you build user interfaces out of individual</text>
+    <text x="468" y="518" fill="#c0caf5">pieces called components.</text>
+
+    <rect x="456" y="545" width="418" height="40" fill="#16161e" stroke="#1f2335"/>
+    <text x="468" y="570" fill="#565f89">  [r]eadme  [d]eepdive  [→] open  [h]elp  [q]uit</text>
   </g>
 </svg>

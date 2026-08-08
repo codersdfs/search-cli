@@ -40,7 +40,7 @@ export async function runInitWizard(): Promise<void> {
       ? sortStr
       : "best-match") as SortStrategy,
     defaultLimit: Math.min(100, Math.max(10, parseInt(limitStr) || 50)),
-    theme: themes.includes(themeStr) ? themeStr : "tokyo-night",
+    theme: themes.includes(themeStr) ? themeStr : themes[0],
     cacheTtlSeconds: 300,
     defaultTab: "search",
   };
