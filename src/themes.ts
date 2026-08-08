@@ -38,48 +38,72 @@ export interface Theme {
   warning: string;
   /** Error state color */
   error: string;
+  /** Modal/overlay panel background (darker than surface) */
+  surfaceDim: string;
+  /** Primary accent for titles and highlights */
+  accent: string;
+  /** Dimmed accent for secondary accents */
+  accentDim: string;
+  /** Border for floating/modal panels */
+  borderAccent: string;
 }
 
 const THEMES: Record<string, Theme> = {
-  "premium-dark": {
-    name: "premium-dark",
-    bg: "#3D3B3B", surface: "#4a4848", surfaceAlt: "#525050",
-    text: "#e0e4f0", muted: "#a8a6a6",
-    blue: "#89b4fa", green: "#a6e3a1", yellow: "#f9e2af", red: "#f38ba8",
-    teal: "#94e2d5", purple: "#cba6f7", orange: "#fab387",
-    border: "#1C1C1C", borderAlt: "#2a2a2a", separator: "#1C1C1C",
-    selectionBg: "#2A2A9C", selectionText: "#ffffff",
-    success: "#a6e3a1", warning: "#f9e2af", error: "#f38ba8",
-  },
   "tokyo-night": {
     name: "tokyo-night",
-    bg: "#3D3B3B", surface: "#4a4848", surfaceAlt: "#525050",
-    text: "#e0e4f0", muted: "#a8a6a6",
-    blue: "#89b4fa", green: "#a6e3a1", yellow: "#f9e2af", red: "#f38ba8",
-    teal: "#94e2d5", purple: "#cba6f7", orange: "#fab387",
-    border: "#1C1C1C", borderAlt: "#2a2a2a", separator: "#1C1C1C",
-    selectionBg: "#2A2A9C", selectionText: "#ffffff",
-    success: "#a6e3a1", warning: "#f9e2af", error: "#f38ba8",
+    // Genuine Tokyo Night palette — cool blue-violet mood
+    bg: "#1a1b26",
+    surface: "#24283b",
+    surfaceAlt: "#292e42",
+    text: "#c0caf5",
+    muted: "#565f89",
+    blue: "#7aa2f7",
+    green: "#9ece6a",
+    yellow: "#e0af68",
+    red: "#f7768e",
+    teal: "#73daca",
+    purple: "#bb9af7",
+    orange: "#ff9e64",
+    border: "#24283b",
+    borderAlt: "#1f2335",
+    separator: "#1f2335",
+    selectionBg: "#2d3f76",
+    selectionText: "#c0caf5",
+    success: "#9ece6a",
+    warning: "#e0af68",
+    error: "#f7768e",
+    surfaceDim: "#16161e",
+    accent: "#7aa2f7",
+    accentDim: "#5d7abf",
+    borderAccent: "#1f2335",
   },
-  dracula: {
-    name: "dracula",
-    bg: "#3D3B3B", surface: "#4a4848", surfaceAlt: "#525050",
-    text: "#f8f8f2", muted: "#a8a6a6",
-    blue: "#8be9fd", green: "#50fa7b", yellow: "#f1fa8c", red: "#ff5555",
-    teal: "#50fa7b", purple: "#bd93f9", orange: "#ffb86c",
-    border: "#1C1C1C", borderAlt: "#2a2a2a", separator: "#1C1C1C",
-    selectionBg: "#2A2A9C", selectionText: "#ffffff",
-    success: "#50fa7b", warning: "#f1fa8c", error: "#ff5555",
-  },
-  monokai: {
-    name: "monokai",
-    bg: "#3D3B3B", surface: "#4a4848", surfaceAlt: "#525050",
-    text: "#f8f8f2", muted: "#a8a6a6",
-    blue: "#66d9ef", green: "#a6e22e", yellow: "#e6db74", red: "#f92672",
-    teal: "#a6e22e", purple: "#ae81ff", orange: "#fd971f",
-    border: "#1C1C1C", borderAlt: "#2a2a2a", separator: "#1C1C1C",
-    selectionBg: "#2A2A9C", selectionText: "#f8f8f2",
-    success: "#a6e22e", warning: "#e6db74", error: "#f92672",
+  "premium-dark": {
+    name: "premium-dark",
+    // Warm counter-mood to Tokyo Night — amber/rust accent
+    bg: "#1e1e2e",
+    surface: "#262637",
+    surfaceAlt: "#2e2e42",
+    text: "#cdd6f4",
+    muted: "#6c7086",
+    blue: "#89b4fa",
+    green: "#a6e3a1",
+    yellow: "#f9e2af",
+    red: "#f38ba8",
+    teal: "#94e2d5",
+    purple: "#cba6f7",
+    orange: "#fab387",
+    border: "#313244",
+    borderAlt: "#2a2a3d",
+    separator: "#2a2a3d",
+    selectionBg: "#45475a",
+    selectionText: "#cdd6f4",
+    success: "#a6e3a1",
+    warning: "#f9e2af",
+    error: "#f38ba8",
+    surfaceDim: "#181825",
+    accent: "#f9e2af",
+    accentDim: "#c9a87a",
+    borderAccent: "#313244",
   },
 };
 

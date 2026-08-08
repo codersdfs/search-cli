@@ -42,6 +42,20 @@ export interface Repo {
   score: number; // relevance score returned by GitHub
 }
 
+/** A package as returned by a registry search provider, normalized to a stable shape.
+ *  Parallel to `Repo` (the search feature's entity; see ticket 002-007). */
+export interface Package {
+  name: string;
+  version: string;
+  description: string | null;
+  url: string; // registry page (npm)
+  downloads: number; // monthly downloads (npm)
+  score: number; // registry relevance (npm score.final)
+  publisher: string | null;
+  keywords: string[];
+  registry: "npm"; // registry this package came from (npm-only for MVP)
+}
+
 /** Ranking strategies supported by the ranking layer. */
 export type SortStrategy = "best-match" | "stars" | "updated" | "forks";
 
@@ -106,11 +120,11 @@ export interface SavedSearch {
 
 /** Session state restored on startup. */
 export interface SessionState {
-  mode: "search" | "trending";
+  mode: "search" | "trending" | "packages";
   query: string;
   sort: SortStrategy;
   limit: number;
-  trendingTab: string;
+  theme?: string;
 }
 
 /** Cache entry with TTL. */
