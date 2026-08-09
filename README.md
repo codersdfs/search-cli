@@ -202,8 +202,13 @@ npm run build    # build dist/
 ```
 
 ---
+### v0.9.1
 
-### v9.1.0
+- bug fix TUI layout issues on small terminals
+- npm package search(beta)
+- a new landing screen
+
+### v0.9.0
 
 - Bundle `vendor/` and `dist/` in npm package for offline install support
 - Remove dead Strategy 3 fallback in `bin/ghfind.js` (Node cannot import `.ts`)

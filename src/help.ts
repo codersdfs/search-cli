@@ -1,10 +1,8 @@
 /** Help screen — structured sections rendered by OpenTUI components. */
-
 export interface HelpRow {
   keys: string;
   action: string;
 }
-
 export interface HelpSection {
   title: string;
   /** Theme color key or hex — used for Box title color */
@@ -12,9 +10,18 @@ export interface HelpSection {
   rows: HelpRow[];
   note?: string;
 }
-
 export function buildHelpSections(): HelpSection[] {
   return [
+    {
+      title: " Landing ",
+      titleColor: "blue",
+      rows: [
+        { keys: "↑ ↓ / j k", action: "Navigate menu cards" },
+        { keys: "Enter", action: "Select mode" },
+        { keys: "? / h", action: "Toggle this help screen" },
+        { keys: "q", action: "Quit" },
+      ],
+    },
     {
       title: " Navigation ",
       titleColor: "blue",
@@ -45,6 +52,17 @@ export function buildHelpSections(): HelpSection[] {
       ],
     },
     {
+      title: " Packages Mode ",
+      titleColor: "cyan",
+      rows: [
+        { keys: "/", action: "Search npm packages" },
+        { keys: "↑ ↓ / j k", action: "Move selection" },
+        { keys: "Enter", action: "View package details" },
+        { keys: "Space", action: "Open command menu" },
+      ],
+      note: "Search by name, description, or tags. Sort by downloads or score.",
+    },
+    {
       title: " Command Menu (Space)",
       titleColor: "purple",
       rows: [
@@ -57,8 +75,16 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Bookmark", action: "Save / unsave selected repo" },
         { keys: "Compare", action: "Add to / remove from comparison" },
         { keys: "Trending", action: "Switch to trending browser" },
+        { keys: "Packages", action: "Switch to npm packages" },
+        { keys: "Export", action: "Export results to file" },
+        { keys: "Share", action: "Share repo as text" },
+        { keys: "Topics", action: "Browse GitHub topics" },
+        { keys: "Saved", action: "View saved searches" },
+        { keys: "Notifs", action: "Check GitHub notifications" },
+        { keys: "History", action: "View search history" },
+        { keys: "Help", action: "Show this help screen" },
       ],
-      note: "Also: Open, History, Export, Share, Topics, Saved, Notifs, Help",
+      note: "Navigate menu with ↑ ↓, select with Enter, back with ← / Esc",
     },
     {
       title: " Overlay Keys ",
@@ -68,6 +94,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Enter", action: "Confirm selection / run action" },
         { keys: "d", action: "Delete entry (history, bookmarks, saved)" },
         { keys: "↑ ↓ / j k", action: "Navigate overlay list" },
+        { keys: "← → / h l", action: "Navigate tabs / panels" },
       ],
     },
     {
@@ -78,22 +105,25 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "key:value", action: "Qualifier filter" },
         { keys: "-key:value", action: "Negated qualifier" },
         { keys: '"phrase"', action: "Exact phrase match" },
+        { keys: "language:TypeScript", action: "Filter by language" },
+        { keys: "stars:>1000", action: "Minimum stars" },
+        { keys: "fork:true", action: "Include forks" },
+        { keys: "user:octocat", action: "User's repos" },
+        { keys: "org:facebook", action: "Organization repos" },
+        { keys: "repo:facebook/react", action: "Specific repo" },
+        { keys: "topic:react", action: "Filter by topic" },
+        { keys: "license:mit", action: "License type" },
+        { keys: "pushed:>2024-01-01", action: "Last push date" },
+        { keys: "archived:false", action: "Exclude archived" },
       ],
     },
     {
-      title: " Qualifiers ",
+      title: " Utility Keys ",
       titleColor: "muted",
       rows: [
-        { keys: "language:", action: "Filter by language" },
-        { keys: "stars:>N", action: "Minimum stars" },
-        { keys: "fork:true", action: "Include forks" },
-        { keys: "user:", action: "User's repos" },
-        { keys: "org:", action: "Organization repos" },
-        { keys: "repo:", action: "Specific repo" },
-        { keys: "topic:", action: "Filter by topic" },
-        { keys: "license:", action: "License type" },
-        { keys: "pushed:>YYYY-MM-DD", action: "Last push date" },
-        { keys: "archived:false", action: "Exclude archived" },
+        { keys: "t", action: "Cycle theme (light / dark / solarized)" },
+        { keys: "Ctrl+X", action: "Copy repo URL to clipboard" },
+        { keys: "Ctrl+C", action: "Copy search query to clipboard" },
       ],
     },
     {

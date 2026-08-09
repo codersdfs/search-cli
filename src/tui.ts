@@ -158,7 +158,17 @@ const SORT_MODES: { key: SortStrategy; label: string }[] = [
 export async function launchBrowser(theme_override?: string): Promise<void> {
   let renderer;
   try {
-    renderer = await createCliRenderer();
+    const isTTY = process.stdout.isTTY && process.stdin.isTTY;
+    if (isTTY) {
+      renderer = await createCliRenderer();
+    } else {
+      renderer = await createCliRenderer({
+        width: 80,
+        height: 24,
+        screenMode: "main-screen",
+        autoFocus: false,
+      });
+    }
   } catch (err) {
     const isNode = process.versions.bun === undefined;
     if (isNode) {
@@ -390,6 +400,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   const detailText = new TextRenderable(renderer, {
     content: "",
     color: colors.text,
+    wrapMode: "none",
   });
   detailBox.add(detailText);
 
@@ -405,30 +416,20 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     justifyContent: "center",
   });
   root.add(landingBox);
-
-  const landingTitle = new TextRenderable(renderer, {
-    content: "  ghfind",
+  const landingBanner = new TextRenderable(renderer, {
+    content: [
+      " ██████╗ ██╗  ██╗███████╗██╗███╗   ██╗██████╗ ",
+      "██╔════╝ ██║  ██║██╔════╝██║████╗  ██║██╔══██╗",
+      "██║  ███╗███████║█████╗  ██║██╔██╗ ██║██║  ██║",
+      "██║   ██║██╔══██║██╔══╝  ██║██║╚██╗██║██║  ██║",
+      "╚██████╔╝██║  ██║██║     ██║██║ ╚████║██████╔",
+      " ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝",
+    ].join("\n"),
     color: colors.accent,
     backgroundColor: colors.bg,
-    height: 1,
+    height: 6,
   });
-  landingBox.add(landingTitle);
-
-  const landingTagline = new TextRenderable(renderer, {
-    content: "  Search GitHub from your terminal",
-    color: colors.muted,
-    backgroundColor: colors.bg,
-    height: 1,
-  });
-  landingBox.add(landingTagline);
-
-  const landingDivider = new TextRenderable(renderer, {
-    content: "",
-    backgroundColor: colors.bg,
-    height: 1,
-  });
-  landingBox.add(landingDivider);
-
+  landingBox.add(landingBanner);
   // Three option cards
   const landingOptions = [
     {
@@ -457,74 +458,27 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const opt = landingOptions[i];
     const card = new BoxRenderable(renderer, {
       flexDirection: "row",
-      height: 3,
-      width: "80%",
+      height: 1,
+      width: "60%",
       marginTop: 1,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      backgroundColor: undefined,
       borderColor: i === 0 ? colors.accent : colors.border,
-      borderWidth: i === 0 ? 1 : 0,
-      paddingLeft: 2,
-      paddingRight: 2,
+      borderWidth: 1,
+      paddingX: 1,
+      alignItems: "center",
       focusable: false,
     });
     landingCards.push(card);
     landingBox.add(card);
 
-    // Icon column
-    const iconCol = new BoxRenderable(renderer, {
-      flexDirection: "column",
-      width: 4,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-    });
-    card.add(iconCol);
-    const iconText = new TextRenderable(renderer, {
-      content: opt.icon,
-      color: i === 0 ? colors.accent : colors.text,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-      height: 1,
-      width: 4,
-      textAlign: "center",
-    });
-    iconCol.add(iconText);
-    const iconSpacer = new TextRenderable(renderer, {
-      content: "",
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-      height: 1,
-      width: 4,
-    });
-    iconCol.add(iconSpacer);
-
-    // Content column
-    const contentCol = new BoxRenderable(renderer, {
-      flexDirection: "column",
-      flexGrow: 1,
-      justifyContent: "center",
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-    });
-    card.add(contentCol);
     const titleLine = new TextRenderable(renderer, {
-      content: `  ${opt.title}`,
+      content: opt.title,
       color: i === 0 ? colors.accent : colors.text,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      backgroundColor: undefined,
       height: 1,
+      flexGrow: 1,
     });
-    contentCol.add(titleLine);
-    const descLine = new TextRenderable(renderer, {
-      content: `   ${opt.desc}`,
-      color: i === 0 ? colors.muted : colors.muted,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-      height: 1,
-    });
-    contentCol.add(descLine);
-    const hintLine = new TextRenderable(renderer, {
-      content: `   \u21E9 Select`,
-      color: i === 0 ? colors.accentDim : colors.muted,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
-      height: 1,
-    });
-    contentCol.add(hintLine);
+    card.add(titleLine);
   }
 
   const landingHint = new TextRenderable(renderer, {
@@ -554,35 +508,33 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       landingCards[i].backgroundColor = isSel ? colors.selectionBg : colors.surface;
       landingCards[i].borderColor = isSel ? colors.accent : colors.border;
       landingCards[i].borderWidth = isSel ? 1 : 0;
-      const children = landingCards[i].children;
+      const children = landingCards[i].children ?? [];
       if (children[0]) {
         const iconCol = children[0] as BoxRenderable;
-        const iconTextChild = iconCol.children[0] as TextRenderable;
+        const iconChildren = iconCol.children ?? [];
+        const iconTextChild = iconChildren[0] as TextRenderable;
         if (iconTextChild) {
           iconTextChild.color = isSel ? colors.accent : colors.text;
           iconTextChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
         }
-        const iconSpacerChild = iconCol.children[1] as TextRenderable;
+        const iconSpacerChild = iconChildren[1] as TextRenderable;
         if (iconSpacerChild) {
           iconSpacerChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
         }
       }
       if (children[1]) {
         const contentCol = children[1] as BoxRenderable;
-        const titleChild = contentCol.children[0] as TextRenderable;
+        const contentChildren = contentCol.children ?? [];
+        const titleChild = contentChildren[0] as TextRenderable;
         if (titleChild) {
           titleChild.color = isSel ? colors.accent : colors.text;
           titleChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
         }
-        const descChild = contentCol.children[1] as TextRenderable;
+        const descChild = contentChildren[1] as TextRenderable;
         if (descChild) {
           descChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
         }
-        const hintChild = contentCol.children[2] as TextRenderable;
-        if (hintChild) {
-          hintChild.color = isSel ? colors.accentDim : colors.muted;
-          hintChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
-        }
+        const hintChild = contentChildren[2] as TextRenderable;
       }
     }
   }
@@ -1320,7 +1272,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
     const groups: MenuCategory[] = [];
 
-    // Search group 
+    // Search group
     const searchItems: MenuEntry[] = [];
     if (currentMode === "search") {
       searchItems.push(
@@ -1394,7 +1346,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       });
     }
 
-    //  Repo group 
+    //  Repo group
     const repoItems: MenuEntry[] = [];
     if (hasRepo) {
       repoItems.push(
@@ -1461,7 +1413,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       });
     }
 
-    //  Navigate group 
+    //  Navigate group
     const navItems: MenuEntry[] = [];
     navItems.push({
         type: "action",
@@ -1857,7 +1809,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (repo.archived) statusTags.push("archived");
     if (repo.isFork) statusTags.push("fork");
     const tagStr = statusTags.length ? `  [${statusTags.join(", ")}]` : "";
-    
+
     const lines = [
       `  ${repo.fullName}${tagStr}`,
       ``,
@@ -1977,36 +1929,46 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     // X-axis with week labels
     const xAxis = `     ┆${"─".repeat(termW)}`;
     const weekLabels = `     ┆ ${"1w".padEnd(Math.floor(termW/4))} ${"13w".padEnd(Math.floor(termW/4))} ${"26w".padEnd(Math.floor(termW/4))} ${"52w"}`;
-    return [xAxis, weekLabels];
+    return [...lines, xAxis, weekLabels];
   }
 
   async function loadChart(repo: Repo) {
     detailText.content = "  Loading chart...";
     renderer.requestRender();
     try {
+      const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
+      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
       const [chartRes, repoRes] = await Promise.all([
         fetch(
           `https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
-          { headers: { "User-Agent": "ghfind/1.0" } },
+          { headers },
         ),
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`, {
-          headers: { "User-Agent": "ghfind/1.0" },
-        }).then((r) => (r.ok ? r.json() : null)),
+          headers,
+        }).then((r) => (r.ok ? r.clone().json() : null)),
       ]);
-
       let chartSection = "";
       if (chartRes.ok) {
         const data = await chartRes.json();
         if (data?.all && data.all.length >= 2) {
           chartCommitData = data.all;
-          const chartW = 60;
+          // Chart width: leave room for y-axis labels (6 chars) and padding.
+          // In fullscreen graph mode, detailBox takes 100% width.
+          // In normal mode (50%), use half the terminal width.
+          const termW = graphFullscreen
+            ? (process.stdout.columns || 120) - 12
+            : Math.floor((process.stdout.columns || 120) / 2) - 12;
+          const chartW = Math.max(20, Math.min(60, termW));
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
-          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join(
-            "\n",
-          );
+          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
+        } else if (data?.message) {
+          chartSection = ["", `Chart unavailable: ${data.message}`].join("\n");
         }
+      } else {
+        chartSection = ["", `Chart unavailable (API ${chartRes.status})`].join("\n");
       }
+
 
       const desc = repo.description ?? "";
       const lang = repo.language ?? "—";
@@ -2145,6 +2107,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     gapBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
+    body.visible = true;
     searchInput.placeholder =
       "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
     searchInput.focus();
@@ -2157,6 +2120,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     gapBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
+    body.visible = true;
     searchInput.placeholder = "Search npm packages (e.g. react, vue, typescript)";
     searchInput.focus();
     packages = [];
