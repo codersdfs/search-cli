@@ -2041,6 +2041,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     searchBox.visible = false;
     toolbarText.visible = false;
     trendingTabBox.visible = true;
+    body.visible = true;
     renderTrendingTabs();
     resultsSelect.options = [
       { name: "  Loading trending...", description: "", value: null },
