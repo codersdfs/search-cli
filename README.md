@@ -22,14 +22,15 @@
 npm install -g github-search-cli
 ```
 
-> **No separate runtime needed!** The package bundles a Bun binary, so the TUI
-> works out of the box on Windows, macOS, and Linux — no Node FFI, no `--experimental-ffi`.
+> **No separate runtime needed!** Only requires Node.js 20+. The TUI needs Bun,
+> which is downloaded automatically at install time. Non-interactive modes work
+> with just Node.js.
 >
-> | Runtime     | TUI | CLI modes |
-> | ----------- | --- | --------- |
-> | Bundled Bun | ✅  | ✅        |
-> | System Bun  | ✅  | ✅        |
-> | Node 20+    | ✅  | ✅        |
+> | Platform              | TUI              | CLI modes |
+> | --------------------- | ---------------- | --------- |
+> | Node 20+              | ⚠ Bun required  | ✅        |
+> | Bun                   | ✅               | ✅        |
+> | Downloaded Bun        | ✅ auto-installed| ✅        |
 
 ## Use
 
@@ -191,17 +192,25 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 102 tests
+bun test         # 131 tests
 bun run build    # build dist/
 
 # Or with npm
 npm install
-npm start        # TUI (requires Node 20-22 for native FFI)
-npm test         # vitest (TUI render test needs Bun)
+npm start        # TUI (requires Node 20+)
+npm test         # 131 tests
 npm run build    # build dist/
 ```
 
 ---
+### v0.9.2
+
+- Remove bundled Bun binary from npm package (now downloaded at install time for all platforms)
+- Package size reduced from 39.5 MB to 100 KB
+- Postinstall no longer fails npm install on Bun download failure (graceful fallback)
+- Removed `bun` from engines field (users no longer need Bun pre-installed)
+- Non-interactive modes (`--json`, `--csv`, etc.) work with just Node.js 20+
+
 ### v0.9.1
 
 - bug fix TUI layout issues on small terminals

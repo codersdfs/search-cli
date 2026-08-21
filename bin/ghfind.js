@@ -3,9 +3,9 @@
  * ghfind — npm bin entry point.
  * Requires Node.js >= 20 or Bun.
  *
- * Uses the bundled Bun binary (vendor/bun.exe) to run the TypeScript source
- * directly, so users don't need to install Bun separately. Falls back to
- * the bundled dist/cli.js if present, or system Bun/Node.
+ * Strategy 1: Use a Bun binary from vendor/ (downloaded by postinstall) to
+ *   run TypeScript source directly. Strategy 2: Fall back to the bundled
+ *   dist/cli.js with Node.js (works for non-interactive modes).
  */
 import { existsSync } from "fs";
 import { spawnSync } from "child_process";

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Postinstall script — ensures a Bun binary is available for ghfind.
+ * Postinstall script — downloads a Bun binary for ghfind's TUI.
  *
- * If vendor/bun or vendor/bun.exe already exists (bundled with the package),
- * this is a no-op. Otherwise, it attempts to download the correct binary
- * for the user's platform.
+ * If vendor/bun or vendor/bun.exe already exists, this is a no-op.
+ * Otherwise, it downloads the correct Bun binary for the user's platform.
+ * On failure, prints a warning and exits 0 so npm install still succeeds.
  */
 import { existsSync, mkdirSync, chmodSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
@@ -100,7 +100,10 @@ try {
 
   throw new Error("Bun binary not found in archive");
 } catch (err) {
-  console.error(`[ghfind] Failed to download Bun: ${err instanceof Error ? err.message : String(err)}`);
-  console.error("[ghfind] Install Bun manually: https://bun.sh/docs/install");
-  process.exit(1);
+  console.warn(`[ghfind] ⚠ Could not download Bun: ${err instanceof Error ? err.message : String(err)}`);
+  console.warn("[ghfind] The interactive TUI requires Bun. Install it manually:");
+  console.warn("[ghfind]   curl -fsSL https://bun.sh/install | bash");
+  console.warn("[ghfind]   # or: npm install -g bun");
+  console.warn("[ghfind] Non-interactive modes (--json, --csv, etc.) will still work with Node.js 20+.");
+  process.exit(0);
 }
