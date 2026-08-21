@@ -458,12 +458,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const opt = landingOptions[i];
     const card = new BoxRenderable(renderer, {
       flexDirection: "column",
-      height: 1,
+      height: 3,
       width: "60%",
       marginTop: 1,
       border: true,
       borderColor: i === 0 ? colors.accent : colors.border,
       paddingX: 1,
+      paddingY: 1,
       focusable: false,
     });
     landingCards.push(card);
