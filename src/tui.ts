@@ -461,9 +461,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       height: 1,
       width: "60%",
       marginTop: 1,
-      backgroundColor: undefined,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+      border: true,
       borderColor: i === 0 ? colors.accent : colors.border,
-      borderWidth: 1,
       paddingX: 1,
       alignItems: "center",
       focusable: false,
@@ -472,9 +472,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     landingBox.add(card);
 
     const titleLine = new TextRenderable(renderer, {
-      content: opt.title,
+      content: `${opt.icon}  ${opt.title}`,
       color: i === 0 ? colors.accent : colors.text,
-      backgroundColor: undefined,
+      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
       height: 1,
       flexGrow: 1,
     });
@@ -503,38 +503,14 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   function updateLandingCards() {
     for (let i = 0; i < landingCards.length; i++) {
-      const opt = landingOptions[i];
       const isSel = i === landingSelected;
       landingCards[i].backgroundColor = isSel ? colors.selectionBg : colors.surface;
       landingCards[i].borderColor = isSel ? colors.accent : colors.border;
-      landingCards[i].borderWidth = isSel ? 1 : 0;
       const children = landingCards[i].children ?? [];
-      if (children[0]) {
-        const iconCol = children[0] as BoxRenderable;
-        const iconChildren = iconCol.children ?? [];
-        const iconTextChild = iconChildren[0] as TextRenderable;
-        if (iconTextChild) {
-          iconTextChild.color = isSel ? colors.accent : colors.text;
-          iconTextChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
-        }
-        const iconSpacerChild = iconChildren[1] as TextRenderable;
-        if (iconSpacerChild) {
-          iconSpacerChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
-        }
-      }
-      if (children[1]) {
-        const contentCol = children[1] as BoxRenderable;
-        const contentChildren = contentCol.children ?? [];
-        const titleChild = contentChildren[0] as TextRenderable;
-        if (titleChild) {
-          titleChild.color = isSel ? colors.accent : colors.text;
-          titleChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
-        }
-        const descChild = contentChildren[1] as TextRenderable;
-        if (descChild) {
-          descChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
-        }
-        const hintChild = contentChildren[2] as TextRenderable;
+      const titleChild = children[0] as TextRenderable;
+      if (titleChild) {
+        titleChild.color = isSel ? colors.accent : colors.text;
+        titleChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
       }
     }
   }
