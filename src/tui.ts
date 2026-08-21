@@ -458,7 +458,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const opt = landingOptions[i];
     const card = new BoxRenderable(renderer, {
       flexDirection: "column",
-      height: 3,
+      height: 5,
       width: "60%",
       marginTop: 1,
       border: true,
