@@ -458,7 +458,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const opt = landingOptions[i];
     const card = new BoxRenderable(renderer, {
       flexDirection: "column",
-      height: 3,
+      height: 1,
       width: "60%",
       marginTop: 1,
       border: true,
@@ -469,23 +469,15 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     landingCards.push(card);
     landingBox.add(card);
 
-    const iconLine = new TextRenderable(renderer, {
-      content: opt.icon,
-      height: 1,
-    });
     const titleLine = new TextRenderable(renderer, {
       content: opt.title,
       color: i === 0 ? colors.accent : colors.text,
       height: 1,
+      flexGrow: 1,
+      alignItems: "center",
+      justifyContent: "center",
     });
-    const descLine = new TextRenderable(renderer, {
-      content: opt.desc,
-      color: colors.muted,
-      height: 1,
-    });
-    card.add(iconLine);
     card.add(titleLine);
-    card.add(descLine);
   }
 
   const landingHint = new TextRenderable(renderer, {
