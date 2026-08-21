@@ -457,28 +457,35 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   for (let i = 0; i < landingOptions.length; i++) {
     const opt = landingOptions[i];
     const card = new BoxRenderable(renderer, {
-      flexDirection: "row",
-      height: 1,
+      flexDirection: "column",
+      height: 3,
       width: "60%",
       marginTop: 1,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
       border: true,
       borderColor: i === 0 ? colors.accent : colors.border,
       paddingX: 1,
-      alignItems: "center",
       focusable: false,
     });
     landingCards.push(card);
     landingBox.add(card);
 
-    const titleLine = new TextRenderable(renderer, {
-      content: `${opt.icon}  ${opt.title}`,
-      color: i === 0 ? colors.accent : colors.text,
-      backgroundColor: i === 0 ? colors.selectionBg : colors.surface,
+    const iconLine = new TextRenderable(renderer, {
+      content: opt.icon,
       height: 1,
-      flexGrow: 1,
     });
+    const titleLine = new TextRenderable(renderer, {
+      content: opt.title,
+      color: i === 0 ? colors.accent : colors.text,
+      height: 1,
+    });
+    const descLine = new TextRenderable(renderer, {
+      content: opt.desc,
+      color: colors.muted,
+      height: 1,
+    });
+    card.add(iconLine);
     card.add(titleLine);
+    card.add(descLine);
   }
 
   const landingHint = new TextRenderable(renderer, {
@@ -504,13 +511,11 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   function updateLandingCards() {
     for (let i = 0; i < landingCards.length; i++) {
       const isSel = i === landingSelected;
-      landingCards[i].backgroundColor = isSel ? colors.selectionBg : colors.surface;
       landingCards[i].borderColor = isSel ? colors.accent : colors.border;
       const children = landingCards[i].children ?? [];
-      const titleChild = children[0] as TextRenderable;
+      const titleChild = children[1] as TextRenderable;
       if (titleChild) {
         titleChild.color = isSel ? colors.accent : colors.text;
-        titleChild.backgroundColor = isSel ? colors.selectionBg : colors.surface;
       }
     }
   }
