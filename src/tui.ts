@@ -464,21 +464,21 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       border: true,
       borderColor: i === 0 ? colors.accent : colors.border,
       paddingX: 1,
-      paddingY: 1,
       focusable: false,
     });
     landingCards.push(card);
     landingBox.add(card);
 
+    const spacerTop = new TextRenderable(renderer, { content: "", height: 1 });
     const titleLine = new TextRenderable(renderer, {
       content: opt.title,
       color: i === 0 ? colors.accent : colors.text,
       height: 1,
-      flexGrow: 1,
-      alignItems: "center",
-      justifyContent: "center",
     });
+    const spacerBot = new TextRenderable(renderer, { content: "", height: 1 });
+    card.add(spacerTop);
     card.add(titleLine);
+    card.add(spacerBot);
   }
 
   const landingHint = new TextRenderable(renderer, {
