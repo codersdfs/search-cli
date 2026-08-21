@@ -357,7 +357,7 @@ export async function launchTrending(): Promise<void> {
     paddingX: 1,
   });
   const footerText = new TextRenderable(renderer, {
-    content: " ↑↓ navigate  ↵ open  / search  1-5 tab  q quit  r refresh",
+    content: " ↑↓ navigate  ↵ open  / search  1-3 tab  q quit  r refresh",
     color: C.muted,
     height: 1,
   });
