@@ -612,6 +612,7 @@ export class SearchModule implements SearchProvider {
       options.sort,
       String(options.limit),
       String(options.page ?? 1),
+      options.trendingSince ?? "none",
     );
     const cached = SearchModule.cache.get(cacheKey);
     if (cached) {

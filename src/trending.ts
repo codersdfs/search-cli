@@ -253,6 +253,14 @@ export async function launchTrending(): Promise<void> {
     paddingX: 1,
   });
   const tabTexts: TextRenderable[] = [];
+  const underlineBox = new BoxRenderable(renderer, {
+    height: 1,
+    backgroundColor: C.bg,
+    paddingX: 1,
+  });
+  function tabWidth(name: string): number {
+    return name.length + 2; // " name " padding
+  }
   function renderTabBar() {
     for (const t of tabTexts) tabBox.remove(t);
     tabTexts.length = 0;
@@ -261,8 +269,8 @@ export async function launchTrending(): Promise<void> {
       const label = ` ${name} `;
       const tt = new TextRenderable(renderer, {
         content: isActive ? t`${bold(fg(C.bg)(label))}` : t`${fg(C.muted)(label)}`,
-        color: isActive ? C.bg : C.muted,
-        backgroundColor: isActive ? C.cyan : C.bg,
+        fg: isActive ? C.bg : C.muted,
+        bg: isActive ? C.cyan : C.bg,
         height: 1,
       });
       tabTexts.push(tt);
@@ -270,17 +278,35 @@ export async function launchTrending(): Promise<void> {
       if (i < TAB_NAMES.length - 1) {
         const sp = new TextRenderable(renderer, {
           content: "  ",
-          color: C.muted,
-          backgroundColor: C.bg,
+          fg: C.muted,
+          bg: C.bg,
           height: 1,
         });
         tabTexts.push(sp);
         tabBox.add(sp);
       }
     });
+    // ── cyan underline bar under active tab ──
+    let offset = 1; // paddingX
+    for (let i = 0; i < selectedTab; i++) {
+      offset += tabWidth(TAB_NAMES[i]) + 2; // tab + separator
+    }
+    const w = tabWidth(TAB_NAMES[selectedTab]);
+    const dots = "┉".repeat(w);
+    underlineBox.remove(underlineText);
+    underlineText.content = t`${fg(C.cyan)(dots)}`;
+    underlineText.left = offset;
   }
+  const underlineText = new TextRenderable(renderer, {
+    content: "",
+    fg: C.cyan,
+    bg: C.bg,
+    height: 1,
+  });
+  underlineBox.add(underlineText);
   renderTabBar();
   outerBox.add(tabBox);
+  outerBox.add(underlineBox);
   const divider = new TextRenderable(renderer, {
     content: "─".repeat(80),
     color: C.border,

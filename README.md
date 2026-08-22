@@ -203,6 +203,10 @@ npm run build    # build dist/
 ```
 
 ---
+### Unreleased
+- Fixed trending tabs (Today / This Week / This Month) returning the same repos — cache key now includes the `since` parameter so each period fetches independently
+- Added cyan underline indicator beneath the active trending tab for clearer visual selection
+---
 ### v0.9.2
 
 - Remove bundled Bun binary from npm package (now downloaded at install time for all platforms)
