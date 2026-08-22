@@ -2661,6 +2661,18 @@ ${pack.description ?? ""}`;
     }
     }
 
+    // 'c' toggles compare on selected repo (when not typing in search)
+    if (key.name === "c" && !searchInput.focused) {
+      if (currentOverlay === "compare") {
+        showOverlay("none");
+      } else {
+        toggleCompareOnSelected();
+        refreshCompare();
+        showOverlay("compare");
+      }
+      return;
+    }
+
     // '?' / Ctrl+H toggle help overlay (fast path)
     if (key.name === "?" || (key.name === "h" && key.ctrl)) {
       showOverlay("help");

@@ -15,6 +15,8 @@ import { launchPackageBrowser } from "./package-browser";
 import { format as formatOutput, exportToFile, pipeExec, type Format, type ExportFormat, type FormatLine } from "./output";
 import { runWatch } from "./watch";
 import { runInitWizard } from "./init";
+import { buildComparisonTable } from "./compare";
+import type { Repo } from "./types";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -46,6 +48,7 @@ interface CLIFlags {
   pkg: boolean;
   theme?: string;
   registry: string;
+  compare: string[];  // repo fullNames to compare
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -67,6 +70,7 @@ function parseArgs(args: string[]): CLIFlags {
     help: false,
     pkg: false,
     registry: "npm",
+    compare: [],
   };
 
   let queryParts: string[] = [];
@@ -100,6 +104,15 @@ function parseArgs(args: string[]): CLIFlags {
       case "--registry": flags.registry = args[++i] ?? "npm"; break;
       case "--theme": flags.theme = args[++i] ?? "tokyo-night"; break;
       case "--completion": flags.completion = args[++i]; break;
+      case "--compare": {
+        // Collect repo names until next flag
+        const repos: string[] = [];
+        while (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+          repos.push(args[++i]);
+        }
+        flags.compare = repos;
+        break;
+      }
       default:
         if (!arg.startsWith("-")) queryParts.push(arg);
     }
@@ -136,6 +149,7 @@ Usage:
   ghfind <query> --format <fmt>    Format lines (urls|names|ssh-urls|clone-commands|ids)
   ghfind <query> --pipe <target>   Pipe to clone/open
   ghfind --trending --json         Trending repos as JSON
+  ghfind --compare <repo1> <repo2> Compare two+ repos side-by-side
   ghfind pkg <query> --json         Search npm packages, output JSON
   ghfind pkg <query>                Search npm packages, text list
   ghfind --watch <query>           Watch mode (poll every Ns)
@@ -328,10 +342,23 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         console.log(formatOutput(repos, outputFormat));
       }
     },
+    compare: async (_ctx) => {
+      const search = createGitHubSearch(undefined, [flags.token ?? ""]);
+      const repos: Repo[] = [];
+      for (const fullName of flags.compare) {
+        const res = await search.search(
+          { keywords: [fullName], qualifiers: [], raw: fullName },
+          { limit: 1, sort: "stars", json: false, verbose: false, token: flags.token },
+        );
+        repos.push(...res.repos);
+      }
+      console.log(buildComparisonTable(repos));
+    },
   };
 
   // Determine which handler to run
-  const key = flags.trending && !flags.watch ? "trending"
+  const key = flags.compare.length > 0 ? "compare"
+    : flags.trending && !flags.watch ? "trending"
     : flags.watch ? "watch"
     : flags.pipe ? "pipe"
     : flags.format ? "format"

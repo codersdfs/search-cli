@@ -206,6 +206,8 @@ npm run build    # build dist/
 ### Unreleased
 - Fixed trending tabs (Today / This Week / This Month) returning the same repos — cache key now includes the `since` parameter so each period fetches independently
 - Added cyan underline indicator beneath the active trending tab for clearer visual selection
+- Added `ghfind --compare <repo1> <repo2> [repo3]` CLI command to compare repos side-by-side
+- Added `c` keybinding in TUI to toggle compare mode on selected repo
 ---
 ### v0.9.2
 
