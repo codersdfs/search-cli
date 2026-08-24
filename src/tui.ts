@@ -79,6 +79,7 @@ import {
 import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
+import { renderMarkdown } from "./markdown-render";
 import { fetchTopics, type TopicItem } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
 import { listThemes, loadTheme } from "./themes";
@@ -1709,17 +1710,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       if (!text) {
         readmeText.content = `  (no README found for ${repo.fullName})`;
       } else {
-        // ponytail: just strip markdown formatting, show full text
-        const stripped = text
-          .replace(/```[\s\S]*?```/g, "[code block]")
-          .replace(/#{1,6}\s/g, "")
-          .replace(/\*\*(.+?)\*\*/g, "$1")
-          .replace(/\[(.+?)\]\(.+?\)/g, "$1")
-          .replace(/`([^`]+)`/g, "$1")
-          .split("\n")
-          .map((l) => l.trimEnd())
-          .join("\n");
-        readmeText.content = stripped;
+        const termW = Math.max(40, (process.stdout.columns || 80) - 4);
+        readmeText.content = renderMarkdown(text, { width: termW });
       }
     } catch {
       readmeText.content = "  Failed to load README";
@@ -2646,6 +2638,8 @@ ${pack.description ?? ""}`;
         showLeaderMenu();
       }
       return;
+    }
+
     // 't' toggles theme and persists to config
     if (key.name === "t" && !searchInput.focused) {
       const current = config.theme;
@@ -2658,7 +2652,6 @@ ${pack.description ?? ""}`;
       saveConfig(config);
       renderer.requestRender();
       return;
-    }
     }
 
     // 'c' toggles compare on selected repo (when not typing in search)

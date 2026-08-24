@@ -20,11 +20,12 @@ export function buildComparisonTable(repos: Repo[]): string {
   rows.push({ label: "Language", values: repos.map((r) => r.language ?? "—") });
   rows.push({ label: "Created", values: repos.map((r) => r.createdAt?.slice(0, 7) ?? "—") });
   rows.push({ label: "Updated", values: repos.map((r) => r.updatedAt?.slice(0, 10) ?? "—") });
-  rows.push({ label: "Topics", values: repos.map((r) => (r.topics?.slice(0, 3).join(", ") ?? "—") || "—") });
+  rows.push({ label: "Topics", values: repos.map((r) => (r.topics?.slice(0, 5).join(", ") ?? "—") || "—") });
+  rows.push({ label: "Description", values: repos.map((r) => (r.description?.slice(0, 50) ?? "—")) });
+  rows.push({ label: "URL", values: repos.map((r) => r.url || "—") });
 
   // Calculate the max width for each column
-  const colW = Math.max(15, ...names.map((n) => n.length));
-  const valW = Math.max(8, ...rows.flatMap((r) => r.values.map((v) => v.length)));
+  const colW = Math.max(35, ...names.map((n) => n.length));
 
   // Header row
   const header = ["".padEnd(14), ...names.map((n) => n.padEnd(colW))];

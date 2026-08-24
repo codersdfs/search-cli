@@ -203,11 +203,11 @@ npm run build    # build dist/
 ```
 
 ---
-### Unreleased
-- Fixed trending tabs (Today / This Week / This Month) returning the same repos — cache key now includes the `since` parameter so each period fetches independently
-- Added cyan underline indicator beneath the active trending tab for clearer visual selection
-- Added `ghfind --compare <repo1> <repo2> [repo3]` CLI command to compare repos side-by-side
-- Added `c` keybinding in TUI to toggle compare mode on selected repo
+### v0.9.3
+- Fixed `c` keybinding in TUI not adding repos to comparison — missing closing brace in space-key handler broke all subsequent key handlers (`c`, `t`, `?`)
+- Widened compare table columns (min 35 chars) and added Description + URL rows for richer side-by-side comparison
+- Compare table now shows up to 5 topics per repo (was 3)
+- README viewer now renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
 ---
 ### v0.9.2
 
