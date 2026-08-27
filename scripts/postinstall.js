@@ -2,14 +2,22 @@
 /**
  * Postinstall script — downloads a Bun binary for ghfind's TUI.
  *
- * If vendor/bun or vendor/bun.exe already exists, this is a no-op.
- * Otherwise, it downloads the correct Bun binary for the user's platform.
+ * If a runnable vendor/bun or vendor/bun.exe already exists, this is a no-op.
+ * Otherwise, it downloads the correct Bun binary for the user's platform
+ * (including the right libc flavor for Linux: glibc vs musl).
  * On failure, prints a warning and exits 0 so npm install still succeeds.
  */
-import { existsSync, mkdirSync, chmodSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  writeFileSync,
+  readFileSync,
+} from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { platform, arch } from "os";
+import { spawnSync } from "child_process";
 import { inflateRawSync } from "zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -19,9 +27,30 @@ const VENDOR_DIR = join(ROOT, "vendor");
 const bunName = platform() === "win32" ? "bun.exe" : "bun";
 const bunPath = join(VENDOR_DIR, bunName);
 
-// Already bundled — nothing to do
-if (existsSync(bunPath)) {
-  process.exit(0);
+/**
+ * Detect whether the current Linux system uses musl or glibc.
+ * Bun ships separate builds for each; musl binaries cannot run on glibc
+ * systems and vice versa.
+ */
+function libcFlavor() {
+  if (platform() !== "linux") return "glibc";
+  // Check /etc/os-release first (fast, no subprocess)
+  try {
+    const osRelease = readFileSync("/etc/os-release", "utf8");
+    if (/alpine|musl/i.test(osRelease)) return "musl";
+  } catch {
+    // ignore
+  }
+  // Fall back to ldd --version output
+  try {
+    const ldd = spawnSync("ldd", ["--version"], { encoding: "utf8" });
+    const out = `${ldd.stdout}${ldd.stderr}`;
+    if (/musl/i.test(out)) return "musl";
+    if (/glibc|GNU libc/i.test(out)) return "glibc";
+  } catch {
+    // ignore
+  }
+  return "glibc";
 }
 
 // Skip in CI/test environments
@@ -29,14 +58,38 @@ if (process.env.GHFIND_SKIP_BUN === "1" || process.env.CI === "true") {
   process.exit(0);
 }
 
+/**
+ * Returns true if an existing Bun binary is actually runnable.
+ * A binary of the wrong libc flavor (e.g. musl build on a glibc system)
+ * fails to launch with ENOENT because its dynamic loader is missing.
+ */
+function binaryRuns(path) {
+  try {
+    const res = spawnSync(path, ["--version"], { encoding: "utf8" });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+// Already bundled and runnable — nothing to do
+if (existsSync(bunPath) && binaryRuns(bunPath)) {
+  process.exit(0);
+}
+
 // Try to download
+const linuxLibc = libcFlavor();
 const map = {
   "win32-x64": "bun-windows-x64.zip",
   "win32-arm64": "bun-windows-aarch64.zip",
   "darwin-x64": "bun-darwin-x64.zip",
   "darwin-arm64": "bun-darwin-aarch64.zip",
-  "linux-x64": "bun-linux-x64-musl.zip",
-  "linux-arm64": "bun-linux-aarch64-musl.zip",
+  "linux-x64":
+    linuxLibc === "musl" ? "bun-linux-x64-musl.zip" : "bun-linux-x64.zip",
+  "linux-arm64":
+    linuxLibc === "musl"
+      ? "bun-linux-aarch64-musl.zip"
+      : "bun-linux-aarch64.zip",
 };
 
 const key = `${platform()}-${arch}`;
@@ -44,7 +97,9 @@ const assetName = map[key];
 const version = "1.3.14";
 
 if (!assetName) {
-  console.error(`[ghfind] Unsupported platform: ${key}. Install Bun manually: https://bun.sh`);
+  console.error(
+    `[ghfind] Unsupported platform: ${key}. Install Bun manually: https://bun.sh`,
+  );
   process.exit(0);
 }
 
@@ -52,7 +107,9 @@ const url = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${
 
 try {
   mkdirSync(VENDOR_DIR, { recursive: true });
-  console.error(`[ghfind] Downloading Bun ${version} for ${key}...`);
+  console.error(
+    `[ghfind] Downloading Bun ${version} for ${key}${linuxLibc === "musl" ? " (musl)" : ""}...`,
+  );
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -70,7 +127,9 @@ try {
     const compSize = buffer.readUInt32LE(cdOffset + 20);
     const compMethod = buffer.readUInt16LE(cdOffset + 10);
     const nameStart = cdOffset + 46;
-    const fileName = buffer.subarray(nameStart, nameStart + nameLen).toString("utf8");
+    const fileName = buffer
+      .subarray(nameStart, nameStart + nameLen)
+      .toString("utf8");
 
     if (fileName.endsWith(bunName)) {
       // Read the local file header to get the actual data offset
@@ -86,7 +145,9 @@ try {
         fileData = buffer.subarray(dataOffset, dataOffset + compSize);
       } else {
         // Deflated
-        fileData = inflateRawSync(buffer.subarray(dataOffset, dataOffset + compSize));
+        fileData = inflateRawSync(
+          buffer.subarray(dataOffset, dataOffset + compSize),
+        );
       }
 
       writeFileSync(bunPath, fileData);
@@ -100,10 +161,16 @@ try {
 
   throw new Error("Bun binary not found in archive");
 } catch (err) {
-  console.warn(`[ghfind] ⚠ Could not download Bun: ${err instanceof Error ? err.message : String(err)}`);
-  console.warn("[ghfind] The interactive TUI requires Bun. Install it manually:");
+  console.warn(
+    `[ghfind] ⚠ Could not download Bun: ${err instanceof Error ? err.message : String(err)}`,
+  );
+  console.warn(
+    "[ghfind] The interactive TUI requires Bun. Install it manually:",
+  );
   console.warn("[ghfind]   curl -fsSL https://bun.sh/install | bash");
   console.warn("[ghfind]   # or: npm install -g bun");
-  console.warn("[ghfind] Non-interactive modes (--json, --csv, etc.) will still work with Node.js 20+.");
+  console.warn(
+    "[ghfind] Non-interactive modes (--json, --csv, etc.) will still work with Node.js 20+.",
+  );
   process.exit(0);
 }
