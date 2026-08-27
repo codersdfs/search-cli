@@ -19,6 +19,7 @@ import {
 } from "./package";
 import { launchPackageBrowser } from "./package-browser";
 import { runDoctor } from "./doctor";
+import { reportError } from "./error-report";
 import {
   format as formatOutput,
   exportToFile,
@@ -554,7 +555,12 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
 }
 
 main().catch((err) => {
-  console.error("DEBUG: uncaught error:", err.message || err);
-  console.error(err instanceof Error ? err.message : String(err));
+  if (err instanceof Error && err.name === "SearchCliError") {
+    // ponytail: known user-facing errors already carry a friendly message; skip the report prompt
+    console.error(err.userMessage ?? err.message);
+  } else {
+    console.error(err instanceof Error ? err.message : String(err));
+    reportError(err);
+  }
   process.exit(1);
 });
