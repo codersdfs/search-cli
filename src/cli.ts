@@ -1,6 +1,12 @@
 // Prevent tui.ts auto-launch when imported from cli.ts
 process.env.GHFIND_CLI_RUN = "1";
-import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch, createTrendingSearch } from "./search";
+import {
+  parseQuery,
+  applyFlagFilters,
+  rankRepos,
+  createGitHubSearch,
+  createTrendingSearch,
+} from "./search";
 import {
   createPackageSearch,
   formatPackagesJson,
@@ -12,7 +18,15 @@ import {
   type PackageSortMode,
 } from "./package";
 import { launchPackageBrowser } from "./package-browser";
-import { format as formatOutput, exportToFile, pipeExec, type Format, type ExportFormat, type FormatLine } from "./output";
+import { runDoctor } from "./doctor";
+import {
+  format as formatOutput,
+  exportToFile,
+  pipeExec,
+  type Format,
+  type ExportFormat,
+  type FormatLine,
+} from "./output";
 import { runWatch } from "./watch";
 import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
@@ -50,7 +64,8 @@ interface CLIFlags {
   pkg: boolean;
   theme?: string;
   registry: string;
-  compare: string[];  // repo fullNames to compare
+  compare: string[]; // repo fullNames to compare
+  doctor: boolean;
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -74,22 +89,49 @@ function parseArgs(args: string[]): CLIFlags {
     pkg: false,
     registry: "npm",
     compare: [],
+    doctor: false,
   };
 
   let queryParts: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
-      case "--json": flags.json = true; break;
-      case "--csv": flags.csv = true; break;
-      case "--markdown": flags.markdown = true; break;
-      case "--count": flags.count = true; break;
-      case "--trending": flags.trending = true; break;
-      case "--watch": flags.watch = true; break;
-      case "--releases": flags.releases = true; break;
-      case "--version": case "-v": flags.version = true; break;
-      case "--help": case "-h": flags.help = true; break;
-      case "init": flags.init = true; break;
+      case "--json":
+        flags.json = true;
+        break;
+      case "--csv":
+        flags.csv = true;
+        break;
+      case "--markdown":
+        flags.markdown = true;
+        break;
+      case "--count":
+        flags.count = true;
+        break;
+      case "--trending":
+        flags.trending = true;
+        break;
+      case "--watch":
+        flags.watch = true;
+        break;
+      case "--releases":
+        flags.releases = true;
+        break;
+      case "--version":
+      case "-v":
+        flags.version = true;
+        break;
+      case "--doctor":
+      case "doctor":
+        flags.doctor = true;
+        break;
+      case "--help":
+      case "-h":
+        flags.help = true;
+        break;
+      case "init":
+        flags.init = true;
+        break;
       case "--limit": {
         const parsed = parseInt(args[++i]);
         if (isNaN(parsed) || parsed < 1 || parsed > 100) {
@@ -100,14 +142,30 @@ function parseArgs(args: string[]): CLIFlags {
         }
         break;
       }
-      case "--sort": flags.sort = args[++i] as SearchOptions["sort"]; break;
-      case "--token": flags.token = args[++i]; break;
-      case "--since": flags.since = args[++i]; break;
-      case "--pipe": flags.pipe = args[++i]; break;
-      case "--format": flags.format = args[++i]; break;
-      case "--registry": flags.registry = args[++i] ?? "npm"; break;
-      case "--theme": flags.theme = args[++i] ?? "tokyo-night"; break;
-      case "--completion": flags.completion = args[++i]; break;
+      case "--sort":
+        flags.sort = args[++i] as SearchOptions["sort"];
+        break;
+      case "--token":
+        flags.token = args[++i];
+        break;
+      case "--since":
+        flags.since = args[++i];
+        break;
+      case "--pipe":
+        flags.pipe = args[++i];
+        break;
+      case "--format":
+        flags.format = args[++i];
+        break;
+      case "--registry":
+        flags.registry = args[++i] ?? "npm";
+        break;
+      case "--theme":
+        flags.theme = args[++i] ?? "tokyo-night";
+        break;
+      case "--completion":
+        flags.completion = args[++i];
+        break;
       case "--compare": {
         // Collect repo names until next flag
         const repos: string[] = [];
@@ -134,8 +192,16 @@ async function main() {
 
   // Version
   if (flags.version) {
-    const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+    const pkg = JSON.parse(
+      readFileSync(join(PKG_DIR, "package.json"), "utf-8"),
+    );
     console.log(`ghfind v${pkg.version}`);
+    return;
+  }
+
+  // Doctor — environment diagnostics
+  if (flags.doctor) {
+    await runDoctor();
     return;
   }
 
@@ -161,6 +227,7 @@ Usage:
   ghfind init                      Run setup wizard
   ghfind --completion <shell>      Print completion script (bash|zsh|fish)
   ghfind --version                 Print version
+  ghfind --doctor                  Run environment diagnostics (troubleshooting)
   ghfind --help                    Print this help
 
 Options:
@@ -186,7 +253,10 @@ Options:
   if (flags.completion) {
     const shell = flags.completion;
     try {
-      const content = readFileSync(join(PKG_DIR, "completions", `ghfind.${shell}`), "utf-8");
+      const content = readFileSync(
+        join(PKG_DIR, "completions", `ghfind.${shell}`),
+        "utf-8",
+      );
       console.log(content);
     } catch {
       console.error(`Completions not available for shell: ${shell}`);
@@ -203,7 +273,12 @@ Options:
   // Package search (prototype, ticket 002-008)
   if (flags.pkg) {
     const interactive =
-      !flags.query && !flags.json && !flags.csv && !flags.markdown && !flags.count && !flags.format;
+      !flags.query &&
+      !flags.json &&
+      !flags.csv &&
+      !flags.markdown &&
+      !flags.count &&
+      !flags.format;
     if (interactive) {
       await launchPackageBrowser();
     } else {
@@ -213,9 +288,20 @@ Options:
   }
 
   // Determine output format
-  const outputFormat: ExportFormat | undefined =
-    flags.json ? "json" : flags.csv ? "csv" : flags.markdown ? "markdown" : undefined;
-  const isNonInteractive = outputFormat || flags.count || flags.format || flags.pipe || flags.watch || flags.releases;
+  const outputFormat: ExportFormat | undefined = flags.json
+    ? "json"
+    : flags.csv
+      ? "csv"
+      : flags.markdown
+        ? "markdown"
+        : undefined;
+  const isNonInteractive =
+    outputFormat ||
+    flags.count ||
+    flags.format ||
+    flags.pipe ||
+    flags.watch ||
+    flags.releases;
 
   // Non-interactive mode
   if (isNonInteractive) {
@@ -251,20 +337,32 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
     console.error(`Registry "${flags.registry}" not yet supported (only npm).`);
     process.exit(1);
   }
-  const PKG_SORTS: PackageSortMode[] = ["best-match", "score", "downloads", "name"];
+  const PKG_SORTS: PackageSortMode[] = [
+    "best-match",
+    "score",
+    "downloads",
+    "name",
+  ];
   const pkgSort = flags.sort as PackageSortMode;
   if (!PKG_SORTS.includes(pkgSort)) {
-    console.error(`Invalid sort for pkg: "${flags.sort}" (use best-match|score|downloads|name).`);
+    console.error(
+      `Invalid sort for pkg: "${flags.sort}" (use best-match|score|downloads|name).`,
+    );
     process.exit(1);
   }
   const search = createPackageSearch();
   const query = flags.query.trim();
   if (!query) {
-    console.error("Usage: ghfind pkg <query> [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]");
+    console.error(
+      "Usage: ghfind pkg <query> [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]",
+    );
     process.exit(1);
   }
   try {
-    const { totalCount, packages } = await search.searchPackage(query, flags.limit);
+    const { totalCount, packages } = await search.searchPackage(
+      query,
+      flags.limit,
+    );
     const sorted = sortPackages(packages, pkgSort);
     if (flags.count) {
       console.log(totalCount);
@@ -280,7 +378,9 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
       console.log(formatPackagesNames(sorted));
     } else {
       for (const p of sorted) {
-        console.log(`${p.name}@${p.version}  ↓ ${p.downloads.toLocaleString()}  ${p.score.toFixed(2)}  ${p.description ?? ""}`);
+        console.log(
+          `${p.name}@${p.version}  ↓ ${p.downloads.toLocaleString()}  ${p.score.toFixed(2)}  ${p.description ?? ""}`,
+        );
       }
     }
   } catch (err) {
@@ -312,11 +412,22 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
   // Dispatch table: each handler receives shared context + flags, returns void.
   const handlers: Record<string, (ctx: SearchContext) => Promise<void>> = {
     trending: async (ctx) => {
-      const since = flags.since === "weekly" ? "weekly" : flags.since === "monthly" ? "monthly" : "daily";
+      const since =
+        flags.since === "weekly"
+          ? "weekly"
+          : flags.since === "monthly"
+            ? "monthly"
+            : "daily";
       const trendingSearch = createTrendingSearch();
       const response = await trendingSearch.search(
         { keywords: [], qualifiers: [], raw: "trending" },
-        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: since },
+        {
+          limit: 25,
+          sort: "stars",
+          json: false,
+          verbose: false,
+          trendingSince: since,
+        },
       );
       if (outputFormat) {
         console.log(formatOutput(response.repos, outputFormat));
@@ -324,21 +435,42 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         console.log(response.totalCount);
       } else {
         for (const r of response.repos) {
-          console.log(r.fullName + "  ★ " + r.stars + "  ▲ +" + r.score + " " + since + "  ● " + (r.language ?? ""));
+          console.log(
+            r.fullName +
+              "  ★ " +
+              r.stars +
+              "  ▲ +" +
+              r.score +
+              " " +
+              since +
+              "  ● " +
+              (r.language ?? ""),
+          );
         }
       }
     },
     watch: async (ctx) => {
       let tick = 0;
       await runWatch(
-        { query: ctx.query, sort: flags.sort, limit: flags.limit, token: flags.token, intervalMs: flags.interval * 1000, trending: flags.trending },
+        {
+          query: ctx.query,
+          sort: flags.sort,
+          limit: flags.limit,
+          token: flags.token,
+          intervalMs: flags.interval * 1000,
+          trending: flags.trending,
+        },
         (repos, delta) => {
           tick++;
           if (outputFormat) {
-            console.log(`[Watch #${tick}] ${repos.length} results (${delta >= 0 ? "+" : ""}${delta} since last check)`);
+            console.log(
+              `[Watch #${tick}] ${repos.length} results (${delta >= 0 ? "+" : ""}${delta} since last check)`,
+            );
             console.log(formatOutput(repos, outputFormat));
           } else {
-            console.log(`[Watch #${tick}] ${repos.length} results — ${delta >= 0 ? "+" : ""}${delta} since last check`);
+            console.log(
+              `[Watch #${tick}] ${repos.length} results — ${delta >= 0 ? "+" : ""}${delta} since last check`,
+            );
           }
         },
         (err) => console.error(`[Watch error] ${err.message}`),
@@ -346,21 +478,33 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
     },
     pipe: async (ctx) => {
       const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+        limit: flags.limit,
+        sort: flags.sort,
+        json: false,
+        verbose: false,
+        token: flags.token,
       });
       const repos = rankRepos(response.repos, flags.sort);
       await pipeExec(repos, flags.pipe!);
     },
     format: async (ctx) => {
       const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+        limit: flags.limit,
+        sort: flags.sort,
+        json: false,
+        verbose: false,
+        token: flags.token,
       });
       const repos = rankRepos(response.repos, flags.sort);
       console.log(formatOutput(repos, flags.format as Format));
     },
     search: async (ctx) => {
       const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit, sort: flags.sort, json: false, verbose: false, token: flags.token,
+        limit: flags.limit,
+        sort: flags.sort,
+        json: false,
+        verbose: false,
+        token: flags.token,
       });
       const repos = rankRepos(response.repos, flags.sort);
       if (flags.count) {
@@ -377,7 +521,13 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
       for (const fullName of flags.compare) {
         const res = await search.search(
           { keywords: [fullName], qualifiers: [], raw: fullName },
-          { limit: 1, sort: "stars", json: false, verbose: false, token: flags.token },
+          {
+            limit: 1,
+            sort: "stars",
+            json: false,
+            verbose: false,
+            token: flags.token,
+          },
         );
         repos.push(...res.repos);
       }
@@ -386,21 +536,25 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
   };
 
   // Determine which handler to run
-  const key = flags.compare.length > 0 ? "compare"
-    : flags.trending && !flags.watch ? "trending"
-    : flags.watch ? "watch"
-    : flags.pipe ? "pipe"
-    : flags.format ? "format"
-    : "search";
+  const key =
+    flags.compare.length > 0
+      ? "compare"
+      : flags.trending && !flags.watch
+        ? "trending"
+        : flags.watch
+          ? "watch"
+          : flags.pipe
+            ? "pipe"
+            : flags.format
+              ? "format"
+              : "search";
 
   const ctx = buildSearchContext(flags);
   await handlers[key](ctx);
 }
 
-
-
 main().catch((err) => {
-  console.error('DEBUG: uncaught error:', err.message || err);
+  console.error("DEBUG: uncaught error:", err.message || err);
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });
