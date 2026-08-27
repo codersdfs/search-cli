@@ -6,10 +6,15 @@
  */
 import { readJSON, writeJSON, debugLog } from "./storage";
 import { stateDir } from "./config";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const REGISTRY_URL = "https://registry.npmjs.org/github-search-cli/latest";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REQUEST_TIMEOUT_MS = 5000;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_DIR = join(__dirname, "..");
 
 export interface UpdateState {
   /** Timestamp of last successful check. */
@@ -20,6 +25,8 @@ export interface UpdateState {
   suppressed: boolean;
   /** Latest version found on last check (for display). */
   latestVersion?: string;
+  /** Version at time of last successful install (populated before performUpdate). */
+  lastInstalledVersion?: string;
 }
 
 const STATE_FILE = "update-state.json";
@@ -159,4 +166,50 @@ export async function performUpdate(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+
+/**
+ * Record the current version as "last installed" before performing an update.
+ * This lets the post-upgrade startup detect the version change and show notes.
+ */
+export function recordPreUpdateState(currentVersion: string): void {
+  writeUpdateState({
+    ...readUpdateState(),
+    lastInstalledVersion: currentVersion,
+  });
+}
+
+/**
+ * Fetch release notes for a given version.
+ * Tries release-notes/<version>.md first, then falls back to CHANGELOG.md section.
+ * Returns the markdown text or null if not found.
+ */
+export function fetchReleaseNotes(version: string): string | null {
+  // ponytail: embedded notes are the primary source — they ship in the tarball, no network
+  try {
+    const notesPath = join(PKG_DIR, "release-notes", `${version}.md`);
+    const md = readFileSync(notesPath, "utf-8");
+    if (md.trim().length > 0) return md;
+  } catch {
+    // File doesn't exist for this version — fall through to CHANGELOG
+  }
+
+  // ponytail: CHANGELOG.md fallback — parse section for this version
+  try {
+    const changelogPath = join(PKG_DIR, "CHANGELOG.md");
+    const changelog = readFileSync(changelogPath, "utf-8");
+    // ponytail: find "## [version]" header, slice until next "## "
+    const header = "## [" + version + "]";
+    const start = changelog.indexOf(header);
+    if (start === -1) return null;
+    const bodyStart = start + header.length;
+    const rest = changelog.substring(bodyStart);
+    const nextHeaderIdx = rest.indexOf("\n## ");
+    const end = nextHeaderIdx === -1 ? changelog.length : bodyStart + nextHeaderIdx;
+    return changelog.substring(bodyStart, end).trim();
+  } catch {
+    // CHANGELOG.md doesn't exist either
+  }
+  return null;
 }

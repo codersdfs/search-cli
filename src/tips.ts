@@ -1,6 +1,26 @@
 /**
  * Startup tips — rotate through helpful hints.
  */
+
+/** Rotates tips without repeating the same one twice in a row. */
+export class TipRotator {
+  private tips: string[];
+  private lastIndex = -1;
+
+  constructor(tips?: string[]) {
+    this.tips = tips ?? TIPS;
+  }
+
+  next(): string {
+    let idx: number;
+    do {
+      idx = Math.floor(Math.random() * this.tips.length);
+    } while (idx === this.lastIndex && this.tips.length > 1);
+    this.lastIndex = idx;
+    return this.tips[idx];
+  }
+}
+
 const TIPS = [
   "💡 Tip: Press ? to see all keyboard shortcuts",
   "💡 Tip: Use Ctrl+R to recall past searches",
@@ -14,14 +34,9 @@ const TIPS = [
   "💡 Tip: Press Ctrl+P to copy a repo link to clipboard",
 ];
 
-let lastIndex = -1;
+export const defaultRotator = new TipRotator();
 
 /** Get the next tip (never repeats the same tip twice in a row). */
 export function nextTip(): string {
-  let idx: number;
-  do {
-    idx = Math.floor(Math.random() * TIPS.length);
-  } while (idx === lastIndex && TIPS.length > 1);
-  lastIndex = idx;
-  return TIPS[idx];
+  return defaultRotator.next();
 }

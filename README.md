@@ -192,67 +192,43 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 131 tests
+bun test         # 179 tests
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 131 tests
+npm test         # 179 tests
 npm run build    # build dist/
 ```
 
 ---
-### v0.9.3
-- Fixed `c` keybinding in TUI not adding repos to comparison — missing closing brace in space-key handler broke all subsequent key handlers (`c`, `t`, `?`)
-- Widened compare table columns (min 35 chars) and added Description + URL rows for richer side-by-side comparison
-- Compare table now shows up to 5 topics per repo (was 3)
-- README viewer now renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
----
-### v0.9.2
 
-- Remove bundled Bun binary from npm package (now downloaded at install time for all platforms)
-- Package size reduced from 39.5 MB to 100 KB
-- Postinstall no longer fails npm install on Bun download failure (graceful fallback)
-- Removed `bun` from engines field (users no longer need Bun pre-installed)
-- Non-interactive modes (`--json`, `--csv`, etc.) work with just Node.js 20+
+## Changelog
 
-### v0.9.1
+Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
-- bug fix TUI layout issues on small terminals
-- npm package search(beta)
-- a new landing screen
+### v9.3.0
+- Fixed `c` keybinding in TUI not adding repos to comparison — a missing closing brace in the space-key handler broke every later key handler (`c`, `t`, `?`)
+- README viewer renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
+- Widened compare table columns (min 35 chars), added Description + URL rows, and raised the topic cap to 5 per repo
 
-### v0.9.0
+### v9.2.1
+- npm package search (beta) and a new landing screen
+- Removed the bundled Bun binary — downloaded at install time instead; package size 39.5 MB → 100 KB
+- Postinstall failures no longer break `npm install`; `bun` dropped from engines
+- Fixed TUI layout on small terminals, trending visibility from the landing screen, and independent trending-tab fetches
 
-- Bundle `vendor/` and `dist/` in npm package for offline install support
-- Remove dead Strategy 3 fallback in `bin/ghfind.js` (Node cannot import `.ts`)
-- Fix postinstall to exit with code 1 on Bun download failure
-- Update bundled Bun version from 1.3.12 to 1.3.14
+### v9.1.1
+- Bundle `vendor/` and `dist/` for offline install
+- Postinstall exits non-zero on Bun download failure; bundled Bun 1.3.12 → 1.3.14
 
-
-### v0.8.2
-
-- Added automatic update checking against the npm registry
-- Added leader menu (Space) consolidating all contextual actions
-- Added update modal with Y/N/L (install now / skip / dismiss)
-- Added topic explorer, notifications panel, and saved searches overlay
-- Added activity graph toggle (commit chart fullscreen)
-- Added README viewer (full markdown rendering in TUI)
-- Added result auto-complete for search qualifiers (Tab)
-- Added PageUp/PageDown for quick navigation
-- Added Ctrl+X to clear history, Ctrl+C to clear all notifications
-- Improved export error handling and format selection
-- Updated keybindings reference
-
-### v0.8.1
-
-- Fixed postinstall to download Bun binary correctly on all platforms
-- Fixed zip asset names to match Bun's current release naming
-- Fixed zip parsing to use central directory instead of local file headers
-- Removed `vendor/` from npm package (Bun binary downloaded at install time)
-- Changed `postinstall` to use `node` instead of `bun run` (works without Bun pre-installed)
-- TUI now works on Node.js 20+ via bundled Bun binary
+### v9.1.0
+- Automatic update checking against the npm registry, with a Y/N/L modal
+- Leader menu (Space) consolidating all contextual actions
+- Topic explorer, notifications panel, saved searches, activity graph, README viewer
+- Tab qualifier auto-complete, PageUp/PageDown, `Ctrl+X` clear history, `Ctrl+C` clear notifications
+- TUI runs on Node.js 20+ via the downloaded Bun binary
 
 ---
 

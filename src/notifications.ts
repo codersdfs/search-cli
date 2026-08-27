@@ -3,7 +3,7 @@ import { readJSON, writeJSON } from "./storage";
 
 export interface Notification {
   id: number;
-  type: "info" | "warning" | "rate-limit" | "watch-change" | "upgrade";
+  type: "info" | "warning" | "rate-limit" | "watch-change" | "upgrade" | "release";
   icon: string;
   message: string;
   timestamp: number;
@@ -39,6 +39,7 @@ function iconFor(type: Notification["type"]): string {
     case "rate-limit": return "🚫";
     case "watch-change": return "🔔";
     case "upgrade": return "📦";
+    case "release": return "🚀";
   }
 }
 

@@ -54,3 +54,16 @@ export function searchBookmarks(query: string): Bookmark[] {
       b.tags.some((t) => t.toLowerCase().includes(q)),
   );
 }
+/** Read a repo's seen-marker (0 = never seen). */
+export function getLastSeen(fullName: string): number {
+  return loadRaw().find((b) => b.repo.fullName === fullName)?.lastSeenAt ?? 0;
+}
+/** Mark a repo's releases as seen up to now. */
+export function markSeen(fullName: string): void {
+  const bookmarks = loadRaw();
+  const bm = bookmarks.find((b) => b.repo.fullName === fullName);
+  if (bm) {
+    bm.lastSeenAt = Date.now();
+    saveRaw(bookmarks);
+  }
+}

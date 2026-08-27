@@ -104,6 +104,8 @@ export interface Bookmark {
   savedAt: number;
   tags: string[];
   notes?: string;
+  /** Releases published after this are "unseen". Set when the Releases panel is viewed. */
+  lastSeenAt?: number;
 }
 
 /** A named, saved search. */
@@ -120,7 +122,7 @@ export interface SavedSearch {
 
 /** Session state restored on startup. */
 export interface SessionState {
-  mode: "search" | "trending" | "packages";
+  mode: "search" | "trending" | "packages" | "bookmarks";
   query: string;
   sort: SortStrategy;
   limit: number;

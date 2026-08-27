@@ -14,6 +14,7 @@ import {
 import { launchPackageBrowser } from "./package-browser";
 import { format as formatOutput, exportToFile, pipeExec, type Format, type ExportFormat, type FormatLine } from "./output";
 import { runWatch } from "./watch";
+import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
 import { buildComparisonTable } from "./compare";
 import type { Repo } from "./types";
@@ -40,6 +41,7 @@ interface CLIFlags {
   pipe?: string;
   format?: string;
   watch: boolean;
+  releases: boolean;
   interval: number;
   completion?: string;
   init: boolean;
@@ -64,6 +66,7 @@ function parseArgs(args: string[]): CLIFlags {
     trending: false,
     since: "daily",
     watch: false,
+    releases: false,
     interval: 300,
     init: false,
     version: false,
@@ -83,6 +86,7 @@ function parseArgs(args: string[]): CLIFlags {
       case "--count": flags.count = true; break;
       case "--trending": flags.trending = true; break;
       case "--watch": flags.watch = true; break;
+      case "--releases": flags.releases = true; break;
       case "--version": case "-v": flags.version = true; break;
       case "--help": case "-h": flags.help = true; break;
       case "init": flags.init = true; break;
@@ -149,6 +153,7 @@ Usage:
   ghfind <query> --format <fmt>    Format lines (urls|names|ssh-urls|clone-commands|ids)
   ghfind <query> --pipe <target>   Pipe to clone/open
   ghfind --trending --json         Trending repos as JSON
+  ghfind --releases                Check bookmarks for new releases
   ghfind --compare <repo1> <repo2> Compare two+ repos side-by-side
   ghfind pkg <query> --json         Search npm packages, output JSON
   ghfind pkg <query>                Search npm packages, text list
@@ -170,6 +175,7 @@ Options:
   --registry <name>                  Registry for pkg: npm (default) | others TBD
 
   --watch                              Watch mode (re-run periodically)
+  --releases                           New-release feed for bookmarks
   --interval <s>                       Watch interval in seconds (default: 300)
   --completion <shell>                 Generate completions
 `);
@@ -209,10 +215,14 @@ Options:
   // Determine output format
   const outputFormat: ExportFormat | undefined =
     flags.json ? "json" : flags.csv ? "csv" : flags.markdown ? "markdown" : undefined;
-  const isNonInteractive = outputFormat || flags.count || flags.format || flags.pipe || flags.watch;
+  const isNonInteractive = outputFormat || flags.count || flags.format || flags.pipe || flags.watch || flags.releases;
 
   // Non-interactive mode
   if (isNonInteractive) {
+    if (flags.releases) {
+      await runReleases(flags, outputFormat);
+      return;
+    }
     await runNonInteractive(flags, outputFormat);
     return;
   }
@@ -276,6 +286,25 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
+  }
+}
+
+/** `ghfind --releases` — check bookmarks for new releases; print the cached feed, then mark all seen. */
+async function runReleases(flags: CLIFlags, outputFormat?: ExportFormat): Promise<void> {
+  const results = await checkAndNotify({ token: flags.token });
+  const releases = allCachedReleases();
+  if (outputFormat === "json") {
+    console.log(JSON.stringify(releases.map((r) => ({
+      fullName: r.fullName, tag: r.tagName, name: r.name,
+      url: r.url, publishedAt: r.publishedAt, prerelease: r.prerelease,
+    })), null, 2));
+    return;
+  }
+  const unseen = results.reduce((n, r) => n + r.newReleases.length, 0);
+  const errors = results.filter((r) => r.error).length;
+  console.log(`Checked ${results.length} bookmarked repos — ${unseen} new release${unseen === 1 ? "" : "s"}${errors ? `, ${errors} error${errors === 1 ? "" : "s"}` : ""}.`);
+  for (const r of releases) {
+    console.log(`${r.fullName}  ${r.prerelease ? "[pre] " : ""}${r.tagName}  ${r.publishedAt.slice(0, 10)}\n  ${r.url}`);
   }
 }
 

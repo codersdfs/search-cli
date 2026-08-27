@@ -113,6 +113,9 @@ import {
   snoozeUpdateNotices,
   suppressUpdateNotices,
   performUpdate,
+  fetchReleaseNotes,
+  readUpdateState,
+  recordPreUpdateState,
 } from "./update-check";
 import { debugLog } from "./storage";
 const colors = {
@@ -1527,6 +1530,33 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     showOverlay("leader");
   }
 
+  // ponytail: post-upgrade panel — fires when lastInstalledVersion != current version
+  // (no network, just reads bundled release notes for the new version)
+  function checkPostUpgradePanel() {
+    const state = readUpdateState();
+    if (state.suppressed) return;
+    if (!cachedVersion) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
+        cachedVersion = pkg.version;
+      } catch {
+        return;
+      }
+    }
+    const currentVersion = cachedVersion;
+    if (!state.lastInstalledVersion) return;
+    if (state.lastInstalledVersion === currentVersion) return;
+    // We just upgraded — show notes for the new version
+    const notes = fetchReleaseNotes(currentVersion);
+    const notesBlock = notes
+      ? renderMarkdown(notes, { width: 60 })
+      : "  No release notes found for this version.";
+    updateSelectedOption = 0;
+    updateText.content = `  Updated ghfind ${state.lastInstalledVersion} → ${currentVersion}\n\n${notesBlock}`;
+    renderUpdateOptions();
+    showOverlay("update");
+  }
+
   async function checkForUpdateAndShow(force: boolean = false) {
     if (!force && !shouldCheckUpdate()) return;
     if (cachedVersion === null) {
@@ -1544,7 +1574,11 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     markUpdateChecked(latest ?? undefined);
     if (latest) {
       updateSelectedOption = 0;
-      updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
+      const notes = fetchReleaseNotes(latest);
+      const notesBlock = notes
+        ? renderMarkdown(notes, { width: 60 })
+        : `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
+      updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n${notesBlock}`;
       renderUpdateOptions();
       showOverlay("update");
     } else {
@@ -2577,6 +2611,8 @@ ${pack.description ?? ""}`;
           const action = ["now", "later", "never"][updateSelectedOption] as "now" | "later" | "never" | undefined;
           if (action === "now") {
             showOverlay("none");
+            // ponytail: record the running version so the next launch detects the upgrade
+            recordPreUpdateState(cachedVersion ?? "");
             performUpdate().then((ok) => {
               if (ok) {
                 setStatus("✓ Update complete — restart ghfind");
@@ -2772,6 +2808,7 @@ ${pack.description ?? ""}`;
     showLanding(true);
   }
   checkForUpdateAndShow();
+  checkPostUpgradePanel();
   renderer.start();
   if (session && session.mode) {
     if (currentMode === "trending") {

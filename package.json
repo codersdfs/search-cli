@@ -21,6 +21,8 @@
     "completions/",
     "demo.svg",
     "LICENSE",
+    "CHANGELOG.md",
+    "release-notes/",
     "README.md"
   ],
   "scripts": {

@@ -17,7 +17,8 @@ export function buildHelpSections(): HelpSection[] {
       titleColor: "blue",
       rows: [
         { keys: "↑ ↓ / j k", action: "Navigate menu cards" },
-        { keys: "Enter", action: "Select mode" },
+        { keys: "Enter", action: "Select mode / open Bookmarks" },
+        { keys: "b", action: "Jump straight to Bookmarks" },
         { keys: "? / h", action: "Toggle this help screen" },
         { keys: "q", action: "Quit" },
       ],
@@ -39,6 +40,9 @@ export function buildHelpSections(): HelpSection[] {
       titleColor: "green",
       rows: [
         { keys: "Tab", action: "Auto-complete qualifier" },
+        { keys: "b", action: "Bookmark / unbookmark selected repo" },
+        { keys: "c", action: "Compare selected repo" },
+        { keys: "t", action: "Cycle theme" },
         { keys: "PageDown", action: "Next page of results" },
         { keys: "PageUp", action: "Scroll to top of results" },
       ],
@@ -87,12 +91,23 @@ export function buildHelpSections(): HelpSection[] {
       note: "Navigate menu with ↑ ↓, select with Enter, back with ← / Esc",
     },
     {
+      title: " Bookmarks Page ",
+      titleColor: "green",
+      rows: [
+        { keys: "↑ ↓ / j k", action: "Move selection" },
+        { keys: "Enter", action: "Open bookmark in browser" },
+        { keys: "d", action: "Remove bookmark" },
+        { keys: "Esc / ←", action: "Back to landing" },
+      ],
+      note: "A full page, not an overlay — Esc returns to the mode menu.",
+    },
+    {
       title: " Overlay Keys ",
       titleColor: "teal",
       rows: [
         { keys: "Esc / q", action: "Close any overlay" },
         { keys: "Enter", action: "Confirm selection / run action" },
-        { keys: "d", action: "Delete entry (history, bookmarks, saved)" },
+        { keys: "d", action: "Delete entry (history, saved)" },
         { keys: "↑ ↓ / j k", action: "Navigate overlay list" },
         { keys: "← → / h l", action: "Navigate tabs / panels" },
       ],
