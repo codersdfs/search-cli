@@ -31,6 +31,18 @@ Release tracking for bookmarked repos, plus a bookmarks page and toast notificat
 
 **`b` keybinding** — toggles bookmark on the selected repo from the main view (previously only reachable via Space → Repo → Bookmark)
 
+**Diagnostics: `ghfind --doctor`** — environment troubleshooting command for the interactive TUI
+- 10 checks: runtime, bundled Bun, system Bun, Node version, build output, source, TTY, config validity, GitHub token, state/cache dirs
+- Per-check status: green `PASS`, yellow `WARN`, red `FAIL`; non-zero exit on any FAIL so scripts can detect broken installs
+- `src/doctor.ts` is purely diagnostic (no TUI, no network) and exits with code 1 if any check fails
+- `bin/ghfind.js` Strategy 1 now prefers the bundled `vendor/bun` (downloaded by `postinstall.js`) and falls back to a system-installed `bun` on PATH; doctor confirms which one wins
+
+**Error report on uncaught exceptions** — never auto-posts
+- When `ghfind` hits an unexpected error, builds a pre-filled `https://github.com/codersdfs/search-cli/issues/new?title=...&body=...&labels=bug` URL with the error class, message, stack, command line, and environment (ghfind version, runtime, platform)
+- Tries to open the URL in the user's default browser (Bun.spawn when available, child_process.spawn detached fallback for Node); prints the URL when no browser can be launched
+- Known user-facing errors (`SearchCliError` subclasses) keep their existing friendly message and skip the report flow
+- `src/error-report.ts` is the new module; `tests/error-report.test.ts` covers URL format, ANSI stripping, long-message truncation, non-Error throwables, env + command in body
+
 ### Fixed
 - Landing screen vanished after the bookmarks page landed — `showLanding()` revealed `landingBox` before `hideMainContent()` hid it again; ordering corrected
 - Arrow keys moved the landing selection *and* the bookmarks list at the same time — the landing handler only checked `currentMode`, which opening bookmarks doesn't change. Now gated on `landingKeysActive(mode, overlay)`
@@ -46,7 +58,7 @@ Release tracking for bookmarked repos, plus a bookmarks page and toast notificat
 
 ### Internal
 - Extracted `src/toast.ts` and `src/landing.ts` so the toast, button, and key-routing predicates are testable without booting the TUI
-- Tests: 179 passing — `tests/landing.test.ts` (30), `tests/toast.test.ts` (6), `tests/releases.test.ts`, `tests/tips.test.ts`
+- Tests: 187 passing — `tests/landing.test.ts` (30), `tests/toast.test.ts` (6), `tests/releases.test.ts`, `tests/tips.test.ts`, `tests/doctor.test.ts` (2), `tests/error-report.test.ts` (6)
 
 ---
 
