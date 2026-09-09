@@ -29,6 +29,13 @@ import {
   type FormatLine,
 } from "./output";
 import { runWatch } from "./watch";
+import {
+  fetchOrgProfile,
+  formatOrgJson,
+  formatOrgCsv,
+  formatOrgMarkdown,
+  formatOrgText,
+} from "./org";
 import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
 import { buildComparisonTable } from "./compare";
@@ -67,6 +74,7 @@ interface CLIFlags {
   registry: string;
   compare: string[]; // repo fullNames to compare
   doctor: boolean;
+  org?: string; // org profile lookup (ghfind org <name>)
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -167,6 +175,15 @@ function parseArgs(args: string[]): CLIFlags {
       case "--completion":
         flags.completion = args[++i];
         break;
+      case "org": {
+        // Collect org name until next flag (allows multi-word quoted names)
+        const parts: string[] = [];
+        while (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+          parts.push(args[++i]);
+        }
+        flags.org = parts.join("-");
+        break;
+      }
       case "--compare": {
         // Collect repo names until next flag
         const repos: string[] = [];
@@ -222,6 +239,7 @@ Usage:
   ghfind --trending --json         Trending repos as JSON
   ghfind --releases                Check bookmarks for new releases
   ghfind --compare <repo1> <repo2> Compare two+ repos side-by-side
+  ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind pkg <query> --json         Search npm packages, output JSON
   ghfind pkg <query>                Search npm packages, text list
   ghfind --watch <query>           Watch mode (poll every Ns)
@@ -296,6 +314,14 @@ Options:
       : flags.markdown
         ? "markdown"
         : undefined;
+
+  // Org profile mode — independent of repo search handlers
+  // (checks presence, not truthiness, so `ghfind org` with no name errors helpfully)
+  if (flags.org !== undefined) {
+    await runOrgProfile(flags, outputFormat);
+    return;
+  }
+
   const isNonInteractive =
     outputFormat ||
     flags.count ||
@@ -330,6 +356,27 @@ function buildSearchContext(flags: CLIFlags): SearchContext {
     parsed,
     provider: createGitHubSearch(undefined, flags.token ? [flags.token] : []),
   };
+}
+
+/** `ghfind org <name>` — aggregate org profile: metadata, stars, top languages, top repos. */
+async function runOrgProfile(flags: CLIFlags, outputFormat?: ExportFormat): Promise<void> {
+  try {
+    const profile = await fetchOrgProfile(flags.org!, { token: flags.token, limit: flags.limit });
+    if (outputFormat === "json") {
+      console.log(formatOrgJson(profile));
+    } else if (outputFormat === "csv") {
+      console.log(formatOrgCsv(profile));
+    } else if (outputFormat === "markdown") {
+      console.log(formatOrgMarkdown(profile));
+    } else if (flags.count) {
+      console.log(profile.publicRepoCount);
+    } else {
+      console.log(formatOrgText(profile));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
 }
 
 /** `ghfind pkg "<query>"` — npm package search. Pass-through query to the registry. */

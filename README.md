@@ -81,6 +81,7 @@ ghfind --completion fish | source
 <tr><td><b>Saved</b></td><td>Space → Saved searches — load or save queries</td></tr>
 <tr><td><b>Export</b></td><td>Space → Export — JSON, CSV, Markdown to file</td></tr>
 <tr><td><b>Share</b></td><td>Space → Share repo — copy repo link to clipboard</td></tr>
+<tr><td><b>Org profile</b></td><td>Space → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
 <tr><td><b>Notifications</b></td><td>Space → Notifications — view & dismiss alerts</td></tr>
 <tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
 <tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
@@ -129,6 +130,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 | Save search     | Save current query                                      |
 | Export          | Export results to JSON / CSV / Markdown                 |
 | Share repo      | Copy repo link to clipboard                             |
+| Org profile     | Org summary — repos, total stars, top languages         |
 | Notifications   | View and dismiss alerts                                 |
 | Topics          | Browse popular GitHub topics                            |
 | Bookmarks panel | Browse saved bookmarks                                  |

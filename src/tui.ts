@@ -32,6 +32,7 @@ import {
   ScrollBoxRenderable,
 } from "@opentui/core";
 import type { Repo, SearchOptions, SortStrategy } from "./types";
+import { fetchOrgProfile, type OrgProfile } from "./org";
 import {
   parseQuery,
   applyFlagFilters,
@@ -242,6 +243,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     | "share"
     | "leader"
     | "readme"
+    | "org"
     | "update"
     | "landing" = "none";
   let currentPage = 1;
@@ -617,6 +619,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       leaderBox.visible = true;
     } else if (type === "readme") {
       readmeBox.visible = true;
+    } else if (type === "org") {
+      orgBox.visible = true;
     } else if (type === "update") {
       updateDim.visible = true;
       updateBox.visible = true;
@@ -1363,6 +1367,19 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       repoItems.push(
         {
           type: "action",
+          name: "Org profile",
+          description: "Org summary for the selected repo's owner",
+          action: () => {
+            const opt = resultsSelect.getSelectedOption();
+            const repo = opt?.value as Repo | undefined;
+            if (repo?.owner) {
+              showOverlay("none");
+              showOrgProfile(repo.owner);
+            }
+          },
+        },
+        {
+          type: "action",
           name: "Bookmark",
           description: "Save / unsave selected repo",
           action: () => toggleBookmarkOnSelected(),
@@ -1400,6 +1417,18 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         action: () => {
           showOverlay("none");
           showPackagesMode();
+        },
+      },
+      {
+        type: "action",
+        name: "Org profile",
+        description: "Look up any GitHub organization",
+        action: () => {
+          showOverlay("none");
+          // Pre-fill with the selected repo's owner, if any
+          const opt = resultsSelect.getSelectedOption();
+          const repo = opt?.value as Repo | undefined;
+          showOrgProfile(repo?.owner ?? currentQueryInput.trim());
         },
       });
     if (currentMode === "search") {
@@ -1672,6 +1701,96 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       updateDetail(repo);
       renderer.requestRender();
     }
+  }
+
+  // ── Org profile overlay ─────────────────────────────────────
+  const orgBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderBottom: true,
+    borderBottomColor: colors.border,
+    title: " Org profile ",
+    titleColor: colors.green,
+  });
+  const orgScroll = new ScrollBoxRenderable(renderer, {
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    scrollY: true,
+    scrollX: false,
+    paddingX: 1,
+    viewportOptions: { backgroundColor: colors.bg },
+    contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
+    scrollbarOptions: {
+      backgroundColor: colors.bg,
+      foregroundColor: colors.muted,
+      width: 1,
+    },
+  });
+  const orgText = new TextRenderable(renderer, {
+    content: "",
+    color: colors.text,
+    backgroundColor: colors.bg,
+  });
+  orgScroll.add(orgText);
+  orgBox.add(orgScroll);
+  const orgFooter = new TextRenderable(renderer, {
+    content: "  ↑↓/jk scroll  Esc/q close",
+    color: colors.muted,
+    backgroundColor: colors.bg,
+    height: 1,
+    paddingX: 1,
+  });
+  orgBox.add(orgFooter);
+  root.add(orgBox);
+
+  function formatOrgSummary(p: OrgProfile): string {
+    const lines: string[] = [];
+    const title = p.name ? `${p.login} — ${p.name}` : p.login;
+    lines.push(title);
+    if (p.description) lines.push(p.description);
+    if (p.location) lines.push(`Location  ${p.location}`);
+    if (p.blog) lines.push(`Web       ${p.blog}`);
+    if (p.createdAt) lines.push(`Created   ${p.createdAt.slice(0, 10)}`);
+    lines.push(`Repos     ${p.publicRepoCount.toLocaleString()} public${p.fetchedRepoCount < p.publicRepoCount ? ` (aggregated ${p.fetchedRepoCount})` : ""}`);
+    lines.push(`Stars     ${p.totalStars.toLocaleString()} (sum of aggregated repos)`);
+    lines.push(`Forks     ${p.totalForks.toLocaleString()} (sum of aggregated repos)`);
+    if (p.topLanguages.length > 0) {
+      lines.push(`Languages ${p.topLanguages.map((l) => `${l.language} (${l.repos})`).join(", ")}`);
+    }
+    if (p.topRepos.length > 0) {
+      lines.push("");
+      lines.push("Top repos by stars:");
+      for (const r of p.topRepos) {
+        lines.push(`  ${r.fullName}  ★ ${r.stars.toLocaleString()}  ${r.language ?? ""}`);
+      }
+    }
+    if (p.activeRepos.length > 0) {
+      lines.push("");
+      lines.push("Recently active:");
+      for (const r of p.activeRepos) {
+        lines.push(`  ${r.fullName}  pushed ${r.pushedAt.slice(0, 10)}`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  async function showOrgProfile(owner: string) {
+    const name = owner.trim().replace(/^@/, "");
+    if (!name) {
+      setStatus("No org selected");
+      return;
+    }
+    orgBox.title = ` Org profile — ${name} `;
+    orgText.content = `  Loading org profile for ${name}...`;
+    showOverlay("org");
+    try {
+      const profile = await fetchOrgProfile(name, { token: githubToken });
+      orgText.content = formatOrgSummary(profile);
+    } catch (err) {
+      orgText.content = `  Failed to load org profile: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    renderer.requestRender();
   }
 
   // ── README viewer overlay ────────────────────────────────────
@@ -2400,6 +2519,11 @@ ${pack.description ?? ""}`;
           return;
         }
         // Let up/down/j/k fall through to SelectRenderable
+      }
+
+      // Org profile viewer: scrollable, Esc/q already handled above
+      if (currentOverlay === "org") {
+        return;
       }
 
       // README viewer: scrollable, Esc/q already handled above
