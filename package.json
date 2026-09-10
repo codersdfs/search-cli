@@ -1,7 +1,7 @@
 {
   "name": "github-search-cli",
   "version": "9.4.1",
-  "description": "Terminal-native GitHub search — search, trending, bookmarks, history, deep-dive, compare, export, and more. All keyboard-driven, no browser needed.",
+  "description": "Search GitHub from your terminal — repo search, trending repos, npm package search, bookmarks, deep-dive, compare, export. Keyboard-driven TUI + pipeable CLI.",
   "type": "module",
   "packageManager": "bun@1",
   "volta": {
@@ -60,13 +60,21 @@
   "homepage": "https://github.com/codersdfs/search-cli#readme",
   "keywords": [
     "github",
+    "github-search",
+    "github-api",
     "cli",
+    "cli-tool",
     "search",
     "trending",
+    "trending-repositories",
     "terminal",
     "tui",
-    "browser",
+    "commandline",
     "developer-tools",
+    "developer-experience",
+    "npm-search",
+    "octokit",
+    "gh",
     "opentui"
   ],
   "license": "MIT",

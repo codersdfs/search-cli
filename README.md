@@ -9,12 +9,16 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="ghfind demo" width="100%">
+  <a href="https://www.npmjs.com/package/github-search-cli"><img src="https://img.shields.io/npm/v/github-search-cli.svg" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/github-search-cli"><img src="https://img.shields.io/npm/dw/github-search-cli.svg" alt="npm weekly downloads"></a>
+  <a href="https://github.com/codersdfs/search-cli/actions/workflows/release.yml"><img src="https://github.com/codersdfs/search-cli/actions/workflows/release.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript strict">
+  <a href="https://github.com/codersdfs/search-cli/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/github-search-cli.svg" alt="License"></a>
 </p>
 
-[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
----
+<p align="center">
+  <img src="https://raw.githubusercontent.com/codersdfs/search-cli/main/demo.svg" alt="ghfind demo" width="100%">
+</p>
 
 ## Install
 
@@ -22,15 +26,31 @@
 npm install -g github-search-cli
 ```
 
+Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https://github.com/codersdfs/search-cli/releases) — `ghfind-<os>-<arch>` executables for Linux, macOS, and Windows.
+
+## Why ghfind?
+
+|                                            | `ghfind` | `gh search` (GitHub CLI) | `hub` |
+| ------------------------------------------ | -------- | ------------------------ | ----- |
+| Repo search + qualifiers                   | ✅       | ✅                       | ❌    |
+| Trending repos (day/week/month/year)       | ✅       | ❌                       | ❌    |
+| Full-screen TUI, keyboard-driven           | ✅       | ❌                       | ❌    |
+| Bookmarks, tags & release tracking         | ✅       | ❌                       | ❌    |
+| Side-by-side repo compare                  | ✅       | ❌                       | ❌    |
+| Deep-dive (README, contributors, activity) | ✅       | ❌                       | ❌    |
+| npm package search                         | ✅       | ❌                       | ❌    |
+| Pipeable JSON / CSV / Markdown export      | ✅       | JSON only                | ❌    |
+| No login required                          | ✅       | ❌                       | ❌    |
+
 > **No separate runtime needed!** Only requires Node.js 20+. The TUI needs Bun,
 > which is downloaded automatically at install time. Non-interactive modes work
 > with just Node.js.
 >
-> | Platform              | TUI              | CLI modes |
-> | --------------------- | ---------------- | --------- |
-> | Node 20+              | ⚠ Bun required  | ✅        |
-> | Bun                   | ✅               | ✅        |
-> | Downloaded Bun        | ✅ auto-installed| ✅        |
+> | Platform       | TUI               | CLI modes |
+> | -------------- | ----------------- | --------- |
+> | Node 20+       | ⚠ Bun required    | ✅        |
+> | Bun            | ✅                | ✅        |
+> | Downloaded Bun | ✅ auto-installed | ✅        |
 
 ## Use
 
@@ -211,21 +231,25 @@ npm run build    # build dist/
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
 ### v9.3.0
+
 - Fixed `c` keybinding in TUI not adding repos to comparison — a missing closing brace in the space-key handler broke every later key handler (`c`, `t`, `?`)
 - README viewer renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
 - Widened compare table columns (min 35 chars), added Description + URL rows, and raised the topic cap to 5 per repo
 
 ### v9.2.1
+
 - npm package search (beta) and a new landing screen
 - Removed the bundled Bun binary — downloaded at install time instead; package size 39.5 MB → 100 KB
 - Postinstall failures no longer break `npm install`; `bun` dropped from engines
 - Fixed TUI layout on small terminals, trending visibility from the landing screen, and independent trending-tab fetches
 
 ### v9.1.1
+
 - Bundle `vendor/` and `dist/` for offline install
 - Postinstall exits non-zero on Bun download failure; bundled Bun 1.3.12 → 1.3.14
 
 ### v9.1.0
+
 - Automatic update checking against the npm registry, with a Y/N/L modal
 - Leader menu (Space) consolidating all contextual actions
 - Topic explorer, notifications panel, saved searches, activity graph, README viewer
