@@ -6,6 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased] — 9.4.2
+
+### Added
+
+- **Standalone binaries** — the release workflow now compiles
+  self-contained `ghfind-<os>-<arch>` executables (Linux, macOS, Windows)
+  via `bun build --compile` and attaches them to GitHub Releases. No
+  Node.js or Bun needed — unblocks Homebrew / Scoop / winget / curl
+  install channels.
+- **npm provenance** — `publish-npm` runs `npm publish --provenance` with
+  `id-token: write`, so published tarballs carry a verifiable provenance
+  badge on npmjs.com.
+- `src/version.ts` — single source for version resolution. Primary
+  source is the `__GHFIND_VERSION__` constant injected at build time
+  (tsup `define`, bun `--define`); falls back to reading package.json
+  relative to the module in source/dist trees.
+- **README trust & comparison** — npm version / weekly downloads / CI /
+  TypeScript / license badges; a "Why ghfind?" table vs `gh search` and
+  `hub`; standalone-binary install section.
+
+### Changed
+
+- Package description and keywords rewritten around real search intent
+  (9 → 17 keywords, e.g. `github-search`, `trending-repositories`,
+  `commandline`, `npm-search`, `octokit`).
+
+### Fixed
+
+- **In-app update loop was broken** — `performUpdate()` ran
+  `npm install -g ghfind`, but no `ghfind` package exists on npm; every
+  "Yes" on the update modal failed. Now installs `github-search-cli`,
+  and works under Node.js too (previous code used `Bun.spawn`
+  unconditionally).
+- **`--version` crashed in compiled binaries** — version was read from
+  `package.json` via filesystem paths in `cli.ts`, `tui.ts`,
+  `update-check.ts`, and `error-report.ts`, which do not exist inside a
+  single-file executable. Version is now embedded at build time.
+
+---
+
+## [Unreleased] — 9.4.1
+
 ## [Unreleased] — 9.4.1
 
 ### Changed
