@@ -6,6 +6,7 @@ import { tmpdir } from "os";
 
 describe("doctor", () => {
   const origEnv = { ...process.env };
+  const origExitCode = process.exitCode;
 
   beforeEach(() => {
     process.env.GHFIND_CONFIG = join(
@@ -19,6 +20,8 @@ describe("doctor", () => {
 
   afterEach(() => {
     process.env = { ...origEnv };
+    // doctor sets process.exitCode by design; leaking it fails the whole suite.
+    process.exitCode = origExitCode ?? 0;
     vi.restoreAllMocks();
   });
 
