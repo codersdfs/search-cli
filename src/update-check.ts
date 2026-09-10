@@ -87,7 +87,8 @@ export function isNewerVersion(current: string, latest: string): boolean {
 export async function checkForUpdate(
   currentVersion: string,
 ): Promise<string | null> {
-  if (process.env.DEBUG) debugLog(`Checking for update (current: ${currentVersion})`);
+  if (process.env.DEBUG)
+    debugLog(`Checking for update (current: ${currentVersion})`);
   try {
     const res = await fetch(REGISTRY_URL, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -96,7 +97,7 @@ export async function checkForUpdate(
       if (process.env.DEBUG) debugLog(`Registry returned ${res.status}`);
       return null;
     }
-    const data = await res.json() as { version?: string };
+    const data = (await res.json()) as { version?: string };
     const latest = data.version;
     if (!latest) {
       if (process.env.DEBUG) debugLog("No version in registry response");
@@ -106,7 +107,10 @@ export async function checkForUpdate(
     if (!isNewerVersion(currentVersion, latest)) return null;
     return latest;
   } catch (e) {
-    if (process.env.DEBUG) debugLog(`Update check failed: ${e instanceof Error ? e.message : String(e)}`);
+    if (process.env.DEBUG)
+      debugLog(
+        `Update check failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     return null;
   }
 }
@@ -147,27 +151,38 @@ export function suppressUpdateNotices(): void {
  * Uses `process.versions.bun` for reliable runtime detection (works on all platforms).
  */
 export async function performUpdate(): Promise<boolean> {
-  const isBun = typeof process.versions !== "undefined" && "bun" in process.versions;
+  // The npm package name is `github-search-cli`; `ghfind` is the bin name.
+  const pkg = "github-search-cli";
+  const isBun =
+    typeof process.versions !== "undefined" && "bun" in process.versions;
   const cmd = isBun
-    ? ["bun", "install", "-g", "ghfind"]
-    : ["npm", "install", "-g", "ghfind"];
+    ? ["bun", "install", "-g", pkg]
+    : ["npm", "install", "-g", pkg];
 
   try {
-    const proc = Bun.spawn(cmd, {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await proc.exited;
-    if (proc.exitCode !== 0) {
-      const err = await proc.stderr.text();
-      debugLog(`Install failed (code ${proc.exitCode}): ${err}`);
+    if (isBun) {
+      const proc = Bun.spawn(cmd, {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      await proc.exited;
+      if (proc.exitCode !== 0) {
+        const err = await proc.stderr.text();
+        debugLog(`Install failed (code ${proc.exitCode}): ${err}`);
+      }
+      return proc.exitCode === 0;
     }
-    return proc.exitCode === 0;
+    // Node fallback
+    const { spawn } = await import("child_process");
+    return await new Promise<boolean>((resolve) => {
+      const proc = spawn(cmd[0], cmd.slice(1), { stdio: "ignore" });
+      proc.on("close", (code) => resolve(code === 0));
+      proc.on("error", () => resolve(false));
+    });
   } catch {
     return false;
   }
 }
-
 
 /**
  * Record the current version as "last installed" before performing an update.
@@ -206,7 +221,8 @@ export function fetchReleaseNotes(version: string): string | null {
     const bodyStart = start + header.length;
     const rest = changelog.substring(bodyStart);
     const nextHeaderIdx = rest.indexOf("\n## ");
-    const end = nextHeaderIdx === -1 ? changelog.length : bodyStart + nextHeaderIdx;
+    const end =
+      nextHeaderIdx === -1 ? changelog.length : bodyStart + nextHeaderIdx;
     return changelog.substring(bodyStart, end).trim();
   } catch {
     // CHANGELOG.md doesn't exist either
