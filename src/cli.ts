@@ -44,6 +44,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { launchBrowser } from "./tui";
+import { getVersion } from "./version";
 import type { SearchOptions } from "./types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -210,10 +211,7 @@ async function main() {
 
   // Version
   if (flags.version) {
-    const pkg = JSON.parse(
-      readFileSync(join(PKG_DIR, "package.json"), "utf-8"),
-    );
-    console.log(`ghfind v${pkg.version}`);
+    console.log(`ghfind v${getVersion()}`);
     return;
   }
 
@@ -359,9 +357,15 @@ function buildSearchContext(flags: CLIFlags): SearchContext {
 }
 
 /** `ghfind org <name>` — aggregate org profile: metadata, stars, top languages, top repos. */
-async function runOrgProfile(flags: CLIFlags, outputFormat?: ExportFormat): Promise<void> {
+async function runOrgProfile(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
   try {
-    const profile = await fetchOrgProfile(flags.org!, { token: flags.token, limit: flags.limit });
+    const profile = await fetchOrgProfile(flags.org!, {
+      token: flags.token,
+      limit: flags.limit,
+    });
     if (outputFormat === "json") {
       console.log(formatOrgJson(profile));
     } else if (outputFormat === "csv") {
@@ -438,21 +442,38 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
 }
 
 /** `ghfind --releases` — check bookmarks for new releases; print the cached feed, then mark all seen. */
-async function runReleases(flags: CLIFlags, outputFormat?: ExportFormat): Promise<void> {
+async function runReleases(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
   const results = await checkAndNotify({ token: flags.token });
   const releases = allCachedReleases();
   if (outputFormat === "json") {
-    console.log(JSON.stringify(releases.map((r) => ({
-      fullName: r.fullName, tag: r.tagName, name: r.name,
-      url: r.url, publishedAt: r.publishedAt, prerelease: r.prerelease,
-    })), null, 2));
+    console.log(
+      JSON.stringify(
+        releases.map((r) => ({
+          fullName: r.fullName,
+          tag: r.tagName,
+          name: r.name,
+          url: r.url,
+          publishedAt: r.publishedAt,
+          prerelease: r.prerelease,
+        })),
+        null,
+        2,
+      ),
+    );
     return;
   }
   const unseen = results.reduce((n, r) => n + r.newReleases.length, 0);
   const errors = results.filter((r) => r.error).length;
-  console.log(`Checked ${results.length} bookmarked repos — ${unseen} new release${unseen === 1 ? "" : "s"}${errors ? `, ${errors} error${errors === 1 ? "" : "s"}` : ""}.`);
+  console.log(
+    `Checked ${results.length} bookmarked repos — ${unseen} new release${unseen === 1 ? "" : "s"}${errors ? `, ${errors} error${errors === 1 ? "" : "s"}` : ""}.`,
+  );
   for (const r of releases) {
-    console.log(`${r.fullName}  ${r.prerelease ? "[pre] " : ""}${r.tagName}  ${r.publishedAt.slice(0, 10)}\n  ${r.url}`);
+    console.log(
+      `${r.fullName}  ${r.prerelease ? "[pre] " : ""}${r.tagName}  ${r.publishedAt.slice(0, 10)}\n  ${r.url}`,
+    );
   }
 }
 

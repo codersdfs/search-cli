@@ -44,11 +44,7 @@ import {
   TrendingAdapter,
   type Logger,
 } from "./search";
-import {
-  tabSince,
-  TAB_NAMES,
-  fmtStars,
-} from "./trending";
+import { tabSince, TAB_NAMES, fmtStars } from "./trending";
 import { loadConfig, saveConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
 import {
@@ -100,11 +96,7 @@ import {
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PKG_DIR = join(__dirname, "..");
+import { getVersion } from "./version";
 
 let cachedVersion: string | null = null;
 import {
@@ -133,7 +125,7 @@ const colors = {
   orange: "#fab387",
   border: "#1C1C1C",
   borderAlt: "#2a2a2a",
-  separator: "#1C1C1C",  // Dark thin colorblock - thicker than border, visible separation
+  separator: "#1C1C1C", // Dark thin colorblock - thicker than border, visible separation
   selectionBg: "#2A2A9C",
   selectionText: "#ffffff",
   // Premium accents for the command menu
@@ -221,7 +213,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   let currentLimit = session?.limit ?? config.defaultLimit;
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
-  let currentMode: "landing" | "search" | "trending" | "packages" = session?.mode ?? "search";
+  let currentMode: "landing" | "search" | "trending" | "packages" =
+    session?.mode ?? "search";
   let packages: Package[] = [];
   let currentPackageSort: PackageSortMode = "best-match";
   let packageResultsRaw: Package[] = [];
@@ -339,7 +332,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   const toolbarText = new TextRenderable(renderer, {
     content: formatToolbar(currentSort, currentLimit, totalCount),
     visible: true, // hidden in trending mode
-    backgroundColor: colors.surface,                  // Surface panel
+    backgroundColor: colors.surface, // Surface panel
     color: colors.muted,
     height: 1,
     borderBottom: true,
@@ -442,19 +435,31 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       icon: "\u{1F50D}",
       title: "Repo Search",
       desc: "Search GitHub repositories by query, language, stars, and more",
-      action: () => { currentMode = "search"; showLanding(false); showSearchMode(); },
+      action: () => {
+        currentMode = "search";
+        showLanding(false);
+        showSearchMode();
+      },
     },
     {
       icon: "\u{1F4E6}",
       title: "Package Search",
       desc: "Search npm packages by name, description, or tags",
-      action: () => { currentMode = "packages"; showLanding(false); showPackagesMode(); },
+      action: () => {
+        currentMode = "packages";
+        showLanding(false);
+        showPackagesMode();
+      },
     },
     {
       icon: "\u{1F525}",
       title: "Trending",
       desc: "Browse the hottest repos on GitHub right now",
-      action: () => { currentMode = "trending"; showLanding(false); loadTrending(); },
+      action: () => {
+        currentMode = "trending";
+        showLanding(false);
+        loadTrending();
+      },
     },
   ];
   let landingSelected = 0;
@@ -527,7 +532,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         updateLandingCards();
         renderer.requestRender();
       } else if (key.name === "down" || key.name === "j") {
-        landingSelected = Math.min(landingOptions.length - 1, landingSelected + 1);
+        landingSelected = Math.min(
+          landingOptions.length - 1,
+          landingSelected + 1,
+        );
         updateLandingCards();
         renderer.requestRender();
       } else if (key.name === "enter" || key.name === "return") {
@@ -1143,10 +1151,14 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   neverBox.add(neverText);
 
   function renderUpdateOptions() {
-    updateNowBox.borderColor = updateSelectedOption === 0 ? colors.yellow : colors.border;
-    laterBox.borderColor = updateSelectedOption === 1 ? colors.yellow : colors.border;
-    neverBox.borderColor = updateSelectedOption === 2 ? colors.yellow : colors.border;
-    updateNowText.color = updateSelectedOption === 0 ? colors.yellow : colors.text;
+    updateNowBox.borderColor =
+      updateSelectedOption === 0 ? colors.yellow : colors.border;
+    laterBox.borderColor =
+      updateSelectedOption === 1 ? colors.yellow : colors.border;
+    neverBox.borderColor =
+      updateSelectedOption === 2 ? colors.yellow : colors.border;
+    updateNowText.color =
+      updateSelectedOption === 0 ? colors.yellow : colors.text;
     laterText.color = updateSelectedOption === 1 ? colors.yellow : colors.text;
     neverText.color = updateSelectedOption === 2 ? colors.yellow : colors.text;
     renderer.requestRender();
@@ -1410,7 +1422,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
     //  Navigate group
     const navItems: MenuEntry[] = [];
-    navItems.push({
+    navItems.push(
+      {
         type: "action",
         name: "Packages",
         description: "Search npm packages",
@@ -1430,7 +1443,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
           const repo = opt?.value as Repo | undefined;
           showOrgProfile(repo?.owner ?? currentQueryInput.trim());
         },
-      });
+      },
+    );
     if (currentMode === "search") {
       navItems.push({
         type: "action",
@@ -1565,12 +1579,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const state = readUpdateState();
     if (state.suppressed) return;
     if (!cachedVersion) {
-      try {
-        const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
-        cachedVersion = pkg.version;
-      } catch {
-        return;
-      }
+      cachedVersion = getVersion();
     }
     const currentVersion = cachedVersion;
     if (!state.lastInstalledVersion) return;
@@ -1589,17 +1598,12 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   async function checkForUpdateAndShow(force: boolean = false) {
     if (!force && !shouldCheckUpdate()) return;
     if (cachedVersion === null) {
-      try {
-        const pkg = JSON.parse(readFileSync(join(PKG_DIR, "package.json"), "utf-8"));
-        cachedVersion = pkg.version;
-      } catch {
-        debugLog("Failed to read package.json");
-        return;
-      }
+      cachedVersion = getVersion();
     }
     const currentVersion = cachedVersion;
     // ponytail: DEBUG_FORCE_UPDATE lets you test the panel without a real newer version
-    const latest = process.env.DEBUG_FORCE_UPDATE || await checkForUpdate(currentVersion);
+    const latest =
+      process.env.DEBUG_FORCE_UPDATE || (await checkForUpdate(currentVersion));
     markUpdateChecked(latest ?? undefined);
     if (latest) {
       updateSelectedOption = 0;
@@ -1752,17 +1756,27 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (p.location) lines.push(`Location  ${p.location}`);
     if (p.blog) lines.push(`Web       ${p.blog}`);
     if (p.createdAt) lines.push(`Created   ${p.createdAt.slice(0, 10)}`);
-    lines.push(`Repos     ${p.publicRepoCount.toLocaleString()} public${p.fetchedRepoCount < p.publicRepoCount ? ` (aggregated ${p.fetchedRepoCount})` : ""}`);
-    lines.push(`Stars     ${p.totalStars.toLocaleString()} (sum of aggregated repos)`);
-    lines.push(`Forks     ${p.totalForks.toLocaleString()} (sum of aggregated repos)`);
+    lines.push(
+      `Repos     ${p.publicRepoCount.toLocaleString()} public${p.fetchedRepoCount < p.publicRepoCount ? ` (aggregated ${p.fetchedRepoCount})` : ""}`,
+    );
+    lines.push(
+      `Stars     ${p.totalStars.toLocaleString()} (sum of aggregated repos)`,
+    );
+    lines.push(
+      `Forks     ${p.totalForks.toLocaleString()} (sum of aggregated repos)`,
+    );
     if (p.topLanguages.length > 0) {
-      lines.push(`Languages ${p.topLanguages.map((l) => `${l.language} (${l.repos})`).join(", ")}`);
+      lines.push(
+        `Languages ${p.topLanguages.map((l) => `${l.language} (${l.repos})`).join(", ")}`,
+      );
     }
     if (p.topRepos.length > 0) {
       lines.push("");
       lines.push("Top repos by stars:");
       for (const r of p.topRepos) {
-        lines.push(`  ${r.fullName}  ★ ${r.stars.toLocaleString()}  ${r.language ?? ""}`);
+        lines.push(
+          `  ${r.fullName}  ★ ${r.stars.toLocaleString()}  ${r.language ?? ""}`,
+        );
       }
     }
     if (p.activeRepos.length > 0) {
@@ -2039,7 +2053,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       let label = "     ";
       if (idx >= 0) {
         const val = labelVals[idx];
-        label = val >= 1000 ? `${(val/1000).toFixed(1).replace(/\.0$/, "")}k` : String(val);
+        label =
+          val >= 1000
+            ? `${(val / 1000).toFixed(1).replace(/\.0$/, "")}k`
+            : String(val);
         label = label.padStart(5) + " ";
       }
       lines.push(`${label}┆${chars.join("")}`);
@@ -2047,7 +2064,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
     // X-axis with week labels
     const xAxis = `     ┆${"─".repeat(termW)}`;
-    const weekLabels = `     ┆ ${"1w".padEnd(Math.floor(termW/4))} ${"13w".padEnd(Math.floor(termW/4))} ${"26w".padEnd(Math.floor(termW/4))} ${"52w"}`;
+    const weekLabels = `     ┆ ${"1w".padEnd(Math.floor(termW / 4))} ${"13w".padEnd(Math.floor(termW / 4))} ${"26w".padEnd(Math.floor(termW / 4))} ${"52w"}`;
     return [...lines, xAxis, weekLabels];
   }
 
@@ -2080,14 +2097,17 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
           const chartW = Math.max(20, Math.min(60, termW));
           const chartH = 10;
           const chartLines = buildChartString(chartCommitData, chartW, chartH);
-          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join("\n");
+          chartSection = ["", "Weekly commits (52 weeks)", ...chartLines].join(
+            "\n",
+          );
         } else if (data?.message) {
           chartSection = ["", `Chart unavailable: ${data.message}`].join("\n");
         }
       } else {
-        chartSection = ["", `Chart unavailable (API ${chartRes.status})`].join("\n");
+        chartSection = ["", `Chart unavailable (API ${chartRes.status})`].join(
+          "\n",
+        );
       }
-
 
       const desc = repo.description ?? "";
       const lang = repo.language ?? "—";
@@ -2173,7 +2193,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       const searchModule = new SearchModule(new TrendingAdapter());
       const response = await searchModule.search(
         { keywords: [], qualifiers: [], raw: "trending" },
-        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: tabSince(trendingTab) },
+        {
+          limit: 25,
+          sort: "stars",
+          json: false,
+          verbose: false,
+          trendingSince: tabSince(trendingTab),
+        },
       );
       const fetched = response.repos;
       const since = tabSince(trendingTab);
@@ -2241,11 +2267,16 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     searchBox.visible = true;
     toolbarText.visible = true;
     body.visible = true;
-    searchInput.placeholder = "Search npm packages (e.g. react, vue, typescript)";
+    searchInput.placeholder =
+      "Search npm packages (e.g. react, vue, typescript)";
     searchInput.focus();
     packages = [];
     resultsSelect.options = [
-      { name: "", description: "Type a query and press Enter to search", value: null },
+      {
+        name: "",
+        description: "Type a query and press Enter to search",
+        value: null,
+      },
     ];
     detailText.content = "";
     renderer.requestRender();
@@ -2280,8 +2311,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         throw new NoResultsError(q);
       }
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
       resultsSelect.options = [
         { name: " (error)", description: "", value: null },
       ];
@@ -2390,7 +2420,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   }
 
   function changePackageSort() {
-    const idx = PACKAGE_SORT_MODES.findIndex((m) => m.key === currentPackageSort);
+    const idx = PACKAGE_SORT_MODES.findIndex(
+      (m) => m.key === currentPackageSort,
+    );
     const next = PACKAGE_SORT_MODES[(idx + 1) % PACKAGE_SORT_MODES.length];
     currentPackageSort = next.key;
     setToolbar();
@@ -2732,20 +2764,23 @@ ${pack.description ?? ""}`;
           return;
         }
         if (key.name === "enter" || key.name === "return") {
-          const action = ["now", "later", "never"][updateSelectedOption] as "now" | "later" | "never" | undefined;
+          const action = ["now", "later", "never"][updateSelectedOption] as
+            "now" | "later" | "never" | undefined;
           if (action === "now") {
             showOverlay("none");
             // ponytail: record the running version so the next launch detects the upgrade
             recordPreUpdateState(cachedVersion ?? "");
-            performUpdate().then((ok) => {
-              if (ok) {
-                setStatus("✓ Update complete — restart ghfind");
-              } else {
+            performUpdate()
+              .then((ok) => {
+                if (ok) {
+                  setStatus("✓ Update complete — restart ghfind");
+                } else {
+                  setStatus("✗ Update failed — check terminal output");
+                }
+              })
+              .catch(() => {
                 setStatus("✗ Update failed — check terminal output");
-              }
-            }).catch(() => {
-              setStatus("✗ Update failed — check terminal output");
-            });
+              });
           } else if (action === "never") {
             suppressUpdateNotices();
             showOverlay("none");
@@ -2914,18 +2949,7 @@ ${pack.description ?? ""}`;
   });
 
   // ── Update check (before start) ──────────────────────────────────────
-  const pkgPath = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "package.json",
-  );
-  let currentVersion = "0.0.0";
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    currentVersion = pkg.version;
-  } catch {
-    // non-critical
-  }
+  const currentVersion = getVersion();
   // ── Start ──────────────────────────────────────────────────────────
   // Check for updates (non-blocking — doesn't delay TUI startup)
   if (!session || !session.mode) {
@@ -2986,6 +3010,10 @@ function cleanup(): void {
 // ── Auto-run ──────────────────────────────────────────────────────────
 // Only launch when run directly (bun run src/tui.ts), not when bundled
 // into cli.js or imported as a module.
-if (import.meta.main && !process.env.GHFIND_BUNDLED && !process.env.GHFIND_CLI_RUN) {
+if (
+  import.meta.main &&
+  !process.env.GHFIND_BUNDLED &&
+  !process.env.GHFIND_CLI_RUN
+) {
   launchBrowser();
 }

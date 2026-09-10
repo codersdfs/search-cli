@@ -5,11 +5,14 @@
  * Privacy: never auto-posts. The user sees the URL and decides whether to
  * submit. We redact env vars and only include what the diagnostic needs.
  */
-import { platform as osPlatform, arch as osArch, version as nodeVersion, versions as nodeVersions } from "process";
+import {
+  platform as osPlatform,
+  arch as osArch,
+  version as nodeVersion,
+  versions as nodeVersions,
+} from "process";
 import { spawn } from "child_process";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { getVersion } from "./version";
 
 // ponytail: in bun, process.platform is a string property; in node, same.
 // We need it as a string, not a function call.
@@ -22,14 +25,7 @@ const REPO = "codersdfs/search-cli";
 const NEW_ISSUE_URL = `https://github.com/${REPO}/issues/new`;
 
 function getPackageVersion(): string {
-  try {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const pkgPath = join(__dirname, "..", "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
+  return getVersion();
 }
 
 function runtimeName(): string {
