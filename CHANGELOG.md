@@ -25,6 +25,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 - **README trust & comparison** — npm version / weekly downloads / CI /
   TypeScript / license badges; a "Why ghfind?" table vs `gh search` and
   `hub`; standalone-binary install section.
+- **`ghfind login`** — stores a GitHub token for 5,000 req/hr rate limits.
+  Detects a token managed by the GitHub CLI (`~/.config/gh/hosts.yml`) and
+  offers to import it, or accepts a pasted token; warns if it doesn't look
+  like a GitHub credential (`ghp_` / `gho_` / `github_pat_`). Writes the same
+  config file as `ghfind init`.
+- **Better failure hints** — the `bin/ghfind.js` entry now points broken
+  installs at `ghfind --doctor` instead of failing silently (previously a
+  missing `src/` + `dist/` exited 0 without a word).
 
 ### Changed
 

@@ -62,6 +62,7 @@ ghfind
 ghfind "language:Rust stars:>1000" --json | jq '.[].fullName'
 ghfind "language:Zig" --count
 ghfind --trending --json --since weekly
+ghfind login                    # import the gh CLI token or paste one
 ```
 
 ### Non-interactive
@@ -190,7 +191,7 @@ Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, 
 
 ## Config
 
-`~/.config/ghfind/config.json` (auto-created, or run `ghfind init`):
+`~/.config/ghfind/config.json` (auto-created, or run `ghfind init`; `ghfind login` will set your GitHub token):
 
 ```json
 {

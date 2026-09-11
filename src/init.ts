@@ -5,6 +5,7 @@
  */
 import { createInterface } from "readline";
 import { saveConfig } from "./config";
+import { isLikelyGithubToken } from "./login";
 import { listThemes } from "./themes";
 import type { Config, SortStrategy } from "./types";
 
@@ -25,12 +26,7 @@ export async function runInitWizard(): Promise<void> {
   console.log("");
 
   const token = await ask("  GitHub token (optional, press Enter to skip): ");
-  if (
-    token &&
-    !token.startsWith("ghp_") &&
-    !token.startsWith("github_pat_") &&
-    !token.startsWith("gho_")
-  ) {
+  if (token && !isLikelyGithubToken(token)) {
     console.log(
       "  ⚠ Token doesn't look like a GitHub token (should start with ghp_, gho_, or github_pat_)",
     );

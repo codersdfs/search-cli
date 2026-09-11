@@ -22,6 +22,12 @@ _ghfind() {
     '--version[Print version]'
     '--help[Print help]'
     '--completion[Shell]:(bash zsh fish)'
+
+    'login[Import a GitHub token from the gh CLI or paste one]'
+    'init[Run the setup wizard]'
+    'doctor[Environment diagnostics]'
+    'org[Org profile]:org name:'
+    'pkg[Search packages]:query:'
   )
   _arguments "${opts[@]}" '*:query:'
 }

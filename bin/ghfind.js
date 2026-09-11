@@ -83,7 +83,16 @@ if (existsSync(distCli)) {
     await import(pathToFileURL(distCli).href);
   } catch (err) {
     console.error("Failed to start ghfind. Node.js >= 20 or Bun required.");
+    console.error(
+      "  Tip: run 'ghfind --doctor' for a full environment report.",
+    );
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }
+
+// Neither strategy produced a runnable CLI: report clearly instead of exiting 0.
+console.error("ghfind: could not start — neither src/ nor dist/ is available.");
+console.error("  Try reinstalling: npm install -g github-search-cli");
+console.error("  Tip: run 'ghfind --doctor' for a full environment report.");
+process.exit(1);

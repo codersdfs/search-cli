@@ -7,7 +7,7 @@ _ghfind() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  opts="--json --csv --markdown --count --limit --sort --token --trending --since --pipe --format --registry --watch --interval --version --help --completion pkg"
+  opts="--json --csv --markdown --count --limit --sort --token --trending --since --pipe --format --registry --watch --interval --version --help --completion pkg login init doctor org"
 
   case "${prev}" in
     --sort)

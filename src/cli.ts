@@ -38,6 +38,7 @@ import {
 } from "./org";
 import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
+import { runLoginWizard } from "./login";
 import { buildComparisonTable } from "./compare";
 import type { Repo } from "./types";
 import { readFileSync } from "fs";
@@ -68,6 +69,7 @@ interface CLIFlags {
   interval: number;
   completion?: string;
   init: boolean;
+  login: boolean;
   version: boolean;
   help: boolean;
   pkg: boolean;
@@ -94,6 +96,7 @@ function parseArgs(args: string[]): CLIFlags {
     releases: false,
     interval: 300,
     init: false,
+    login: false,
     version: false,
     help: false,
     pkg: false,
@@ -141,6 +144,9 @@ function parseArgs(args: string[]): CLIFlags {
         break;
       case "init":
         flags.init = true;
+        break;
+      case "login":
+        flags.login = true;
         break;
       case "--limit": {
         const parsed = parseInt(args[++i]);
@@ -242,6 +248,7 @@ Usage:
   ghfind pkg <query>                Search npm packages, text list
   ghfind --watch <query>           Watch mode (poll every Ns)
   ghfind init                      Run setup wizard
+  ghfind login                     Import the gh CLI token or paste one
   ghfind --completion <shell>      Print completion script (bash|zsh|fish)
   ghfind --version                 Print version
   ghfind --doctor                  Run environment diagnostics (troubleshooting)
@@ -285,6 +292,12 @@ Options:
   // Init wizard
   if (flags.init) {
     await runInitWizard();
+    return;
+  }
+
+  // Login — store a GitHub token for higher rate limits
+  if (flags.login) {
+    await runLoginWizard();
     return;
   }
   // Package search (prototype, ticket 002-008)
