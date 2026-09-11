@@ -33,6 +33,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 - **Better failure hints** — the `bin/ghfind.js` entry now points broken
   installs at `ghfind --doctor` instead of failing silently (previously a
   missing `src/` + `dist/` exited 0 without a word).
+- **Hardened trending parser** — `parseTrendingHtml` moved to its own module
+  (`src/trending-parser.ts`, no TUI/@opentui dependency). Layout changes that
+  previously produced an **empty trending list with no explanation** now throw
+  a friendly `ParseError` ("GitHub may have changed the layout. [r]etry").
+  New golden-test harness: `tests/fixtures/trending.html` is a live capture
+  of the page, and 11 tests pin the parser to it (including the login
+  `/login?return_to=…` href and `/owner/name/stargazers`-link false positives).
 
 ### Changed
 

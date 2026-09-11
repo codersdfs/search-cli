@@ -14,3 +14,4 @@ package-lock.json
 *.db
 *.db-shm
 *.db-wal
+tests/fixtures

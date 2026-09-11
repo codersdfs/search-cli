@@ -16,6 +16,7 @@ import type {
   CacheEntry,
 } from "./types";
 import { NetworkError, RateLimitError, ParseError } from "./errors";
+import { parseTrendingHtml, type RawTrendingRepo } from "./trending-parser";
 
 export interface Logger {
   debug(msg: string): void;
@@ -517,52 +518,6 @@ function appendPage(url: string, page: number, perPage: number): string {
 // ─── Trending adapter ─────────────────────────────────────────────────
 
 const TRENDING_URL = "https://github.com/trending";
-
-interface RawTrendingRepo {
-  rank: number;
-  owner: string;
-  name: string;
-  stars: number;
-  starsToday: number;
-  language: string;
-  description: string;
-}
-
-function parseTrendingHtml(html: string): RawTrendingRepo[] {
-  const flat = html.replace(/>\s+</g, "><").replace(/\s+/g, " ");
-  const repos: RawTrendingRepo[] = [];
-  const articleRe = /<article class="Box-row">(.*?)<\/article>/gi;
-  let match: RegExpExecArray | null;
-  let rank = 0;
-  while ((match = articleRe.exec(flat)) !== null) {
-    rank++;
-    const block = match[1];
-    const repoMatch = block.match(
-      /href="\/([^\/\"]+)\/([^\"?#]+)"[^>]*class="Link"/,
-    );
-    if (!repoMatch) continue;
-    const owner = repoMatch[1];
-    const name = repoMatch[2];
-    const starsMatch = block.match(
-      /href="\/[^\/\"]+\/[^\/\"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/,
-    );
-    const stars = starsMatch
-      ? parseInt(starsMatch[1].replace(/,/g, ""), 10)
-      : 0;
-    const growthMatch = block.match(/(\d[\d,]*)\s+stars\s+(today|this\s+\w+)/);
-    const starsToday = growthMatch
-      ? parseInt(growthMatch[1].replace(/,/g, ""), 10)
-      : 0;
-    const langMatch = block.match(/itemprop="programmingLanguage">([^<]+)</);
-    const language = langMatch ? langMatch[1].trim() : "";
-    const descMatch = block.match(
-      /<p[^>]*class="[^"]*color-fg-muted[^"]*"[^>]*>([^<]+)</,
-    );
-    const description = descMatch ? descMatch[1].trim() : "";
-    repos.push({ rank, owner, name, stars, starsToday, language, description });
-  }
-  return repos;
-}
 
 function trendingRepoToRepo(r: RawTrendingRepo): Repo {
   return {
