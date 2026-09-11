@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { buildComparisonTable } from "../src/compare.ts";
 import type { Repo } from "../src/types.ts";
 
-const makeRepo = (name: string, stars: number, forks: number, lang: string): Repo => ({
+const makeRepo = (
+  name: string,
+  stars: number,
+  forks: number,
+  lang: string,
+): Repo => ({
   id: Math.random(),
   fullName: `owner/${name}`,
   name,

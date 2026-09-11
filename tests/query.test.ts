@@ -10,7 +10,11 @@ import {
 
 describe("tokenize", () => {
   it("splits on spaces but keeps quoted phrases together", () => {
-    expect(tokenize(`rust cli "github search"`)).toEqual(["rust", "cli", "github search"]);
+    expect(tokenize(`rust cli "github search"`)).toEqual([
+      "rust",
+      "cli",
+      "github search",
+    ]);
   });
   it("handles empty input", () => {
     expect(tokenize("")).toEqual([]);
@@ -28,18 +32,34 @@ describe("parseQuery", () => {
   it("extracts qualifiers", () => {
     const q = parseQuery("llm topic:ai org:my-org");
     expect(q.keywords).toEqual(["llm"]);
-    expect(q.qualifiers).toContainEqual({ key: "topic", value: "ai", negated: false });
-    expect(q.qualifiers).toContainEqual({ key: "org", value: "my-org", negated: false });
+    expect(q.qualifiers).toContainEqual({
+      key: "topic",
+      value: "ai",
+      negated: false,
+    });
+    expect(q.qualifiers).toContainEqual({
+      key: "org",
+      value: "my-org",
+      negated: false,
+    });
   });
 
   it("preserves quoted qualifier values", () => {
     const q = parseQuery('repo:"my cool repo"');
-    expect(q.qualifiers).toContainEqual({ key: "repo", value: "my cool repo", negated: false });
+    expect(q.qualifiers).toContainEqual({
+      key: "repo",
+      value: "my cool repo",
+      negated: false,
+    });
   });
 
   it("detects negated qualifiers", () => {
     const q = parseQuery("-language:JavaScript");
-    expect(q.qualifiers).toContainEqual({ key: "language", value: "JavaScript", negated: true });
+    expect(q.qualifiers).toContainEqual({
+      key: "language",
+      value: "JavaScript",
+      negated: true,
+    });
   });
 
   it("treats a lone colon value as keyword", () => {
@@ -57,17 +77,44 @@ describe("parseQuery", () => {
 describe("applyFlagFilters", () => {
   it("appends flag filters as qualifiers", () => {
     const base = parseQuery("cli");
-    const merged = applyFlagFilters(base, { language: "Rust", stars: ">100", org: "octocat" });
-    expect(merged.qualifiers).toContainEqual({ key: "language", value: "Rust", negated: false });
-    expect(merged.qualifiers).toContainEqual({ key: "stars", value: ">100", negated: false });
-    expect(merged.qualifiers).toContainEqual({ key: "org", value: "octocat", negated: false });
+    const merged = applyFlagFilters(base, {
+      language: "Rust",
+      stars: ">100",
+      org: "octocat",
+    });
+    expect(merged.qualifiers).toContainEqual({
+      key: "language",
+      value: "Rust",
+      negated: false,
+    });
+    expect(merged.qualifiers).toContainEqual({
+      key: "stars",
+      value: ">100",
+      negated: false,
+    });
+    expect(merged.qualifiers).toContainEqual({
+      key: "org",
+      value: "octocat",
+      negated: false,
+    });
     expect(merged.keywords).toEqual(["cli"]);
   });
 
   it("maps boolean flags", () => {
-    const merged = applyFlagFilters(parseQuery("x"), { archived: true, fork: false });
-    expect(merged.qualifiers).toContainEqual({ key: "archived", value: "true", negated: false });
-    expect(merged.qualifiers).toContainEqual({ key: "fork", value: "false", negated: false });
+    const merged = applyFlagFilters(parseQuery("x"), {
+      archived: true,
+      fork: false,
+    });
+    expect(merged.qualifiers).toContainEqual({
+      key: "archived",
+      value: "true",
+      negated: false,
+    });
+    expect(merged.qualifiers).toContainEqual({
+      key: "fork",
+      value: "false",
+      negated: false,
+    });
   });
 });
 
@@ -76,7 +123,9 @@ describe("validateQuery", () => {
     expect(() => validateQuery(parseQuery("cli language:Rust"))).not.toThrow();
   });
   it("allows fork + archived (valid GitHub combination)", () => {
-    expect(() => validateQuery(parseQuery("cli fork:true archived:true"))).not.toThrow();
+    expect(() =>
+      validateQuery(parseQuery("cli fork:true archived:true")),
+    ).not.toThrow();
   });
   it("allows user + org (user: acts as author, not owner)", () => {
     expect(() => validateQuery(parseQuery("cli user:a org:b"))).not.toThrow();

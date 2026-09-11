@@ -4,7 +4,8 @@
 import type { Repo } from "./types";
 import { openUrl } from "./open-url";
 
-export type FormatLine = "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
+export type FormatLine =
+  "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
 
 export function formatUrls(repos: Repo[]): string {
   return repos.map((r) => r.url).join("\n");
@@ -19,7 +20,9 @@ export function formatSshUrls(repos: Repo[]): string {
 }
 
 export function formatCloneCommands(repos: Repo[]): string {
-  return repos.map((r) => `git clone git@github.com:${r.fullName}.git`).join("\n");
+  return repos
+    .map((r) => `git clone git@github.com:${r.fullName}.git`)
+    .join("\n");
 }
 
 export function formatIds(repos: Repo[]): string {
@@ -28,11 +31,16 @@ export function formatIds(repos: Repo[]): string {
 
 export function formatLines(repos: Repo[], format: FormatLine): string {
   switch (format) {
-    case "urls": return formatUrls(repos);
-    case "names": return formatNames(repos);
-    case "ssh-urls": return formatSshUrls(repos);
-    case "clone-commands": return formatCloneCommands(repos);
-    case "ids": return formatIds(repos);
+    case "urls":
+      return formatUrls(repos);
+    case "names":
+      return formatNames(repos);
+    case "ssh-urls":
+      return formatSshUrls(repos);
+    case "clone-commands":
+      return formatCloneCommands(repos);
+    case "ids":
+      return formatIds(repos);
   }
 }
 
@@ -50,5 +58,3 @@ export async function pipeExec(repos: Repo[], target: string): Promise<void> {
     }
   }
 }
-
-

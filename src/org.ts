@@ -144,9 +144,12 @@ export async function fetchOrgProfile(
 
   let orgPayload: GitHubOrgPayload;
   try {
-    const res = await fetch(`https://api.github.com/orgs/${encodeURIComponent(name)}`, {
-      headers: apiHeaders(token),
-    });
+    const res = await fetch(
+      `https://api.github.com/orgs/${encodeURIComponent(name)}`,
+      {
+        headers: apiHeaders(token),
+      },
+    );
     if (res.status === 404) {
       throw new Error(`Organization "${name}" not found.`);
     }
@@ -154,10 +157,13 @@ export async function fetchOrgProfile(
       const body = await res.text().catch(() => "");
       throw new Error(`GitHub API error ${res.status}: ${body.slice(0, 200)}`);
     }
-    orgPayload = await res.json() as GitHubOrgPayload;
+    orgPayload = (await res.json()) as GitHubOrgPayload;
   } catch (err) {
-    if (err instanceof Error && err.message.includes(`Organization "${name}"`)) throw err;
-    throw new Error(`Failed to fetch org "${name}": ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof Error && err.message.includes(`Organization "${name}"`))
+      throw err;
+    throw new Error(
+      `Failed to fetch org "${name}": ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   // Orgs with no public repos don't need the repos request.
@@ -198,9 +204,15 @@ export function formatOrgText(p: OrgProfile): string {
   if (p.createdAt) meta.push(`Created   ${p.createdAt.slice(0, 10)}`);
   if (meta.length > 0) lines.push(meta.join("\n"));
 
-  lines.push(`Repos     ${p.publicRepoCount.toLocaleString()} public${p.fetchedRepoCount < p.publicRepoCount ? ` (aggregated ${p.fetchedRepoCount})` : ""}`);
-  lines.push(`Stars     ${p.totalStars.toLocaleString()} (sum of aggregated repos)`);
-  lines.push(`Forks     ${p.totalForks.toLocaleString()} (sum of aggregated repos)`);
+  lines.push(
+    `Repos     ${p.publicRepoCount.toLocaleString()} public${p.fetchedRepoCount < p.publicRepoCount ? ` (aggregated ${p.fetchedRepoCount})` : ""}`,
+  );
+  lines.push(
+    `Stars     ${p.totalStars.toLocaleString()} (sum of aggregated repos)`,
+  );
+  lines.push(
+    `Forks     ${p.totalForks.toLocaleString()} (sum of aggregated repos)`,
+  );
   lines.push(`URL       ${p.url}`);
 
   if (p.topLanguages.length > 0) {
@@ -214,7 +226,9 @@ export function formatOrgText(p: OrgProfile): string {
     lines.push("");
     lines.push("Top repos by stars:");
     for (const r of p.topRepos) {
-      lines.push(`  ${r.fullName}  ★ ${r.stars.toLocaleString()}  ${r.language ?? ""}`);
+      lines.push(
+        `  ${r.fullName}  ★ ${r.stars.toLocaleString()}  ${r.language ?? ""}`,
+      );
     }
   }
   if (p.activeRepos.length > 0) {
@@ -232,7 +246,8 @@ export function formatOrgJson(p: OrgProfile): string {
 }
 
 export function formatOrgCsv(p: OrgProfile): string {
-  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const esc = (v: string) =>
+    /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   const row = [
     p.login,
     p.name ?? "",
@@ -243,7 +258,10 @@ export function formatOrgCsv(p: OrgProfile): string {
     p.topLanguages.map((l) => l.language).join(";"),
     p.createdAt,
   ].map(esc);
-  return ["login,name,url,public_repos,total_stars,total_forks,top_languages,created_at", row.join(",")].join("\n");
+  return [
+    "login,name,url,public_repos,total_stars,total_forks,top_languages,created_at",
+    row.join(","),
+  ].join("\n");
 }
 
 export function formatOrgMarkdown(p: OrgProfile): string {
@@ -259,12 +277,22 @@ export function formatOrgMarkdown(p: OrgProfile): string {
     `| Total forks (aggregated) | ${p.totalForks.toLocaleString()} |`,
   );
   if (p.topLanguages.length > 0) {
-    lines.push(`| Top languages | ${p.topLanguages.map((l) => `${l.language} (${l.repos})`).join(", ")} |`);
+    lines.push(
+      `| Top languages | ${p.topLanguages.map((l) => `${l.language} (${l.repos})`).join(", ")} |`,
+    );
   }
   if (p.topRepos.length > 0) {
-    lines.push("", "## Top repos by stars", "", "| Repo | Stars | Language |", "| --- | --- | --- |");
+    lines.push(
+      "",
+      "## Top repos by stars",
+      "",
+      "| Repo | Stars | Language |",
+      "| --- | --- | --- |",
+    );
     for (const r of p.topRepos) {
-      lines.push(`| [${r.fullName}](${r.url}) | ${r.stars.toLocaleString()} | ${r.language ?? "—"} |`);
+      lines.push(
+        `| [${r.fullName}](${r.url}) | ${r.stars.toLocaleString()} | ${r.language ?? "—"} |`,
+      );
     }
   }
   return lines.join("\n");

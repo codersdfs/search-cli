@@ -16,17 +16,39 @@ function saveRaw(searches: SavedSearch[]): void {
 
 /** Get all saved searches, sorted by last run time (most recent first). */
 export function getSavedSearches(): SavedSearch[] {
-  return loadRaw().sort((a, b) => (b.lastRunAt ?? b.createdAt) - (a.lastRunAt ?? a.createdAt));
+  return loadRaw().sort(
+    (a, b) => (b.lastRunAt ?? b.createdAt) - (a.lastRunAt ?? a.createdAt),
+  );
 }
 
 /** Save a new search. Overwrites if name already exists. */
-export function saveSearch(name: string, query: string, mode: "search" | "trending", sort: SortStrategy, limit: number, tab?: string): SavedSearch {
+export function saveSearch(
+  name: string,
+  query: string,
+  mode: "search" | "trending",
+  sort: SortStrategy,
+  limit: number,
+  tab?: string,
+): SavedSearch {
   const searches = loadRaw();
   const now = Date.now();
   const existing = searches.findIndex((s) => s.name === name);
-  const entry: SavedSearch = { name, query, mode, sort, limit, tab, createdAt: now, lastRunAt: now };
+  const entry: SavedSearch = {
+    name,
+    query,
+    mode,
+    sort,
+    limit,
+    tab,
+    createdAt: now,
+    lastRunAt: now,
+  };
   if (existing >= 0) {
-    searches[existing] = { ...searches[existing], ...entry, createdAt: searches[existing].createdAt };
+    searches[existing] = {
+      ...searches[existing],
+      ...entry,
+      createdAt: searches[existing].createdAt,
+    };
   } else {
     searches.push(entry);
   }

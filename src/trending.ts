@@ -74,15 +74,19 @@ export type TabName = (typeof TAB_NAMES)[number];
 /** Map TabName to github.com/trending?since= param */
 export function tabSince(tab: TabName): "daily" | "weekly" | "monthly" {
   switch (tab) {
-    case "Today":     return "daily";
-    case "This Week": return "weekly";
-    default:          return "monthly";
+    case "Today":
+      return "daily";
+    case "This Week":
+      return "weekly";
+    default:
+      return "monthly";
   }
 }
 // ─── Number formatting ────────────────────────────────────────────────
 /** 1234 → "1.2k", 1234567 → "1.2M", 999999 → "1M" */
 export function fmtStars(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 999_500) return "1M"; // ponytail: round 999500+ up before showing 1000k
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
   return String(n);
@@ -116,9 +120,10 @@ export function formatRepoLine(repo: Repo, rank: number): StyledText {
   const star = "★";
   const arrow = repo.score > 0 ? "▲" : repo.score < 0 ? "▼" : "—";
   const growth = `${arrow} ${fmtSigned(repo.score)} today`;
-  const desc = (repo.description ?? "").length > 60
-    ? (repo.description ?? "").slice(0, 57) + "..."
-    : (repo.description ?? "");
+  const desc =
+    (repo.description ?? "").length > 60
+      ? (repo.description ?? "").slice(0, 57) + "..."
+      : (repo.description ?? "");
   const line1 = t`${dim(fg(C.rankBg)(`[${rankStr}]`))} ${bold(fg("#c0caf5")(full))}  ${fg(lc)(`● ${repo.language}`)}  ${fg(C.gold)(`${star} ${fmtStars(repo.stars)}`)}  ${bold(fg(C.green)(growth))}`;
   const line2 = t`  ${dim(fg(C.muted)(desc))}`;
   const chunks = [
@@ -177,7 +182,12 @@ export async function launchTrending(): Promise<void> {
     if (index < 0 || index >= TAB_NAMES.length) return;
     selectedTab = index;
     const since = tabSince(TAB_NAMES[index]);
-    currentPeriod = since === "daily" ? "today" : since === "weekly" ? "this week" : "this month";
+    currentPeriod =
+      since === "daily"
+        ? "today"
+        : since === "weekly"
+          ? "this week"
+          : "this month";
     isLoading = true;
     for (const rb of rowBoxes) scrollBox.remove(rb);
     rowBoxes.length = 0;
@@ -191,7 +201,11 @@ export async function launchTrending(): Promise<void> {
     renderer.requestRender();
     try {
       const searchModule = new SearchModule(new TrendingAdapter());
-      const parsed: ParsedQuery = { keywords: [], qualifiers: [], raw: "trending" };
+      const parsed: ParsedQuery = {
+        keywords: [],
+        qualifiers: [],
+        raw: "trending",
+      };
       const response = await searchModule.search(parsed, {
         limit: 25,
         sort: "stars",
@@ -268,7 +282,9 @@ export async function launchTrending(): Promise<void> {
       const isActive = i === selectedTab;
       const label = ` ${name} `;
       const tt = new TextRenderable(renderer, {
-        content: isActive ? t`${bold(fg(C.bg)(label))}` : t`${fg(C.muted)(label)}`,
+        content: isActive
+          ? t`${bold(fg(C.bg)(label))}`
+          : t`${fg(C.muted)(label)}`,
         fg: isActive ? C.bg : C.muted,
         bg: isActive ? C.cyan : C.bg,
         height: 1,
@@ -331,13 +347,14 @@ export async function launchTrending(): Promise<void> {
     repos.forEach((r, i) => {
       const isEven = i % 2 === 0;
       const isSelected = i === selectedRepoIdx;
-      const rowBg = isSelected ? C.selectionBg : (isEven ? C.bg : C.surface);
+      const rowBg = isSelected ? C.selectionBg : isEven ? C.bg : C.surface;
       const rank = i + 1;
       const rc = rankColor(rank);
       const lc = langColor(r.language ?? "");
-      const desc = (r.description ?? "").length > 55
-        ? (r.description ?? "").slice(0, 52) + "..."
-        : (r.description ?? "");
+      const desc =
+        (r.description ?? "").length > 55
+          ? (r.description ?? "").slice(0, 52) + "..."
+          : (r.description ?? "");
       const arrow = r.score > 0 ? "▲" : r.score < 0 ? "▼" : "—";
       const growthStr = `${arrow} ${fmtStars(Math.abs(r.score))} ${currentPeriod}`;
       const rankStr = `[${String(rank).padStart(2, "0")}]`;
@@ -403,7 +420,7 @@ export async function launchTrending(): Promise<void> {
     selectedRepoIdx = newIdx;
     const setBg = (idx: number, selected: boolean) => {
       if (idx < 0 || idx >= rowBoxes.length) return;
-      const bg = selected ? C.selectionBg : (idx % 2 === 0 ? C.bg : C.surface);
+      const bg = selected ? C.selectionBg : idx % 2 === 0 ? C.bg : C.surface;
       rowBoxes[idx].backgroundColor = bg;
       if (rowTexts[idx]) rowTexts[idx].backgroundColor = bg;
     };

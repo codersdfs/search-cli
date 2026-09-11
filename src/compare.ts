@@ -10,18 +10,37 @@ interface CompareRow {
 
 /** Build a comparison table as an array of text rows. */
 export function buildComparisonTable(repos: Repo[]): string {
-  if (repos.length < 2) return "Select at least 2 repos to compare (press c to add).";
+  if (repos.length < 2)
+    return "Select at least 2 repos to compare (press c to add).";
 
   const rows: CompareRow[] = [];
   const names = repos.map((r) => r.fullName);
 
-  rows.push({ label: "Stars", values: repos.map((r) => `★ ${r.stars.toLocaleString()}`) });
-  rows.push({ label: "Forks", values: repos.map((r) => r.forks.toLocaleString()) });
+  rows.push({
+    label: "Stars",
+    values: repos.map((r) => `★ ${r.stars.toLocaleString()}`),
+  });
+  rows.push({
+    label: "Forks",
+    values: repos.map((r) => r.forks.toLocaleString()),
+  });
   rows.push({ label: "Language", values: repos.map((r) => r.language ?? "—") });
-  rows.push({ label: "Created", values: repos.map((r) => r.createdAt?.slice(0, 7) ?? "—") });
-  rows.push({ label: "Updated", values: repos.map((r) => r.updatedAt?.slice(0, 10) ?? "—") });
-  rows.push({ label: "Topics", values: repos.map((r) => (r.topics?.slice(0, 5).join(", ") ?? "—") || "—") });
-  rows.push({ label: "Description", values: repos.map((r) => (r.description?.slice(0, 50) ?? "—")) });
+  rows.push({
+    label: "Created",
+    values: repos.map((r) => r.createdAt?.slice(0, 7) ?? "—"),
+  });
+  rows.push({
+    label: "Updated",
+    values: repos.map((r) => r.updatedAt?.slice(0, 10) ?? "—"),
+  });
+  rows.push({
+    label: "Topics",
+    values: repos.map((r) => (r.topics?.slice(0, 5).join(", ") ?? "—") || "—"),
+  });
+  rows.push({
+    label: "Description",
+    values: repos.map((r) => r.description?.slice(0, 50) ?? "—"),
+  });
   rows.push({ label: "URL", values: repos.map((r) => r.url || "—") });
 
   // Calculate the max width for each column
@@ -38,7 +57,10 @@ export function buildComparisonTable(repos: Repo[]): string {
   ];
 
   for (const row of rows) {
-    const cells = [row.label.padEnd(14), ...row.values.map((v) => v.padEnd(colW))];
+    const cells = [
+      row.label.padEnd(14),
+      ...row.values.map((v) => v.padEnd(colW)),
+    ];
     lines.push("│" + cells.map((c) => ` ${c} `).join("│") + "│");
   }
 

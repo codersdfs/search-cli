@@ -32,8 +32,16 @@ export function deleteHistoryEntry(index: number): void {
   const entries = readHistory();
   if (index < 0 || index >= entries.length) return;
   const removed = entries[index];
-  const remaining = entries.filter((e) => e.timestamp !== removed.timestamp || e.query !== removed.query);
-  writeRaw(HISTORY_FILE, remaining.reverse().map((e) => JSON.stringify(e)).join("\n") + "\n");
+  const remaining = entries.filter(
+    (e) => e.timestamp !== removed.timestamp || e.query !== removed.query,
+  );
+  writeRaw(
+    HISTORY_FILE,
+    remaining
+      .reverse()
+      .map((e) => JSON.stringify(e))
+      .join("\n") + "\n",
+  );
 }
 
 /** Clear all history. */
@@ -46,7 +54,13 @@ export function rotateHistory(): void {
   const entries = readHistory();
   if (entries.length <= MAX_ENTRIES) return;
   const trimmed = entries.slice(0, MAX_ENTRIES);
-  writeRaw(HISTORY_FILE, trimmed.reverse().map((e) => JSON.stringify(e)).join("\n") + "\n");
+  writeRaw(
+    HISTORY_FILE,
+    trimmed
+      .reverse()
+      .map((e) => JSON.stringify(e))
+      .join("\n") + "\n",
+  );
 }
 
 /** Count entries in history file. */

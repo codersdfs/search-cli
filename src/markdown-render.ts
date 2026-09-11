@@ -49,12 +49,7 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     const colCount = Math.max(...dataRows.map((r) => r.length));
     const colW: number[] = [];
     for (let ci = 0; ci < colCount; ci++) {
-      colW.push(
-        Math.max(
-          3,
-          ...dataRows.map((r) => (r[ci] ?? "").length),
-        ),
-      );
+      colW.push(Math.max(3, ...dataRows.map((r) => (r[ci] ?? "").length)));
     }
     const totalW = colW.reduce((a, b) => a + b, 0) + colCount * 3 - 1;
     if (totalW > width) {

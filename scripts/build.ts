@@ -8,7 +8,22 @@ async function main() {
   console.log("Building ghfind...");
 
   // ESM bundle via tsup
-  execFileSync("npx", ["tsup", "src/cli.ts", "--format", "esm", "--target", "node20", "--out-dir", "dist", "--external", "@opentui/core"], { stdio: "inherit" });
+  execFileSync(
+    "npx",
+    [
+      "tsup",
+      "src/cli.ts",
+      "--format",
+      "esm",
+      "--target",
+      "node20",
+      "--out-dir",
+      "dist",
+      "--external",
+      "@opentui/core",
+    ],
+    { stdio: "inherit" },
+  );
 
   console.log("✓ dist/cli.js (Node.js ESM bundle)");
 }

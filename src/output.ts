@@ -10,8 +10,15 @@ import type { Repo } from "./types";
 import { openUrl } from "./open-url";
 
 export type Format =
-  | "json" | "csv" | "markdown" | "text"
-  | "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
+  | "json"
+  | "csv"
+  | "markdown"
+  | "text"
+  | "urls"
+  | "names"
+  | "ssh-urls"
+  | "clone-commands"
+  | "ids";
 
 export type FormatFn = (repos: Repo[]) => string;
 
@@ -46,8 +53,9 @@ function csvEscape(val: unknown): string {
 
 export function formatCsv(repos: Repo[]): string {
   const header = "rank,full_name,stars,forks,language,url";
-  const rows = repos.map((r, i) =>
-    `${i + 1},${csvEscape(r.fullName)},${r.stars},${r.forks},${csvEscape(r.language ?? "")},${csvEscape(r.url)}`,
+  const rows = repos.map(
+    (r, i) =>
+      `${i + 1},${csvEscape(r.fullName)},${r.stars},${r.forks},${csvEscape(r.language ?? "")},${csvEscape(r.url)}`,
   );
   return [header, ...rows].join("\n");
 }
@@ -63,7 +71,12 @@ export function formatMarkdown(repos: Repo[]): string {
 }
 
 export function formatText(repos: Repo[]): string {
-  return repos.map((r, i) => `${i + 1}. ${r.fullName} ★ ${r.stars.toLocaleString()} ${r.url}`).join("\n");
+  return repos
+    .map(
+      (r, i) =>
+        `${i + 1}. ${r.fullName} ★ ${r.stars.toLocaleString()} ${r.url}`,
+    )
+    .join("\n");
 }
 
 // ── Pipe format functions ──────────────────────────────────────────────
@@ -81,7 +94,9 @@ export function formatSshUrls(repos: Repo[]): string {
 }
 
 export function formatCloneCommands(repos: Repo[]): string {
-  return repos.map((r) => `git clone git@github.com:${r.fullName}.git`).join("\n");
+  return repos
+    .map((r) => `git clone git@github.com:${r.fullName}.git`)
+    .join("\n");
 }
 
 export function formatIds(repos: Repo[]): string {
@@ -124,7 +139,8 @@ export async function pipeExec(repos: Repo[], target: string): Promise<void> {
 // ─── Backward-compatible re-exports ─────────────────────────────────────
 
 export type ExportFormat = "json" | "csv" | "markdown" | "text";
-export type FormatLine = "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
+export type FormatLine =
+  "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
 
 /** @deprecated Use `format()` instead. */
 export function formatRepos(repos: Repo[], fmt: ExportFormat): string {

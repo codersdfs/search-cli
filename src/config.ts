@@ -1,6 +1,6 @@
 /**
  * Config system: load/save config from XDG paths, merge with env vars.
- * 
+ *
  * Lookup order:
  *   1. GHFIND_CONFIG env var
  *   2. $XDG_CONFIG_HOME/ghfind/config.json
@@ -14,7 +14,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "fs";
 /** Directory for persistent state (history, bookmarks, session). */
 export function stateDir(): string {
   const xdg = process.env.XDG_STATE_HOME;
-  const base = xdg ? join(xdg, "ghfind") : join(homedir(), ".local", "share", "ghfind");
+  const base = xdg
+    ? join(xdg, "ghfind")
+    : join(homedir(), ".local", "share", "ghfind");
   return base;
 }
 
@@ -54,7 +56,10 @@ export function loadConfig(): Config {
 
 export function saveConfig(config: Config): void {
   const path = configPath();
-  const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+  const dir = path.slice(
+    0,
+    Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")),
+  );
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2));
 }

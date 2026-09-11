@@ -173,7 +173,6 @@ export const QUALIFIER_SUGGESTIONS: Record<string, string[]> = {
   a: ["archived:"],
 };
 
-
 export function suggestFor(input: string): string[] {
   const trimmed = input.trim().toLowerCase();
   if (trimmed.length === 0) return [];
@@ -183,9 +182,9 @@ export function suggestFor(input: string): string[] {
   const matches = KNOWN_QUALIFIERS.filter((k) => k.startsWith(trimmed));
   return matches.map((k) => k + ":");
 }
-  
+
 export function tokenize(input: string): string[] {
-  const tokens: string[] = [];  
+  const tokens: string[] = [];
   let current = "";
   let inQuotes = false;
   for (let i = 0; i < input.length; i++) {
@@ -203,7 +202,11 @@ export function tokenize(input: string): string[] {
     }
   }
   if (current) {
-    if (current.startsWith('"') && current.endsWith('"') && current.length >= 2) {
+    if (
+      current.startsWith('"') &&
+      current.endsWith('"') &&
+      current.length >= 2
+    ) {
       current = current.slice(1, -1);
     }
     tokens.push(current);
@@ -257,24 +260,41 @@ export interface FlagFilters {
   fork?: boolean;
 }
 
-export function applyFlagFilters(query: ParsedQuery, flags: FlagFilters): ParsedQuery {
+export function applyFlagFilters(
+  query: ParsedQuery,
+  flags: FlagFilters,
+): ParsedQuery {
   const qualifiers = [...query.qualifiers];
 
-  if (flags.language) qualifiers.push({ key: "language", value: flags.language, negated: false });
-  if (flags.stars) qualifiers.push({ key: "stars", value: flags.stars, negated: false });
-  if (flags.org) qualifiers.push({ key: "org", value: flags.org, negated: false });
-  if (flags.user) qualifiers.push({ key: "user", value: flags.user, negated: false });
-  if (flags.topic) qualifiers.push({ key: "topic", value: flags.topic, negated: false });
+  if (flags.language)
+    qualifiers.push({ key: "language", value: flags.language, negated: false });
+  if (flags.stars)
+    qualifiers.push({ key: "stars", value: flags.stars, negated: false });
+  if (flags.org)
+    qualifiers.push({ key: "org", value: flags.org, negated: false });
+  if (flags.user)
+    qualifiers.push({ key: "user", value: flags.user, negated: false });
+  if (flags.topic)
+    qualifiers.push({ key: "topic", value: flags.topic, negated: false });
   if (flags.archived !== undefined)
-    qualifiers.push({ key: "archived", value: flags.archived ? "true" : "false", negated: false });
+    qualifiers.push({
+      key: "archived",
+      value: flags.archived ? "true" : "false",
+      negated: false,
+    });
   if (flags.fork !== undefined)
-    qualifiers.push({ key: "fork", value: flags.fork ? "true" : "false", negated: false });
+    qualifiers.push({
+      key: "fork",
+      value: flags.fork ? "true" : "false",
+      negated: false,
+    });
 
   return { ...query, qualifiers };
 }
 
 export function validateQuery(query: ParsedQuery): void {
-  const has = (key: string) => query.qualifiers.some((q) => q.key === key && !q.negated);
+  const has = (key: string) =>
+    query.qualifiers.some((q) => q.key === key && !q.negated);
   if (has("visibility") && has("private")) {
     throw new Error("Cannot combine `visibility:` and `private:` filters.");
   }
@@ -297,7 +317,10 @@ export function buildGitHubQuery(query: ParsedQuery): string {
   return parts.join(" ");
 }
 
-export function githubSortParam(sort: SortStrategy): { sort?: string; order?: string } {
+export function githubSortParam(sort: SortStrategy): {
+  sort?: string;
+  order?: string;
+} {
   switch (sort) {
     case "stars":
       return { sort: "stars", order: "desc" };
@@ -311,7 +334,10 @@ export function githubSortParam(sort: SortStrategy): { sort?: string; order?: st
   }
 }
 
-export function buildSearchUrl(query: ParsedQuery, options: SearchOptions): string {
+export function buildSearchUrl(
+  query: ParsedQuery,
+  options: SearchOptions,
+): string {
   const q = buildGitHubQuery(query);
   const { sort, order } = githubSortParam(options.sort);
   const params = new URLSearchParams({ q: q || " " });
@@ -368,7 +394,10 @@ export class GitHubSearchAdapter implements SearchAdapter {
     return token;
   }
 
-  async search(query: ParsedQuery, options: SearchOptions): Promise<SearchResponse> {
+  async search(
+    query: ParsedQuery,
+    options: SearchOptions,
+  ): Promise<SearchResponse> {
     const url = buildSearchUrl(query, options);
     this.logger.debug(`[github] outgoing query: ${query.raw}`);
     this.logger.debug(`[github] request url: ${url}`);
@@ -380,7 +409,8 @@ export class GitHubSearchAdapter implements SearchAdapter {
 
     const perPage = Math.min(Math.max(options.limit, 1), 100);
     const startPage = options.page ?? 1;
-    const maxPages = startPage > 1 ? startPage : Math.ceil(options.limit / perPage);
+    const maxPages =
+      startPage > 1 ? startPage : Math.ceil(options.limit / perPage);
 
     for (let page = startPage > 1 ? startPage : 1; page <= maxPages; page++) {
       const pagedUrl = appendPage(url, page, perPage);
@@ -399,7 +429,8 @@ export class GitHubSearchAdapter implements SearchAdapter {
           });
 
           const remainingStr = res.headers.get("x-ratelimit-remaining");
-          rateLimitRemaining = remainingStr !== null ? Number(remainingStr) : undefined;
+          rateLimitRemaining =
+            remainingStr !== null ? Number(remainingStr) : undefined;
 
           if (res.status === 403) {
             if (remainingStr === "0" || remainingStr === null) {
@@ -411,12 +442,16 @@ export class GitHubSearchAdapter implements SearchAdapter {
               throw new RateLimitError(!!token);
             }
             const body = await res.text().catch(() => "");
-            this.logger.error(`[github] non-rate-limit 403: ${body.slice(0, 200)}`);
+            this.logger.error(
+              `[github] non-rate-limit 403: ${body.slice(0, 200)}`,
+            );
             throw new NetworkError();
           }
           if (!res.ok) {
             const body = await res.text().catch(() => "");
-            this.logger.error(`[github] API error ${res.status}: ${body.slice(0, 200)}`);
+            this.logger.error(
+              `[github] API error ${res.status}: ${body.slice(0, 200)}`,
+            );
             throw new NetworkError();
           }
 
@@ -427,13 +462,25 @@ export class GitHubSearchAdapter implements SearchAdapter {
           } catch {
             const snippet = raw.slice(0, 200);
             this.logger.error(`[github] invalid JSON response: ${snippet}`);
-            throw new ParseError("GitHub API", snippet.includes("<!DOCTYPE")
-              ? "GitHub returned an HTML page (maintenance or CAPTCHA?)"
-              : "Invalid JSON response");
+            throw new ParseError(
+              "GitHub API",
+              snippet.includes("<!DOCTYPE")
+                ? "GitHub returned an HTML page (maintenance or CAPTCHA?)"
+                : "Invalid JSON response",
+            );
           }
-          if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as any).items)) {
-            this.logger.error(`[github] unexpected response shape: ${JSON.stringify(parsed).slice(0, 200)}`);
-            throw new ParseError("GitHub API", "Unexpected response shape — missing items array");
+          if (
+            !parsed ||
+            typeof parsed !== "object" ||
+            !Array.isArray((parsed as any).items)
+          ) {
+            this.logger.error(
+              `[github] unexpected response shape: ${JSON.stringify(parsed).slice(0, 200)}`,
+            );
+            throw new ParseError(
+              "GitHub API",
+              "Unexpected response shape — missing items array",
+            );
           }
           const env = parsed as GitHubSearchEnvelope;
           totalCount = env.total_count;
@@ -490,17 +537,27 @@ function parseTrendingHtml(html: string): RawTrendingRepo[] {
   while ((match = articleRe.exec(flat)) !== null) {
     rank++;
     const block = match[1];
-    const repoMatch = block.match(/href="\/([^\/\"]+)\/([^\"?#]+)"[^>]*class="Link"/);
+    const repoMatch = block.match(
+      /href="\/([^\/\"]+)\/([^\"?#]+)"[^>]*class="Link"/,
+    );
     if (!repoMatch) continue;
     const owner = repoMatch[1];
     const name = repoMatch[2];
-    const starsMatch = block.match(/href="\/[^\/\"]+\/[^\/\"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/);
-    const stars = starsMatch ? parseInt(starsMatch[1].replace(/,/g, ""), 10) : 0;
+    const starsMatch = block.match(
+      /href="\/[^\/\"]+\/[^\/\"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/,
+    );
+    const stars = starsMatch
+      ? parseInt(starsMatch[1].replace(/,/g, ""), 10)
+      : 0;
     const growthMatch = block.match(/(\d[\d,]*)\s+stars\s+(today|this\s+\w+)/);
-    const starsToday = growthMatch ? parseInt(growthMatch[1].replace(/,/g, ""), 10) : 0;
+    const starsToday = growthMatch
+      ? parseInt(growthMatch[1].replace(/,/g, ""), 10)
+      : 0;
     const langMatch = block.match(/itemprop="programmingLanguage">([^<]+)</);
     const language = langMatch ? langMatch[1].trim() : "";
-    const descMatch = block.match(/<p[^>]*class="[^"]*color-fg-muted[^"]*"[^>]*>([^<]+)</);
+    const descMatch = block.match(
+      /<p[^>]*class="[^"]*color-fg-muted[^"]*"[^>]*>([^<]+)</,
+    );
     const description = descMatch ? descMatch[1].trim() : "";
     repos.push({ rank, owner, name, stars, starsToday, language, description });
   }
@@ -541,9 +598,13 @@ export class TrendingAdapter implements SearchAdapter {
     this.logger = logger;
   }
 
-  async search(_query: ParsedQuery, options: SearchOptions): Promise<SearchResponse> {
+  async search(
+    _query: ParsedQuery,
+    options: SearchOptions,
+  ): Promise<SearchResponse> {
     const since = options.trendingSince ?? "daily";
-    const url = since === "daily" ? TRENDING_URL : `${TRENDING_URL}?since=${since}`;
+    const url =
+      since === "daily" ? TRENDING_URL : `${TRENDING_URL}?since=${since}`;
     let res: Response;
     try {
       res = await fetch(url, { headers: { "User-Agent": "ghfind" } });
@@ -566,7 +627,11 @@ export class TrendingAdapter implements SearchAdapter {
 export class InMemoryAdapter implements SearchAdapter {
   readonly name = "in-memory";
   private responses: Map<string, SearchResponse> = new Map();
-  private defaultResponse: SearchResponse = { totalCount: 0, repos: [], rateLimited: false };
+  private defaultResponse: SearchResponse = {
+    totalCount: 0,
+    repos: [],
+    rateLimited: false,
+  };
 
   /** Set a canned response keyed by the raw query string. */
   setResponse(queryRaw: string, response: SearchResponse): void {
@@ -578,7 +643,10 @@ export class InMemoryAdapter implements SearchAdapter {
     this.defaultResponse = response;
   }
 
-  async search(query: ParsedQuery, _options: SearchOptions): Promise<SearchResponse> {
+  async search(
+    query: ParsedQuery,
+    _options: SearchOptions,
+  ): Promise<SearchResponse> {
     const key = query.raw.toLowerCase();
     return this.responses.get(key) ?? { ...this.defaultResponse };
   }
@@ -606,7 +674,10 @@ export class SearchModule implements SearchProvider {
     this.logger = logger;
   }
 
-  async search(query: ParsedQuery, options: SearchOptions): Promise<SearchResponse> {
+  async search(
+    query: ParsedQuery,
+    options: SearchOptions,
+  ): Promise<SearchResponse> {
     const cacheKey = MemoryCache.key(
       query.raw,
       options.sort,
@@ -650,4 +721,3 @@ export function createTrendingSearch(
 ): SearchModule {
   return new SearchModule(new TrendingAdapter(logger), logger);
 }
-

@@ -64,10 +64,15 @@ async function fetchReleases(
   etag: string | undefined,
   token: string | undefined,
 ): Promise<{ status: number; etag?: string; releases?: TrackedRelease[] }> {
-  const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+  };
   if (etag) headers["If-None-Match"] = etag;
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`https://api.github.com/repos/${fullName}/releases?per_page=${PER_REPO}`, { headers });
+  const res = await fetch(
+    `https://api.github.com/repos/${fullName}/releases?per_page=${PER_REPO}`,
+    { headers },
+  );
   if (res.status === 304 || !res.ok) return { status: res.status };
   return {
     status: 200,
@@ -82,12 +87,18 @@ async function fetchReleases(
  */
 export async function checkReleases(
   opts: { token?: string } = {},
-): Promise<Array<{ fullName: string; newReleases: TrackedRelease[]; error?: string }>> {
+): Promise<
+  Array<{ fullName: string; newReleases: TrackedRelease[]; error?: string }>
+> {
   const bookmarks = getBookmarks();
   const cache = loadCache();
   const config = loadConfig();
   const token = opts.token ?? config.githubToken ?? process.env.GITHUB_TOKEN;
-  const results: Array<{ fullName: string; newReleases: TrackedRelease[]; error?: string }> = [];
+  const results: Array<{
+    fullName: string;
+    newReleases: TrackedRelease[];
+    error?: string;
+  }> = [];
 
   for (const bm of bookmarks) {
     try {
@@ -96,21 +107,39 @@ export async function checkReleases(
       const isNew = (r: TrackedRelease) =>
         !r.publishedAt || new Date(r.publishedAt).getTime() > lastSeen;
 
-      const { status, etag, releases } = await fetchReleases(bm.repo.fullName, prev?.etag, token);
+      const { status, etag, releases } = await fetchReleases(
+        bm.repo.fullName,
+        prev?.etag,
+        token,
+      );
 
       if (status === 304 && prev) {
         // Unchanged upstream; recompute against lastSeenAt (it may have moved).
-        results.push({ fullName: bm.repo.fullName, newReleases: prev.releases.filter(isNew) });
+        results.push({
+          fullName: bm.repo.fullName,
+          newReleases: prev.releases.filter(isNew),
+        });
         continue;
       }
       if (status !== 200 || !releases) {
-        results.push({ fullName: bm.repo.fullName, newReleases: [], error: `HTTP ${status}` });
+        results.push({
+          fullName: bm.repo.fullName,
+          newReleases: [],
+          error: `HTTP ${status}`,
+        });
         continue;
       }
       cache[bm.repo.fullName] = { checkedAt: Date.now(), etag, releases };
-      results.push({ fullName: bm.repo.fullName, newReleases: releases.filter(isNew) });
+      results.push({
+        fullName: bm.repo.fullName,
+        newReleases: releases.filter(isNew),
+      });
     } catch (err) {
-      results.push({ fullName: bm.repo.fullName, newReleases: [], error: (err as Error).message });
+      results.push({
+        fullName: bm.repo.fullName,
+        newReleases: [],
+        error: (err as Error).message,
+      });
     }
   }
 
@@ -119,7 +148,11 @@ export async function checkReleases(
 }
 
 /** Check + push unseen releases into the notification center, then mark them seen. Returns per-repo results. */
-export async function checkAndNotify(opts: { token?: string } = {}): Promise<Array<{ fullName: string; newReleases: TrackedRelease[]; error?: string }>> {
+export async function checkAndNotify(
+  opts: { token?: string } = {},
+): Promise<
+  Array<{ fullName: string; newReleases: TrackedRelease[]; error?: string }>
+> {
   const results = await checkReleases(opts);
   for (const r of results) {
     for (const rel of r.newReleases) {
@@ -134,11 +167,16 @@ export async function checkAndNotify(opts: { token?: string } = {}): Promise<Arr
 }
 
 /** All cached releases across bookmarks, newest first (for the Releases panel / CLI). */
-export function allCachedReleases(): Array<TrackedRelease & { fullName: string }> {
+export function allCachedReleases(): Array<
+  TrackedRelease & { fullName: string }
+> {
   const cache = loadCache();
   const bookmarks = getBookmarks();
   return Object.entries(cache)
     .filter(([fullName]) => bookmarks.some((b) => b.repo.fullName === fullName))
     .flatMap(([fullName, s]) => s.releases.map((r) => ({ ...r, fullName })))
-    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+    );
 }

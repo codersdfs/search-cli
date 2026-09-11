@@ -46,9 +46,10 @@ function formatPackageLine(pack: Package): StyledText {
   const nameStr = `${pack.name}@${pack.version}`.padEnd(28).slice(0, 28);
   const dlStr = `↓ ${fmtCount(pack.downloads)}`.padEnd(20).slice(0, 20);
   const scoreStr = `score ${pack.score.toFixed(2)}`.padEnd(12).slice(0, 12);
-  const desc = (pack.description ?? "").length > 60
-    ? (pack.description ?? "").slice(0, 57) + "..."
-    : (pack.description ?? "");
+  const desc =
+    (pack.description ?? "").length > 60
+      ? (pack.description ?? "").slice(0, 57) + "..."
+      : (pack.description ?? "");
   const line1 = t`${bold(fg(C.nameText)(nameStr))}${fg(C.cyan)(dlStr)}${fg(C.gold)(scoreStr)}`;
   const line2 = t`${dim(fg(C.descText)(`     ${desc}`))}`;
   const newline: TextChunk = { text: "\n", __isChunk: true as const };
@@ -157,7 +158,7 @@ export async function launchPackageBrowser(): Promise<void> {
     packages.forEach((p, i) => {
       const isEven = i % 2 === 0;
       const isSelected = i === selectedIdx;
-      const rowBg = isSelected ? C.selectionBg : (isEven ? C.bg : C.surface);
+      const rowBg = isSelected ? C.selectionBg : isEven ? C.bg : C.surface;
       const rowText = new TextRenderable(renderer, {
         content: formatPackageLine(p),
         bg: rowBg,
@@ -205,7 +206,9 @@ export async function launchPackageBrowser(): Promise<void> {
     isLoading = true;
     dirty = false;
     clearRows();
-    setStatus({ content: t`${dim(fg(C.muted)(`  Loading packages for "${q}"...`))}` });
+    setStatus({
+      content: t`${dim(fg(C.muted)(`  Loading packages for "${q}"...`))}`,
+    });
     renderer.requestRender();
     try {
       const searcher = createPackageSearch();
@@ -241,7 +244,7 @@ export async function launchPackageBrowser(): Promise<void> {
     selectedIdx = newIdx;
     const setBg = (idx: number, selected: boolean) => {
       if (idx < 0 || idx >= rowBoxes.length) return;
-      const bg = selected ? C.selectionBg : (idx % 2 === 0 ? C.bg : C.surface);
+      const bg = selected ? C.selectionBg : idx % 2 === 0 ? C.bg : C.surface;
       rowBoxes[idx].backgroundColor = bg;
       if (rowTexts[idx]) rowTexts[idx].bg = bg;
     };

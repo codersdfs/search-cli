@@ -28,9 +28,24 @@ function makeRepo(over: Partial<Repo>): Repo {
 
 describe("rankRepos", () => {
   const repos = [
-    makeRepo({ id: 1, fullName: "a/low", stars: 10, updatedAt: "2021-01-01T00:00:00Z" }),
-    makeRepo({ id: 2, fullName: "b/high", stars: 5000, updatedAt: "2022-01-01T00:00:00Z" }),
-    makeRepo({ id: 3, fullName: "c/mid", stars: 500, updatedAt: "2023-01-01T00:00:00Z" }),
+    makeRepo({
+      id: 1,
+      fullName: "a/low",
+      stars: 10,
+      updatedAt: "2021-01-01T00:00:00Z",
+    }),
+    makeRepo({
+      id: 2,
+      fullName: "b/high",
+      stars: 5000,
+      updatedAt: "2022-01-01T00:00:00Z",
+    }),
+    makeRepo({
+      id: 3,
+      fullName: "c/mid",
+      stars: 500,
+      updatedAt: "2023-01-01T00:00:00Z",
+    }),
   ];
 
   it("sorts by stars descending", () => {
@@ -72,7 +87,10 @@ describe("rankRepos", () => {
 describe("compositeScore", () => {
   it("returns a higher score for more stars", () => {
     const low = makeRepo({ stars: 1, pushedAt: new Date().toISOString() });
-    const high = makeRepo({ stars: 100000, pushedAt: new Date().toISOString() });
+    const high = makeRepo({
+      stars: 100000,
+      pushedAt: new Date().toISOString(),
+    });
     expect(compositeScore(high)).toBeGreaterThan(compositeScore(low));
   });
 });

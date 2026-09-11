@@ -23,7 +23,9 @@ export class StatusManager {
     this.message = message;
 
     if (type === "searching" || type === "loading") {
-      this.startSpinner(type === "searching" ? SEARCH_SPINNER : LOADING_SPINNER);
+      this.startSpinner(
+        type === "searching" ? SEARCH_SPINNER : LOADING_SPINNER,
+      );
     } else {
       this.emit();
     }
@@ -46,11 +48,16 @@ export class StatusManager {
   }
 
   private emit(spinner?: string): void {
-    const icon = this.type === "searching" ? "🔍"
-      : this.type === "loading" ? "📦"
-      : this.type === "success" ? "✓"
-      : this.type === "error" ? "⚠"
-      : " ";
+    const icon =
+      this.type === "searching"
+        ? "🔍"
+        : this.type === "loading"
+          ? "📦"
+          : this.type === "success"
+            ? "✓"
+            : this.type === "error"
+              ? "⚠"
+              : " ";
     const prefix = spinner ?? "";
     this.onUpdate(`${icon} ${this.message}  ${prefix}`.trim());
   }

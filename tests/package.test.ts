@@ -1,6 +1,10 @@
 // Tests for package search normalize + sort semantics
 import { describe, it, expect } from "vitest";
-import { normalizeNpmObject, sortPackages, type PackageSortMode } from "../src/package";
+import {
+  normalizeNpmObject,
+  sortPackages,
+  type PackageSortMode,
+} from "../src/package";
 import type { Package } from "../src/types";
 
 function pkg(partial: Partial<Package> & { name: string }): Package {
@@ -26,23 +30,39 @@ const fixture = [
 describe("sortPackages", () => {
   it("best-match preserves registry relevance order (no-op)", () => {
     const out = sortPackages(fixture, "best-match");
-    expect(out.map((p) => p.name)).toEqual(["zod", "zod-validation-error", "drizzle-zod"]);
+    expect(out.map((p) => p.name)).toEqual([
+      "zod",
+      "zod-validation-error",
+      "drizzle-zod",
+    ]);
     expect(out).toBe(fixture); // identity: no copy, no mutation
   });
 
   it("score sorts descending by relevance score", () => {
     const out = sortPackages(fixture, "score");
-    expect(out.map((p) => p.name)).toEqual(["zod", "zod-validation-error", "drizzle-zod"]);
+    expect(out.map((p) => p.name)).toEqual([
+      "zod",
+      "zod-validation-error",
+      "drizzle-zod",
+    ]);
   });
 
   it("downloads sorts descending by monthly downloads", () => {
     const out = sortPackages(fixture, "downloads");
-    expect(out.map((p) => p.name)).toEqual(["drizzle-zod", "zod-validation-error", "zod"]);
+    expect(out.map((p) => p.name)).toEqual([
+      "drizzle-zod",
+      "zod-validation-error",
+      "zod",
+    ]);
   });
 
   it("name sorts ascending by package name", () => {
     const out = sortPackages(fixture, "name");
-    expect(out.map((p) => p.name)).toEqual(["drizzle-zod", "zod", "zod-validation-error"]);
+    expect(out.map((p) => p.name)).toEqual([
+      "drizzle-zod",
+      "zod",
+      "zod-validation-error",
+    ]);
   });
 
   it("does not mutate the input array", () => {
@@ -58,7 +78,12 @@ describe("sortPackages", () => {
   });
 
   it("every declared sort mode is accepted without throwing", () => {
-    const modes: PackageSortMode[] = ["best-match", "score", "downloads", "name"];
+    const modes: PackageSortMode[] = [
+      "best-match",
+      "score",
+      "downloads",
+      "name",
+    ];
     for (const m of modes) {
       expect(sortPackages(fixture, m).length).toBe(3);
     }

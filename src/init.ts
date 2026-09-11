@@ -1,6 +1,6 @@
 /**
  * `ghfind init` wizard — interactive one-time config setup.
- * 
+ *
  * ponytail: simple stdin prompts, no curses/readline UI.
  */
 import { createInterface } from "readline";
@@ -25,11 +25,20 @@ export async function runInitWizard(): Promise<void> {
   console.log("");
 
   const token = await ask("  GitHub token (optional, press Enter to skip): ");
-  if (token && !token.startsWith("ghp_") && !token.startsWith("github_pat_") && !token.startsWith("gho_")) {
-    console.log("  ⚠ Token doesn't look like a GitHub token (should start with ghp_, gho_, or github_pat_)");
+  if (
+    token &&
+    !token.startsWith("ghp_") &&
+    !token.startsWith("github_pat_") &&
+    !token.startsWith("gho_")
+  ) {
+    console.log(
+      "  ⚠ Token doesn't look like a GitHub token (should start with ghp_, gho_, or github_pat_)",
+    );
   }
 
-  const sortStr = await ask("  Default sort [best-match/stars/updated/forks] (best-match): ");
+  const sortStr = await ask(
+    "  Default sort [best-match/stars/updated/forks] (best-match): ",
+  );
   const limitStr = await ask("  Default result limit [10-100] (50): ");
 
   const themes = listThemes();

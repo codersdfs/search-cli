@@ -5,7 +5,14 @@
  * session, config) delegate file I/O here. Swap for an in-memory
  * implementation in tests.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, unlinkSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  appendFileSync,
+  unlinkSync,
+} from "fs";
 import { join } from "path";
 import { stateDir } from "./config";
 
@@ -34,7 +41,11 @@ export function writeJSON(filename: string, data: unknown): void {
 export function appendJSONL(filename: string, obj: unknown): void {
   ensureDir();
   try {
-    appendFileSync(join(stateDir(), filename), JSON.stringify(obj) + "\n", "utf-8");
+    appendFileSync(
+      join(stateDir(), filename),
+      JSON.stringify(obj) + "\n",
+      "utf-8",
+    );
   } catch {
     // non-critical
   }
@@ -46,7 +57,10 @@ export function readJSONL<T>(filename: string): T[] {
   try {
     const raw = readFileSync(join(stateDir(), filename), "utf-8").trim();
     if (!raw) return [];
-    return raw.split("\n").filter(Boolean).map((l) => JSON.parse(l) as T);
+    return raw
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as T);
   } catch {
     return [];
   }
@@ -71,8 +85,14 @@ export function deleteFile(filename: string): void {
 export function debugLog(msg: string): void {
   if (!process.env.DEBUG) return;
   try {
-    appendFileSync(join(stateDir(), "ghfind-debug.log"), `[${new Date().toISOString()}] ${msg}\n`, "utf-8");
-  } catch { /* ignore */ }
+    appendFileSync(
+      join(stateDir(), "ghfind-debug.log"),
+      `[${new Date().toISOString()}] ${msg}\n`,
+      "utf-8",
+    );
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Check if a file exists in the state dir. */
@@ -88,7 +108,11 @@ export const memoryStorage = {
   readJSON<T>(filename: string, fallback: T): T {
     const raw = memStore.get(filename);
     if (!raw) return fallback;
-    try { return JSON.parse(raw) as T; } catch { return fallback; }
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
   },
   writeJSON(filename: string, data: unknown): void {
     memStore.set(filename, JSON.stringify(data, null, 2));
@@ -100,7 +124,13 @@ export const memoryStorage = {
   readJSONL<T>(filename: string): T[] {
     const raw = memStore.get(filename);
     if (!raw) return [];
-    return raw.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as T);
+    return raw
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as T);
   },
-  clear(): void { memStore.clear(); },
+  clear(): void {
+    memStore.clear();
+  },
 };

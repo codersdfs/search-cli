@@ -5,8 +5,13 @@ import { buildIssueUrl, formatErrorBody } from "../src/error-report.ts";
 describe("error-report", () => {
   it("builds a GitHub issues/new URL with prefilled title and body", () => {
     const err = new Error("oh no something broke");
-    const url = buildIssueUrl(err, { command: "ghfind", argv: ["search", "rust"] });
-    expect(url).toMatch(/^https:\/\/github\.com\/codersdfs\/search-cli\/issues\/new\?/);
+    const url = buildIssueUrl(err, {
+      command: "ghfind",
+      argv: ["search", "rust"],
+    });
+    expect(url).toMatch(
+      /^https:\/\/github\.com\/codersdfs\/search-cli\/issues\/new\?/,
+    );
     expect(url).toContain("title=");
     expect(url).toContain("body=");
     // URLSearchParams uses form encoding: spaces are "+" not "%20"
@@ -36,7 +41,9 @@ describe("error-report", () => {
 
   it("handles non-Error throwables", () => {
     const url = buildIssueUrl("plain string", { command: "ghfind", argv: [] });
-    expect(url).toMatch(/^https:\/\/github\.com\/codersdfs\/search-cli\/issues\/new\?/);
+    expect(url).toMatch(
+      /^https:\/\/github\.com\/codersdfs\/search-cli\/issues\/new\?/,
+    );
     const decoded = decodeURIComponent(url.replace(/\+/g, " "));
     expect(decoded).toContain("plain string");
   });
@@ -52,7 +59,10 @@ describe("error-report", () => {
 
   it("includes the command and argv in the body", () => {
     const err = new Error("test");
-    const body = formatErrorBody(err, { command: "ghfind", argv: ["--json", "rust"] });
+    const body = formatErrorBody(err, {
+      command: "ghfind",
+      argv: ["--json", "rust"],
+    });
     expect(body).toContain("## Command");
     expect(body).toContain("ghfind --json rust");
   });

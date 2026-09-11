@@ -16,13 +16,18 @@ describe("update-check state", () => {
   });
 
   afterEach(() => {
-    try { unlinkSync(join(testDir, "ghfind", "update-state.json")); } catch {}
+    try {
+      unlinkSync(join(testDir, "ghfind", "update-state.json"));
+    } catch {}
   });
 
   it("returns defaults when no state exists", async () => {
     // Delete the state file to simulate fresh install
-    try { unlinkSync(join(testDir, "ghfind", "update-state.json")); } catch {}
-    const { readUpdateState, DEFAULTS } = await import("../src/update-check.ts");
+    try {
+      unlinkSync(join(testDir, "ghfind", "update-state.json"));
+    } catch {}
+    const { readUpdateState, DEFAULTS } =
+      await import("../src/update-check.ts");
     const state = readUpdateState();
     expect(state.lastCheck).toBe(DEFAULTS.lastCheck);
     expect(state.snoozeUntil).toBe(DEFAULTS.snoozeUntil);
@@ -39,36 +44,56 @@ describe("update-check state", () => {
   });
 
   it("shouldCheckUpdate returns true when no prior check", async () => {
-    try { unlinkSync(join(testDir, "ghfind", "update-state.json")); } catch {}
+    try {
+      unlinkSync(join(testDir, "ghfind", "update-state.json"));
+    } catch {}
     const { shouldCheckUpdate } = await import("../src/update-check.ts");
     expect(shouldCheckUpdate()).toBe(true);
   });
 
   it("shouldCheckUpdate returns false when suppressed", async () => {
     const mod = await import("../src/update-check.ts");
-    mod.writeUpdateState({ lastCheck: Date.now(), snoozeUntil: 0, suppressed: true });
+    mod.writeUpdateState({
+      lastCheck: Date.now(),
+      snoozeUntil: 0,
+      suppressed: true,
+    });
     const { shouldCheckUpdate } = await import("../src/update-check.ts");
     expect(shouldCheckUpdate()).toBe(false);
   });
 
   it("shouldCheckUpdate returns false when snoozed", async () => {
     const mod = await import("../src/update-check.ts");
-    mod.writeUpdateState({ lastCheck: Date.now(), snoozeUntil: Date.now() + 86400000, suppressed: false });
+    mod.writeUpdateState({
+      lastCheck: Date.now(),
+      snoozeUntil: Date.now() + 86400000,
+      suppressed: false,
+    });
     const { shouldCheckUpdate } = await import("../src/update-check.ts");
     expect(shouldCheckUpdate()).toBe(false);
   });
 
   it("shouldCheckUpdate returns false when checked within 24h", async () => {
     const mod = await import("../src/update-check.ts");
-    mod.writeUpdateState({ lastCheck: Date.now(), snoozeUntil: 0, suppressed: false });
+    mod.writeUpdateState({
+      lastCheck: Date.now(),
+      snoozeUntil: 0,
+      suppressed: false,
+    });
     const { shouldCheckUpdate } = await import("../src/update-check.ts");
     expect(shouldCheckUpdate()).toBe(false);
   });
 
   it("shouldCheckUpdate returns true when last check was >24h ago", async () => {
-    try { unlinkSync(join(testDir, "ghfind", "update-state.json")); } catch {}
+    try {
+      unlinkSync(join(testDir, "ghfind", "update-state.json"));
+    } catch {}
     const mod = await import("../src/update-check.ts");
-    mod.writeUpdateState({ lastCheck: Date.now() - 86400001, snoozeUntil: 0, suppressed: false });
+    mod.writeUpdateState({
+      lastCheck: Date.now() - 86400001,
+      snoozeUntil: 0,
+      suppressed: false,
+    });
     const { shouldCheckUpdate } = await import("../src/update-check.ts");
     expect(shouldCheckUpdate()).toBe(true);
   });

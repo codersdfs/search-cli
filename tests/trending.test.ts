@@ -73,53 +73,80 @@ describe("formatRepoLine", () => {
     score: 235,
     language: "Rust",
     description: "Build smaller, faster desktop apps.",
-    forks: 0, watchers: 0, topics: [], archived: false, isFork: false, private: false,
-    url: "https://github.com/tauri-apps/tauri", createdAt: "", updatedAt: "", pushedAt: "",
+    forks: 0,
+    watchers: 0,
+    topics: [],
+    archived: false,
+    isFork: false,
+    private: false,
+    url: "https://github.com/tauri-apps/tauri",
+    createdAt: "",
+    updatedAt: "",
+    pushedAt: "",
   };
 
   test("includes rank padded to 2 digits", () => {
     const styled = formatRepoLine(repo, 1);
-    const text = styled.chunks.map(c => c.text).join("");
+    const text = styled.chunks.map((c) => c.text).join("");
     expect(text).toContain("[01]");
   });
 
   test("includes owner/name", () => {
-    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("tauri-apps/tauri");
   });
 
   test("includes star count formatted with k", () => {
-    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("★ 89.2k");
   });
 
   test("includes today growth with ▲", () => {
-    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("▲");
     expect(text).toContain("+235 today");
   });
 
   test("shows ▼ for negative growth", () => {
     const repo2: Repo = { ...repo, score: -50 };
-    const text = formatRepoLine(repo2, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo2, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("▼");
     expect(text).toContain("-50 today");
   });
 
   test("includes language dot and name", () => {
-    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("●");
     expect(text).toContain("Rust");
   });
 
   test("rank 10+ still pads properly", () => {
-    const r10: Repo = { ...repo, owner: "org", name: "repo", fullName: "org/repo" };
-    const text = formatRepoLine(r10, 10).chunks.map(c => c.text).join("");
+    const r10: Repo = {
+      ...repo,
+      owner: "org",
+      name: "repo",
+      fullName: "org/repo",
+    };
+    const text = formatRepoLine(r10, 10)
+      .chunks.map((c) => c.text)
+      .join("");
     expect(text).toContain("[10]");
   });
 
   test("output fits within reasonable width", () => {
-    const text = formatRepoLine(repo, 1).chunks.map(c => c.text).join("");
+    const text = formatRepoLine(repo, 1)
+      .chunks.map((c) => c.text)
+      .join("");
     // Two-line format with language name added; allow up to 90 chars
     expect(text.length).toBeLessThanOrEqual(90);
   });
@@ -127,7 +154,9 @@ describe("formatRepoLine", () => {
   test("output is deterministic (same input → same output)", () => {
     const a = formatRepoLine(repo, 1);
     const b = formatRepoLine(repo, 1);
-    expect(a.chunks.map(c => c.text).join("")).toBe(b.chunks.map(c => c.text).join(""));
+    expect(a.chunks.map((c) => c.text).join("")).toBe(
+      b.chunks.map((c) => c.text).join(""),
+    );
   });
 });
 
@@ -200,18 +229,16 @@ describe("TUI rendering", () => {
       backgroundColor: "#1a1b26",
       paddingX: 1,
     });
-    ["Today", "This Week", "This Month"].forEach(
-      (name, i) => {
-        const label = `${i + 1} ${i === 1 ? "│" : " "}${name}  `;
-        const tt = new TextRenderable(renderer, {
-          content: label,
-          color: i === 1 ? "#7dcfff" : "#565f89",
-          backgroundColor: "#1a1b26",
-          height: 1,
-        });
-        tabBox.add(tt);
-      },
-    );
+    ["Today", "This Week", "This Month"].forEach((name, i) => {
+      const label = `${i + 1} ${i === 1 ? "│" : " "}${name}  `;
+      const tt = new TextRenderable(renderer, {
+        content: label,
+        color: i === 1 ? "#7dcfff" : "#565f89",
+        backgroundColor: "#1a1b26",
+        height: 1,
+      });
+      tabBox.add(tt);
+    });
     root.add(tabBox);
 
     // Separator
@@ -237,8 +264,24 @@ describe("TUI rendering", () => {
 
     // Repo options
     const repos = [
-      { rank: 1, owner: "tauri-apps", name: "tauri", stars: 89_200, starsToday: 235, language: "Rust", description: "Build desktop apps." },
-      { rank: 2, owner: "astral-sh", name: "uv", stars: 42_500, starsToday: 197, language: "Rust", description: "Fast Python package installer." },
+      {
+        rank: 1,
+        owner: "tauri-apps",
+        name: "tauri",
+        stars: 89_200,
+        starsToday: 235,
+        language: "Rust",
+        description: "Build desktop apps.",
+      },
+      {
+        rank: 2,
+        owner: "astral-sh",
+        name: "uv",
+        stars: 42_500,
+        starsToday: 197,
+        language: "Rust",
+        description: "Fast Python package installer.",
+      },
     ];
     const opts = repos.map((r) => ({
       // SelectRenderable only accepts plain strings for option names

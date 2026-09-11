@@ -3,7 +3,8 @@ import { readJSON, writeJSON } from "./storage";
 
 export interface Notification {
   id: number;
-  type: "info" | "warning" | "rate-limit" | "watch-change" | "upgrade" | "release";
+  type:
+    "info" | "warning" | "rate-limit" | "watch-change" | "upgrade" | "release";
   icon: string;
   message: string;
   timestamp: number;
@@ -23,9 +24,18 @@ function save(): void {
   writeJSON(FILE, notifs);
 }
 
-export function addNotification(type: Notification["type"], message: string): Notification {
+export function addNotification(
+  type: Notification["type"],
+  message: string,
+): Notification {
   if (notifs.length === 0) load();
-  const n: Notification = { id: nextId++, type, icon: iconFor(type), message, timestamp: Date.now() };
+  const n: Notification = {
+    id: nextId++,
+    type,
+    icon: iconFor(type),
+    message,
+    timestamp: Date.now(),
+  };
   notifs.unshift(n);
   if (notifs.length > MAX_NOTIFS) notifs = notifs.slice(0, MAX_NOTIFS);
   save();
@@ -34,12 +44,18 @@ export function addNotification(type: Notification["type"], message: string): No
 
 function iconFor(type: Notification["type"]): string {
   switch (type) {
-    case "info": return "ℹ";
-    case "warning": return "⚠";
-    case "rate-limit": return "🚫";
-    case "watch-change": return "🔔";
-    case "upgrade": return "📦";
-    case "release": return "🚀";
+    case "info":
+      return "ℹ";
+    case "warning":
+      return "⚠";
+    case "rate-limit":
+      return "🚫";
+    case "watch-change":
+      return "🔔";
+    case "upgrade":
+      return "📦";
+    case "release":
+      return "🚀";
   }
 }
 

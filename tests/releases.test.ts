@@ -4,8 +4,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import type { Repo } from "../src/types";
 
-process.env.XDG_STATE_HOME = mkdtempSync(join(tmpdir(), "ghfind-test-releases-"));
-const { toggleBookmark, getLastSeen, markSeen } = await import("../src/bookmarks.ts");
+process.env.XDG_STATE_HOME = mkdtempSync(
+  join(tmpdir(), "ghfind-test-releases-"),
+);
+const { toggleBookmark, getLastSeen, markSeen } =
+  await import("../src/bookmarks.ts");
 const { checkReleases, allCachedReleases } = await import("../src/releases.ts");
 const { writeJSON } = await import("../src/storage.ts");
 
@@ -36,12 +39,16 @@ const fetchCalls: Array<{ fullName: string; ifNoneMatch?: string }> = [];
 const realFetch = globalThis.fetch;
 
 // partial Response shim is fine for our code paths
-function fakeFetch(url: string | URL, init?: { headers?: Record<string, string> }) {
+function fakeFetch(
+  url: string | URL,
+  init?: { headers?: Record<string, string> },
+) {
   const fullName = String(url).match(/repos\/(.+?)\/releases/)?.[1] ?? "";
   const etag = `W/"etag-${fullName}"`;
   fetchCalls.push({ fullName, ifNoneMatch: init?.headers?.["If-None-Match"] });
   // Serve a real 304 only when the client sends back the exact etag we issued.
-  if (init?.headers?.["If-None-Match"] === etag) return Promise.resolve({ status: 304, ok: false });
+  if (init?.headers?.["If-None-Match"] === etag)
+    return Promise.resolve({ status: 304, ok: false });
   return Promise.resolve({
     status: 200,
     ok: true,
@@ -82,7 +89,10 @@ describe("release tracker", () => {
     fakeApi["owner/a"] = [rel("v1.0.0", 1), rel("v0.9.0", 10)];
     const results = await checkReleases();
     expect(results).toHaveLength(1);
-    expect(results[0].newReleases.map((r) => r.tagName)).toEqual(["v1.0.0", "v0.9.0"]);
+    expect(results[0].newReleases.map((r) => r.tagName)).toEqual([
+      "v1.0.0",
+      "v0.9.0",
+    ]);
   });
 
   it("never stores drafts and tags prereleases", async () => {
@@ -104,7 +114,10 @@ describe("release tracker", () => {
     await checkReleases();
     const results = await checkReleases();
     expect(fetchCalls.filter((c) => c.fullName === "owner/c")).toHaveLength(2);
-    expect(fetchCalls.find((c) => c.fullName === "owner/c" && c.ifNoneMatch)?.ifNoneMatch).toBe('W/"etag-owner/c"');
+    expect(
+      fetchCalls.find((c) => c.fullName === "owner/c" && c.ifNoneMatch)
+        ?.ifNoneMatch,
+    ).toBe('W/"etag-owner/c"');
     // Never seen yet → still reported as new even on 304.
     expect(results[0].newReleases).toHaveLength(1);
     // Viewing the feed marks seen → next 304 reports nothing.

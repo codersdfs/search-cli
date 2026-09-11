@@ -22,26 +22,47 @@ export interface DeepDiveData {
 }
 
 /** Fetch all deep-dive data for a repo. Returns formatted sections. */
-export async function fetchDeepDive(repo: Repo, token?: string): Promise<DeepDiveData> {
+export async function fetchDeepDive(
+  repo: Repo,
+  token?: string,
+): Promise<DeepDiveData> {
   const auth = token ? { Authorization: `Bearer ${token}` } : {};
   const headers = { "User-Agent": USER_AGENT, ...auth };
 
   const [languagesRes, contributorsRes] = await Promise.all([
-    fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/languages`, { headers }),
-    fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/contributors?per_page=5`, { headers }),
+    fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/languages`, {
+      headers,
+    }),
+    fetch(
+      `https://api.github.com/repos/${repo.owner}/${repo.name}/contributors?per_page=5`,
+      { headers },
+    ),
   ]);
 
   // README with branch fallback: main → master → README.rst
   let readmeText = "";
-  for (const path of [`${repo.owner}/${repo.name}/main/README.md`, `${repo.owner}/${repo.name}/master/README.md`, `${repo.owner}/${repo.name}/main/README.rst`]) {
-    const r = await fetch(`https://raw.githubusercontent.com/${path}`, { headers });
-    if (r.ok) { readmeText = await r.text(); break; }
+  for (const path of [
+    `${repo.owner}/${repo.name}/main/README.md`,
+    `${repo.owner}/${repo.name}/master/README.md`,
+    `${repo.owner}/${repo.name}/main/README.rst`,
+  ]) {
+    const r = await fetch(`https://raw.githubusercontent.com/${path}`, {
+      headers,
+    });
+    if (r.ok) {
+      readmeText = await r.text();
+      break;
+    }
   }
 
   return {
     summary: formatSummary(repo),
-    languages: formatLanguages(languagesRes.ok ? await languagesRes.json().catch(() => ({})) : {}),
-    contributors: formatContributors(contributorsRes.ok ? await contributorsRes.json().catch(() => []) : []),
+    languages: formatLanguages(
+      languagesRes.ok ? await languagesRes.json().catch(() => ({})) : {},
+    ),
+    contributors: formatContributors(
+      contributorsRes.ok ? await contributorsRes.json().catch(() => []) : [],
+    ),
     readme: formatReadme(readmeText),
   };
 }
@@ -94,9 +115,10 @@ function formatReadme(readme: string): string {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-  
+
   const lines = stripped.slice(0, 30);
-  if (stripped.length > 30) lines.push("... (more lines, open in browser to read full)");
+  if (stripped.length > 30)
+    lines.push("... (more lines, open in browser to read full)");
   return lines.map((l) => `  ${l}`).join("\n");
 }
 

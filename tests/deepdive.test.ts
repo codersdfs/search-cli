@@ -4,9 +4,12 @@ import type { DeepDiveData } from "../src/deepdive.ts";
 
 describe("deepdive", () => {
   const sampleData: DeepDiveData = {
-    summary: " owner/repo\n ★ 1,234  ◆ 56  TypeScript\n A test repo\n topics: cli, rust\n https://github.com/owner/repo",
-    languages: "  TypeScript       ████████████████░░ 78.3%\n  Rust             ██████░░░░░░░░  15.1%",
-    contributors: "  ▲ user1               247 commits\n  ▲ user2               103 commits",
+    summary:
+      " owner/repo\n ★ 1,234  ◆ 56  TypeScript\n A test repo\n topics: cli, rust\n https://github.com/owner/repo",
+    languages:
+      "  TypeScript       ████████████████░░ 78.3%\n  Rust             ██████░░░░░░░░  15.1%",
+    contributors:
+      "  ▲ user1               247 commits\n  ▲ user2               103 commits",
     readme: "  # Test\n  This is a test README.\n  ## Usage\n  Run the CLI.",
   };
 
@@ -22,13 +25,19 @@ describe("deepdive", () => {
   });
 
   it("handles empty language data", () => {
-    const data: DeepDiveData = { ...sampleData, languages: "  (no language data)" };
+    const data: DeepDiveData = {
+      ...sampleData,
+      languages: "  (no language data)",
+    };
     const text = buildDeepDiveText(data);
     expect(text).toContain("(no language data)");
   });
 
   it("handles empty contributors", () => {
-    const data: DeepDiveData = { ...sampleData, contributors: "  (no contributor data)" };
+    const data: DeepDiveData = {
+      ...sampleData,
+      contributors: "  (no contributor data)",
+    };
     const text = buildDeepDiveText(data);
     expect(text).toContain("(no contributor data)");
   });

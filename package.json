@@ -35,7 +35,10 @@
     "dev": "bun run --watch src/tui.ts",
     "postinstall": "node scripts/postinstall.js",
     "format:check": "bunx prettier --check .",
-    "format": "bunx prettier --write ."
+    "format": "bunx prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "lint": "bunx biome@2.5.13 check .",
+    "check": "bunx prettier --check . && bun test"
   },
   "dependencies": {
     "@opentui/core": "^0.4.3"

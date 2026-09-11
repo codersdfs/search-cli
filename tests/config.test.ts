@@ -15,8 +15,12 @@ describe("config", () => {
 
   afterEach(() => {
     process.env = { ...origEnv };
-    try { unlinkSync(join(tmpDir, "config.json")); } catch {}
-    try { rmdirSync(tmpDir); } catch {}
+    try {
+      unlinkSync(join(tmpDir, "config.json"));
+    } catch {}
+    try {
+      rmdirSync(tmpDir);
+    } catch {}
   });
 
   it("loads defaults when no config file exists", async () => {
@@ -40,11 +44,14 @@ describe("config", () => {
 
   it("loads config from explicit path", async () => {
     const cfgPath = join(tmpDir, "config.json");
-    writeFileSync(cfgPath, JSON.stringify({
-      defaultSort: "stars",
-      defaultLimit: 100,
-      theme: "dracula",
-    }));
+    writeFileSync(
+      cfgPath,
+      JSON.stringify({
+        defaultSort: "stars",
+        defaultLimit: 100,
+        theme: "dracula",
+      }),
+    );
     process.env.GHFIND_CONFIG = cfgPath;
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();
@@ -56,9 +63,12 @@ describe("config", () => {
 
   it("merges partial config with defaults", async () => {
     const cfgPath = join(tmpDir, "config.json");
-    writeFileSync(cfgPath, JSON.stringify({
-      defaultLimit: 20,
-    }));
+    writeFileSync(
+      cfgPath,
+      JSON.stringify({
+        defaultLimit: 20,
+      }),
+    );
     process.env.GHFIND_CONFIG = cfgPath;
     const { loadConfig } = await import("../src/config.ts");
     const cfg = loadConfig();

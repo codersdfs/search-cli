@@ -39,11 +39,14 @@ describe("bookmarks", () => {
   });
 
   afterEach(() => {
-    try { unlinkSync(join(testDir, "ghfind", "bookmarks.json")); } catch {}
+    try {
+      unlinkSync(join(testDir, "ghfind", "bookmarks.json"));
+    } catch {}
   });
 
   it("adds a bookmark", async () => {
-    const { toggleBookmark, isBookmarked } = await import("../src/bookmarks.ts");
+    const { toggleBookmark, isBookmarked } =
+      await import("../src/bookmarks.ts");
     const repo = makeRepo("test-repo");
     const added = toggleBookmark(repo, ["test"]);
     expect(added).toBe(true);
@@ -51,7 +54,8 @@ describe("bookmarks", () => {
   });
 
   it("removes a bookmark on second toggle", async () => {
-    const { toggleBookmark, isBookmarked } = await import("../src/bookmarks.ts");
+    const { toggleBookmark, isBookmarked } =
+      await import("../src/bookmarks.ts");
     const repo = makeRepo("test-repo");
     toggleBookmark(repo);
     const removed = toggleBookmark(repo);
@@ -60,11 +64,12 @@ describe("bookmarks", () => {
   });
 
   it("returns bookmarks newest first", async () => {
-    const { toggleBookmark, getBookmarks } = await import("../src/bookmarks.ts");
+    const { toggleBookmark, getBookmarks } =
+      await import("../src/bookmarks.ts");
     const repo1 = makeRepo("first", 100);
     const repo2 = makeRepo("second", 200);
     toggleBookmark(repo1);
-    await new Promise(r => setTimeout(r, 5)); // ensure different timestamps
+    await new Promise((r) => setTimeout(r, 5)); // ensure different timestamps
     toggleBookmark(repo2);
 
     const bookmarks = getBookmarks();
@@ -73,14 +78,16 @@ describe("bookmarks", () => {
   });
 
   it("removes a bookmark by fullName", async () => {
-    const { toggleBookmark, removeBookmark, getBookmarks } = await import("../src/bookmarks.ts");
+    const { toggleBookmark, removeBookmark, getBookmarks } =
+      await import("../src/bookmarks.ts");
     toggleBookmark(makeRepo("test"));
     removeBookmark("owner/test");
     expect(getBookmarks().length).toBe(0);
   });
 
   it("searches bookmarks by name", async () => {
-    const { toggleBookmark, searchBookmarks } = await import("../src/bookmarks.ts");
+    const { toggleBookmark, searchBookmarks } =
+      await import("../src/bookmarks.ts");
     toggleBookmark(makeRepo("rusty-cli", 500), ["rust"]);
     toggleBookmark(makeRepo("typescript-tools", 300), ["ts"]);
 

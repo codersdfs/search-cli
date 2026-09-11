@@ -41,3 +41,6 @@ coverage/
 search-cli-export-*
 ghfind-export-*
 AGENTS.md
+
+# Build artifacts
+*.tgz

@@ -15,13 +15,25 @@ describe("history", () => {
   });
 
   afterEach(() => {
-    try { unlinkSync(join(testDir, "ghfind", "history.jsonl")); } catch {}
+    try {
+      unlinkSync(join(testDir, "ghfind", "history.jsonl"));
+    } catch {}
   });
 
   it("appends and reads history entries", async () => {
     const { appendHistory, readHistory } = await import("../src/history.ts");
-    appendHistory({ query: "rust cli", mode: "search", timestamp: 1000, resultCount: 42 });
-    appendHistory({ query: "language:Rust", mode: "search", timestamp: 2000, resultCount: 10 });
+    appendHistory({
+      query: "rust cli",
+      mode: "search",
+      timestamp: 1000,
+      resultCount: 42,
+    });
+    appendHistory({
+      query: "language:Rust",
+      mode: "search",
+      timestamp: 2000,
+      resultCount: 10,
+    });
     const entries = readHistory();
     expect(entries.length).toBe(2);
     expect(entries[0].query).toBe("language:Rust"); // newest first
@@ -30,8 +42,18 @@ describe("history", () => {
 
   it("deduplicates consecutive identical queries (keeps newest)", async () => {
     const { appendHistory, readHistory } = await import("../src/history.ts");
-    appendHistory({ query: "rust", mode: "search", timestamp: 1000, resultCount: 5 });
-    appendHistory({ query: "rust", mode: "search", timestamp: 2000, resultCount: 10 });
+    appendHistory({
+      query: "rust",
+      mode: "search",
+      timestamp: 1000,
+      resultCount: 5,
+    });
+    appendHistory({
+      query: "rust",
+      mode: "search",
+      timestamp: 2000,
+      resultCount: 10,
+    });
     const entries = readHistory();
     expect(entries.length).toBe(1);
     expect(entries[0].timestamp).toBe(2000);
@@ -44,10 +66,26 @@ describe("history", () => {
   });
 
   it("deletes a history entry by index", async () => {
-    const { appendHistory, readHistory, deleteHistoryEntry } = await import("../src/history.ts");
-    appendHistory({ query: "first", mode: "search", timestamp: 1000, resultCount: 1 });
-    appendHistory({ query: "second", mode: "search", timestamp: 2000, resultCount: 2 });
-    appendHistory({ query: "third", mode: "search", timestamp: 3000, resultCount: 3 });
+    const { appendHistory, readHistory, deleteHistoryEntry } =
+      await import("../src/history.ts");
+    appendHistory({
+      query: "first",
+      mode: "search",
+      timestamp: 1000,
+      resultCount: 1,
+    });
+    appendHistory({
+      query: "second",
+      mode: "search",
+      timestamp: 2000,
+      resultCount: 2,
+    });
+    appendHistory({
+      query: "third",
+      mode: "search",
+      timestamp: 3000,
+      resultCount: 3,
+    });
 
     deleteHistoryEntry(0); // delete "third" (newest = index 0)
     const entries = readHistory();
@@ -56,15 +94,27 @@ describe("history", () => {
   });
 
   it("clears all history", async () => {
-    const { appendHistory, readHistory, clearHistory } = await import("../src/history.ts");
-    appendHistory({ query: "rust", mode: "search", timestamp: 1000, resultCount: 5 });
+    const { appendHistory, readHistory, clearHistory } =
+      await import("../src/history.ts");
+    appendHistory({
+      query: "rust",
+      mode: "search",
+      timestamp: 1000,
+      resultCount: 5,
+    });
     clearHistory();
     expect(readHistory()).toEqual([]);
   });
 
   it("stores trending mode entries", async () => {
     const { appendHistory, readHistory } = await import("../src/history.ts");
-    appendHistory({ query: "trending:This Week", mode: "trending", tab: "This Week", timestamp: 1000, resultCount: 25 });
+    appendHistory({
+      query: "trending:This Week",
+      mode: "trending",
+      tab: "This Week",
+      timestamp: 1000,
+      resultCount: 25,
+    });
     const entries = readHistory();
     expect(entries[0].mode).toBe("trending");
     expect(entries[0].tab).toBe("This Week");

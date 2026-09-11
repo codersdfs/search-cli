@@ -11,7 +11,9 @@ export function saveSession(state: SessionState): void {
     writeJSON(SESSION_FILE, state);
   } catch (err) {
     if (process.env.DEBUG)
-      console.error(`[ghfind] Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `[ghfind] Failed to save session: ${err instanceof Error ? err.message : String(err)}`,
+      );
   }
 }
 

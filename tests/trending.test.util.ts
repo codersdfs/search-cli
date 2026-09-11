@@ -11,6 +11,4 @@ export {
   getTrendingQuery,
 } from "../src/trending.ts";
 
-export {
-  createTestRenderer,
-} from "@opentui/core/testing";
+export { createTestRenderer } from "@opentui/core/testing";

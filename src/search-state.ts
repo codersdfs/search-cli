@@ -7,19 +7,39 @@
 import type { Repo, SearchOptions, SortStrategy, SessionState } from "./types";
 import type { TabName } from "./trending";
 import { tabSince } from "./trending";
-import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch, SearchModule, TrendingAdapter } from "./search";
+import {
+  parseQuery,
+  applyFlagFilters,
+  rankRepos,
+  createGitHubSearch,
+  SearchModule,
+  TrendingAdapter,
+} from "./search";
 import { restoreSession, saveSession } from "./session";
 import { appendHistory } from "./history";
 import { toggleBookmark, isBookmarked } from "./bookmarks";
-import { saveSearch, getSavedSearches, touchSavedSearch } from "./saved-searches";
+import {
+  saveSearch,
+  getSavedSearches,
+  touchSavedSearch,
+} from "./saved-searches";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { fetchTopics } from "./explore";
 import { loadConfig } from "./config";
 
 export type Overlay =
-  | "none" | "history" | "bookmarks" | "saved" | "help"
-  | "topics" | "export" | "compare" | "notifications"
-  | "share" | "leader" | "readme";
+  | "none"
+  | "history"
+  | "bookmarks"
+  | "saved"
+  | "help"
+  | "topics"
+  | "export"
+  | "compare"
+  | "notifications"
+  | "share"
+  | "leader"
+  | "readme";
 
 export interface SearchState {
   // Core search state
@@ -96,10 +116,18 @@ export class SearchStateManager {
         token: this.config.githubToken,
         page,
       });
-      this.state.currentRepos = rankRepos(response.repos, this.state.currentSort);
+      this.state.currentRepos = rankRepos(
+        response.repos,
+        this.state.currentSort,
+      );
       this.state.totalCount = response.totalCount;
       this.state.currentMode = "search";
-      appendHistory({ query, mode: "search", timestamp: Date.now(), resultCount: response.repos.length });
+      appendHistory({
+        query,
+        mode: "search",
+        timestamp: Date.now(),
+        resultCount: response.repos.length,
+      });
     } catch (err) {
       throw err;
     } finally {
@@ -113,7 +141,10 @@ export class SearchStateManager {
 
   async prevPage(): Promise<void> {
     if (this.state.currentPage > 1) {
-      await this.search(this.state.currentQueryInput, this.state.currentPage - 1);
+      await this.search(
+        this.state.currentQueryInput,
+        this.state.currentPage - 1,
+      );
     }
   }
 
@@ -126,11 +157,23 @@ export class SearchStateManager {
     try {
       const response = await this.trendingSearch.search(
         { keywords: [], qualifiers: [], raw: "trending" },
-        { limit: 25, sort: "stars", json: false, verbose: false, trendingSince: tabSince(tab) },
+        {
+          limit: 25,
+          sort: "stars",
+          json: false,
+          verbose: false,
+          trendingSince: tabSince(tab),
+        },
       );
       this.state.currentRepos = response.repos;
       this.state.totalCount = response.totalCount;
-      appendHistory({ query: `trending:${tab}`, mode: "trending", tab, timestamp: Date.now(), resultCount: response.repos.length });
+      appendHistory({
+        query: `trending:${tab}`,
+        mode: "trending",
+        tab,
+        timestamp: Date.now(),
+        resultCount: response.repos.length,
+      });
     } finally {
       this.state.isLoading = false;
     }
@@ -149,7 +192,13 @@ export class SearchStateManager {
   // ── Saved searches ──
 
   saveCurrentSearch(name: string): void {
-    saveSearch(name, this.state.currentQueryInput, this.state.currentMode, this.state.currentSort, this.state.currentLimit);
+    saveSearch(
+      name,
+      this.state.currentQueryInput,
+      this.state.currentMode,
+      this.state.currentSort,
+      this.state.currentLimit,
+    );
   }
 
   getSavedSearches() {
@@ -181,7 +230,9 @@ export class SearchStateManager {
   }
 
   removeFromCompare(fullName: string): void {
-    this.state.compareList = this.state.compareList.filter((r) => r.fullName !== fullName);
+    this.state.compareList = this.state.compareList.filter(
+      (r) => r.fullName !== fullName,
+    );
   }
 
   clearCompare(): void {

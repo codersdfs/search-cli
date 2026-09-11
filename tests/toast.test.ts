@@ -47,7 +47,7 @@ describe("toast", () => {
     expect(await frame()).not.toContain("Bookmarked");
 
     toast.show("★ Bookmarked owner/repo");
-    expect((await frame())).toContain("Bookmarked");
+    expect(await frame()).toContain("Bookmarked");
 
     toast.hide();
     expect(toast.visible).toBe(false);
@@ -57,7 +57,7 @@ describe("toast", () => {
   test("auto-hides after the timeout", async () => {
     const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
     toast.show("★ Bookmarked owner/repo", 30);
-    expect((await frame())).toContain("Bookmarked");
+    expect(await frame()).toContain("Bookmarked");
     await new Promise((r) => setTimeout(r, 80));
     expect(toast.visible).toBe(false);
     expect(await frame()).not.toContain("Bookmarked");
@@ -70,7 +70,7 @@ describe("toast", () => {
     toast.show("second", 50); // resets timer at t=30ms; would fire at t=80
     await new Promise((r) => setTimeout(r, 40)); // t=70 — original timer would have fired
     expect(toast.visible).toBe(true);
-    expect((await frame())).toContain("second");
+    expect(await frame()).toContain("second");
     await new Promise((r) => setTimeout(r, 60)); // t=130 — reset timer has fired
     expect(toast.visible).toBe(false);
   });

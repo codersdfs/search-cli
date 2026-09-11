@@ -1,0 +1,16 @@
+node_modules
+dist
+vendor
+coverage
+.codegraph
+.pi
+.pi-subagents
+.issues
+bun.lock
+package-lock.json
+*.svg
+*.log
+*.tgz
+*.db
+*.db-shm
+*.db-wal

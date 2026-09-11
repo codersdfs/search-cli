@@ -1,9 +1,14 @@
 /**
  * Watch mode — periodically re-run a search and show changes.
- * 
+ *
  */
 import type { ParsedQuery, SearchOptions, Repo } from "./types";
-import { parseQuery, applyFlagFilters, rankRepos, createGitHubSearch } from "./search";
+import {
+  parseQuery,
+  applyFlagFilters,
+  rankRepos,
+  createGitHubSearch,
+} from "./search";
 import { createTrendingSearch } from "./search";
 
 export interface WatchOptions {
@@ -31,16 +36,30 @@ export async function runWatch(
     try {
       let repos: Repo[];
       if (opts.trending) {
-        const since = opts.query === "weekly" ? "weekly" : opts.query === "monthly" ? "monthly" : "daily";
+        const since =
+          opts.query === "weekly"
+            ? "weekly"
+            : opts.query === "monthly"
+              ? "monthly"
+              : "daily";
         const trendingSearch = createTrendingSearch();
         const response = await trendingSearch.search(
           { keywords: [], qualifiers: [], raw: "trending" },
-          { limit: opts.limit, sort: opts.sort, json: false, verbose: false, trendingSince: since },
+          {
+            limit: opts.limit,
+            sort: opts.sort,
+            json: false,
+            verbose: false,
+            trendingSince: since,
+          },
         );
         repos = response.repos;
       } else {
         const parsed = applyFlagFilters(parseQuery(opts.query), {});
-        const provider = createGitHubSearch(undefined, opts.token ? [opts.token] : []);
+        const provider = createGitHubSearch(
+          undefined,
+          opts.token ? [opts.token] : [],
+        );
         const options: SearchOptions = {
           limit: opts.limit,
           sort: opts.sort,
@@ -60,7 +79,9 @@ export async function runWatch(
       failCount++;
       onError(err instanceof Error ? err : new Error(String(err)));
       if (failCount >= MAX_FAILS) {
-        onError(new Error(`Watch stopped after ${MAX_FAILS} consecutive failures`));
+        onError(
+          new Error(`Watch stopped after ${MAX_FAILS} consecutive failures`),
+        );
         if (intervalId) clearInterval(intervalId);
       }
     }

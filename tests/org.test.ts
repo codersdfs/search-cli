@@ -161,7 +161,8 @@ describe("fetchOrgProfile", () => {
   });
 
   it("throws a friendly error for a 404 org", async () => {
-    globalThis.fetch = (async () => jsonResponse({ message: "Not Found" }, 404)) as typeof fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse({ message: "Not Found" }, 404)) as typeof fetch;
     await expect(fetchOrgProfile("nope-org-xyz")).rejects.toThrow(
       'Organization "nope-org-xyz" not found.',
     );
@@ -177,7 +178,9 @@ describe("fetchOrgProfile", () => {
   });
 
   it("throws on empty org name", async () => {
-    await expect(fetchOrgProfile("  ")).rejects.toThrow("Usage: ghfind org <org-name>");
+    await expect(fetchOrgProfile("  ")).rejects.toThrow(
+      "Usage: ghfind org <org-name>",
+    );
   });
 
   it("skips the repos request when public_repos is 0", async () => {
@@ -194,7 +197,8 @@ describe("fetchOrgProfile", () => {
 
   it("degrades gracefully when the repos request fails (org metadata still returned)", async () => {
     globalThis.fetch = (async (url: string | URL) => {
-      if (String(url).endsWith("/orgs/vercel")) return jsonResponse(ORG_PAYLOAD);
+      if (String(url).endsWith("/orgs/vercel"))
+        return jsonResponse(ORG_PAYLOAD);
       return jsonResponse({ message: "boom" }, 500);
     }) as typeof fetch;
     const p = await fetchOrgProfile("vercel");
@@ -206,7 +210,8 @@ describe("fetchOrgProfile", () => {
     let sawAuth: string | undefined;
     globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
       sawAuth = (init?.headers as Record<string, string>)?.Authorization;
-      if (String(url).endsWith("/orgs/vercel")) return jsonResponse(ORG_PAYLOAD);
+      if (String(url).endsWith("/orgs/vercel"))
+        return jsonResponse(ORG_PAYLOAD);
       return jsonResponse([]);
     }) as typeof fetch;
     await fetchOrgProfile("vercel");
@@ -215,7 +220,8 @@ describe("fetchOrgProfile", () => {
 
   it("ignores a non-array repos response instead of crashing", async () => {
     globalThis.fetch = (async (url: string | URL) => {
-      if (String(url).endsWith("/orgs/vercel")) return jsonResponse(ORG_PAYLOAD);
+      if (String(url).endsWith("/orgs/vercel"))
+        return jsonResponse(ORG_PAYLOAD);
       return jsonResponse({ message: "unexpected shape" });
     }) as typeof fetch;
     const p = await fetchOrgProfile("vercel");

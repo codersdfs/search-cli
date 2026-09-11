@@ -24,9 +24,16 @@ import { spawn } from "child_process";
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     const p = process.platform;
-    const cmd = p === "win32" ? ["clip"] : p === "darwin" ? ["pbcopy"] : await findLinuxClipCmd();
+    const cmd =
+      p === "win32"
+        ? ["clip"]
+        : p === "darwin"
+          ? ["pbcopy"]
+          : await findLinuxClipCmd();
     if (!cmd) return false;
-    const proc = spawn(cmd[0], cmd.slice(1), { stdio: ["pipe", "ignore", "ignore"] });
+    const proc = spawn(cmd[0], cmd.slice(1), {
+      stdio: ["pipe", "ignore", "ignore"],
+    });
     proc.stdin.write(text);
     proc.stdin.end();
     return new Promise((resolve) => {

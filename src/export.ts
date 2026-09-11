@@ -21,8 +21,9 @@ function csvEscape(val: unknown): string {
 /** Format repos as CSV string. */
 export function formatCsv(repos: Repo[]): string {
   const header = "rank,full_name,stars,forks,language,url";
-  const rows = repos.map((r, i) =>
-    `${i + 1},${csvEscape(r.fullName)},${r.stars},${r.forks},${csvEscape(r.language ?? "")},${csvEscape(r.url)}`,
+  const rows = repos.map(
+    (r, i) =>
+      `${i + 1},${csvEscape(r.fullName)},${r.stars},${r.forks},${csvEscape(r.language ?? "")},${csvEscape(r.url)}`,
   );
   return [header, ...rows].join("\n");
 }
@@ -40,16 +41,25 @@ export function formatMarkdown(repos: Repo[]): string {
 
 /** Format repos as plain text, one per line. */
 export function formatText(repos: Repo[]): string {
-  return repos.map((r, i) => `${i + 1}. ${r.fullName} ★ ${r.stars.toLocaleString()} ${r.url}`).join("\n");
+  return repos
+    .map(
+      (r, i) =>
+        `${i + 1}. ${r.fullName} ★ ${r.stars.toLocaleString()} ${r.url}`,
+    )
+    .join("\n");
 }
 
 /** Format repos in the given format. */
 export function formatRepos(repos: Repo[], format: ExportFormat): string {
   switch (format) {
-    case "json": return formatJson(repos);
-    case "csv": return formatCsv(repos);
-    case "markdown": return formatMarkdown(repos);
-    case "text": return formatText(repos);
+    case "json":
+      return formatJson(repos);
+    case "csv":
+      return formatCsv(repos);
+    case "markdown":
+      return formatMarkdown(repos);
+    case "text":
+      return formatText(repos);
   }
 }
 

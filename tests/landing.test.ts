@@ -142,7 +142,18 @@ describe("landingKeysActive", () => {
 
 describe("landingConsumesKey", () => {
   test("claims the keys the landing handler acts on", () => {
-    for (const k of ["up", "down", "j", "k", "enter", "return", "b", "?", "h", "q"]) {
+    for (const k of [
+      "up",
+      "down",
+      "j",
+      "k",
+      "enter",
+      "return",
+      "b",
+      "?",
+      "h",
+      "q",
+    ]) {
       expect(landingConsumesKey(k)).toBe(true);
     }
   });

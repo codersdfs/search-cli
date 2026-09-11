@@ -62,7 +62,11 @@ describe("normalizeRepo (API response mapping)", () => {
 
 describe("normalizeEnvelope", () => {
   it("maps all items", () => {
-    const env: GitHubSearchEnvelope = { total_count: 2, incomplete_results: false, items: [sampleItem, sampleItem] };
+    const env: GitHubSearchEnvelope = {
+      total_count: 2,
+      incomplete_results: false,
+      items: [sampleItem, sampleItem],
+    };
     expect(normalizeEnvelope(env)).toHaveLength(2);
   });
 });
@@ -78,7 +82,12 @@ describe("InMemoryAdapter (search without network)", () => {
     };
     adapter.setResponse("ripgrep", response);
 
-    const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
+    const options: SearchOptions = {
+      limit: 5,
+      sort: "best-match",
+      json: false,
+      verbose: false,
+    };
     const res = await adapter.search(parseQuery("ripgrep"), options);
     expect(res.totalCount).toBe(1);
     expect(res.repos).toHaveLength(1);
@@ -90,7 +99,12 @@ describe("InMemoryAdapter (search without network)", () => {
     const adapter = new InMemoryAdapter();
     adapter.setDefault({ totalCount: 0, repos: [], rateLimited: false });
 
-    const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
+    const options: SearchOptions = {
+      limit: 5,
+      sort: "best-match",
+      json: false,
+      verbose: false,
+    };
     const res = await adapter.search(parseQuery("unknown"), options);
     expect(res.totalCount).toBe(0);
     expect(res.repos).toHaveLength(0);
@@ -102,7 +116,12 @@ describe("InMemoryAdapter (search without network)", () => {
     adapter.clear();
     adapter.setDefault({ totalCount: 0, repos: [], rateLimited: false });
 
-    const options: SearchOptions = { limit: 5, sort: "best-match", json: false, verbose: false };
+    const options: SearchOptions = {
+      limit: 5,
+      sort: "best-match",
+      json: false,
+      verbose: false,
+    };
     const res = await adapter.search(parseQuery("x"), options);
     expect(res.totalCount).toBe(0);
   });

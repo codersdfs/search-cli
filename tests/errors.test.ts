@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  SearchCliError, NetworkError, RateLimitError,
-  BadQueryError, NoResultsError, ParseError,
+  SearchCliError,
+  NetworkError,
+  RateLimitError,
+  BadQueryError,
+  NoResultsError,
+  ParseError,
 } from "../src/errors.ts";
 
 describe("SearchCliError", () => {

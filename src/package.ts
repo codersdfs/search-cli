@@ -25,7 +25,10 @@ interface NpmSearchObject {
     publisher?: { username?: string };
     author?: { name?: string };
   };
-  score?: { final?: number; detail?: { quality?: number; popularity?: number; maintenance?: number } };
+  score?: {
+    final?: number;
+    detail?: { quality?: number; popularity?: number; maintenance?: number };
+  };
   searchScore?: number;
   downloads?: { npm?: number; total?: number; monthly?: number };
 }
@@ -48,7 +51,10 @@ export function normalizeNpmObject(obj: NpmSearchObject): Package {
 
 export function createPackageSearch() {
   return {
-    async searchPackage(rawQuery: string, limit: number): Promise<PackageSearchResult> {
+    async searchPackage(
+      rawQuery: string,
+      limit: number,
+    ): Promise<PackageSearchResult> {
       const size = Math.min(Math.max(Math.trunc(limit) || 50, 1), 250); // npm caps size at 250
       const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(rawQuery)}&size=${size}`;
       const res = await fetch(url, {
@@ -57,7 +63,10 @@ export function createPackageSearch() {
       if (!res.ok) {
         throw new Error(`npm search failed: HTTP ${res.status}`);
       }
-      const data = (await res.json()) as { objects?: NpmSearchObject[]; total?: number };
+      const data = (await res.json()) as {
+        objects?: NpmSearchObject[];
+        total?: number;
+      };
       const packages = (data.objects ?? []).map(normalizeNpmObject);
       return { totalCount: data.total ?? packages.length, packages };
     },
@@ -79,7 +88,10 @@ export const PACKAGE_SORT_MODES: { key: PackageSortMode; label: string }[] = [
  * Sort fetched packages. "best-match" is a no-op: it preserves the registry's
  * relevance order, which is the canonical npm ranking.
  */
-export function sortPackages(pkgs: Package[], sort: PackageSortMode): Package[] {
+export function sortPackages(
+  pkgs: Package[],
+  sort: PackageSortMode,
+): Package[] {
   if (sort === "best-match" || pkgs.length < 2) return pkgs;
   const arr = [...pkgs];
   if (sort === "score") {

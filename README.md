@@ -214,14 +214,18 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 179 tests
+bun test         # 215 tests
+bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 179 tests
+npm test         # 215 tests
 npm run build    # build dist/
+
+> Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
+> conventions, and the two tracked quality gates (`typecheck`, `lint`).
 ```
 
 ---
