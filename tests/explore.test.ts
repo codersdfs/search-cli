@@ -43,7 +43,9 @@ describe("explore", () => {
 
   it("fetchTopics returns an empty array when items is missing", async () => {
     globalThis.fetch = (async () =>
-      new Response(JSON.stringify({}), { status: 200 })) as unknown as typeof fetch;
+      new Response(JSON.stringify({}), {
+        status: 200,
+      })) as unknown as typeof fetch;
 
     const { fetchTopics } = await import("../src/explore.ts");
     expect(await fetchTopics()).toEqual([]);

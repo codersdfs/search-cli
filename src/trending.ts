@@ -15,10 +15,7 @@ import type { CliRenderer } from "@opentui/core";
 import type { Repo, ParsedQuery } from "./types";
 import { openUrl } from "./open-url";
 import { SearchModule, TrendingAdapter } from "./search";
-import {
-  detectTerminalBackground,
-  deriveSurfaceLayers,
-} from "./themes";
+import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
   bg: "#1a1b26",
@@ -131,11 +128,7 @@ export function formatRepoLine(repo: Repo, rank: number): StyledText {
       : (repo.description ?? "");
   const line1 = t`${dim(fg(C.rankBg)(`[${rankStr}]`))} ${bold(fg("#c0caf5")(full))}  ${fg(lc)(`● ${repo.language}`)}  ${fg(C.gold)(`${star} ${fmtStars(repo.stars)}`)}  ${bold(fg(C.green)(growth))}`;
   const line2 = t`  ${dim(fg(C.muted)(desc))}`;
-  const chunks = [
-    ...line1.chunks,
-    fg(C.text)("\n"),
-    ...line2.chunks,
-  ];
+  const chunks = [...line1.chunks, fg(C.text)("\n"), ...line2.chunks];
   return new StyledText(chunks);
 }
 // ─── Tab query builder ────────────────────────────────────────────────
@@ -384,11 +377,7 @@ export async function launchTrending(): Promise<void> {
       const pad = "     ";
       const line1 = t`${bold(fg("#c0caf5")(nameStr))}${fg(lc)(langStr)}${fg(C.muted)(starsStr)}${bold(fg(C.green)(growthStr))}`;
       const line2 = t`${fg(C.descText)(`${pad}${descStr}`)}`;
-      const chunks = [
-        ...line1.chunks,
-        fg(C.text)("\n"),
-        ...line2.chunks,
-      ];
+      const chunks = [...line1.chunks, fg(C.text)("\n"), ...line2.chunks];
       const rowText = new TextRenderable(renderer, {
         content: new StyledText(chunks),
         bg: rowBg,

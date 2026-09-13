@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { parseOscColor, mixHex, isDarkHex, deriveSurfaceLayers } from "../src/themes";
+import {
+  parseOscColor,
+  mixHex,
+  isDarkHex,
+  deriveSurfaceLayers,
+} from "../src/themes";
 
 describe("parseOscColor", () => {
   test("parses Windows Terminal's real OSC 11 reply", () => {
@@ -110,7 +115,15 @@ describe("deriveSurfaceLayers", () => {
   test("covers every chrome key callers rely on", () => {
     const layers = deriveSurfaceLayers("#0c0c0c");
     expect(Object.keys(layers ?? {}).sort()).toEqual(
-      ["border", "borderAccent", "borderAlt", "separator", "surface", "surfaceAlt", "surfaceDim"].sort(),
+      [
+        "border",
+        "borderAccent",
+        "borderAlt",
+        "separator",
+        "surface",
+        "surfaceAlt",
+        "surfaceDim",
+      ].sort(),
     );
   });
 });

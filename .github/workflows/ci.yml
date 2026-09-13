@@ -27,7 +27,7 @@ jobs:
         run: bun test
 
       - name: Format check (Prettier)
-        run: bunx prettier --check .
+        run: bun run format:check
 
       - name: Build dist
         run: bun run build

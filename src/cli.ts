@@ -639,7 +639,9 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
 main().catch((err) => {
   if (err instanceof Error && err.name === "SearchCliError") {
     // ponytail: known user-facing errors already carry a friendly message; skip the report prompt
-    console.error(err instanceof SearchCliError ? err.userMessage : err.message);
+    console.error(
+      err instanceof SearchCliError ? err.userMessage : err.message,
+    );
   } else {
     console.error(err instanceof Error ? err.message : String(err));
     reportError(err);

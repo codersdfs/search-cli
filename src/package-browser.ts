@@ -15,10 +15,7 @@ import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
 import { createPackageSearch } from "./package";
-import {
-  detectTerminalBackground,
-  deriveSurfaceLayers,
-} from "./themes";
+import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 const C = {
   bg: "#1a1b26",
   surface: "#16161e",

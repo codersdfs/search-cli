@@ -119,7 +119,11 @@ export function listThemes(): string[] {
 /** Parse a hex color to [r,g,b]; expands 3-digit form (#abc → #aabbcc). */
 function parseHex(hex: string): [number, number, number] | null {
   let h = hex.trim().replace(/^#/, "");
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length === 3)
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
   return [
     parseInt(h.slice(0, 2), 16),
@@ -153,7 +157,9 @@ export function isDarkHex(hex: string): boolean {
  * sunken modals). Returns null for light backgrounds, where the dark-theme
  * chrome wouldn't work — callers should keep the theme's own layers then.
  */
-export function deriveSurfaceLayers(bgHex: string): Record<string, string> | null {
+export function deriveSurfaceLayers(
+  bgHex: string,
+): Record<string, string> | null {
   if (!isDarkHex(bgHex)) return null;
   const w = "#ffffff";
   return {
@@ -203,12 +209,16 @@ export function parseOscColor(spec: string): string | null {
  * subscription depends on renderer session machinery that isn't running yet
  * at boot, so it never receives the reply.)
  */
-export async function detectTerminalBackground(timeoutMs = 400): Promise<string | null> {
+export async function detectTerminalBackground(
+  timeoutMs = 400,
+): Promise<string | null> {
   const stdin = process.stdin;
   const stdout = process.stdout;
-  const setRawMode = (stdin as typeof stdin & { setRawMode?: (m: boolean) => unknown })
-    .setRawMode;
-  if (!stdout.isTTY || !stdin.isTTY || typeof setRawMode !== "function") return null;
+  const setRawMode = (
+    stdin as typeof stdin & { setRawMode?: (m: boolean) => unknown }
+  ).setRawMode;
+  if (!stdout.isTTY || !stdin.isTTY || typeof setRawMode !== "function")
+    return null;
 
   return new Promise<string | null>((resolve) => {
     const wasRaw = stdin.isRaw === true;
