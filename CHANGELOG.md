@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
-## — 9.4.2
+## [9.4.2] — 2026-09-12 (released)
 
 ### Added
 
@@ -58,12 +58,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   `package.json` via filesystem paths in `cli.ts`, `tui.ts`,
   `update-check.ts`, and `error-report.ts`, which do not exist inside a
   single-file executable. Version is now embedded at build time.
+- **TUI crashed on boot with upgrade state (`bun start` → exit 1)** — the
+  update modal's `showOverlay("update")` called `updateSelect.focus()`, but
+  `updateSelect` was never declared (vestigial reference from the 9.4.0
+  refactor). Every launch where `update-state.json` recorded a version
+  upgrade threw `ReferenceError: updateSelect is not defined` before the
+  render loop started. The vestigial call is removed; the modal is driven by
+  `updateSelectedOption` + the global key handler, which now renders
+  correctly ("Updated ghfind X → Y" panel). Guarded by a source-grep test in
+  `tests/overlay-registry.test.ts`.
 
 ---
 
-## [Unreleased] — 9.4.1
-
-## [Unreleased] — 9.4.1
+## [Unreleased]
 
 ### Changed
 

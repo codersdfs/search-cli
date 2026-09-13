@@ -1136,8 +1136,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       updateSelectedOption === 1 ? colors.yellow : colors.border;
     neverBox.borderColor =
       updateSelectedOption === 2 ? colors.yellow : colors.border;
-    updateNowText.fg =
-      updateSelectedOption === 0 ? colors.yellow : colors.text;
+    updateNowText.fg = updateSelectedOption === 0 ? colors.yellow : colors.text;
     laterText.fg = updateSelectedOption === 1 ? colors.yellow : colors.text;
     neverText.fg = updateSelectedOption === 2 ? colors.yellow : colors.text;
     renderer.requestRender();
@@ -2068,10 +2067,14 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         ),
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`, {
           headers,
-        })        .then(
-          (r):
-            | Promise<{ all?: number[]; topics?: string[]; message?: string } | null>
-            | null =>
+        }).then(
+          (
+            r,
+          ): Promise<{
+            all?: number[];
+            topics?: string[];
+            message?: string;
+          } | null> | null =>
             r.ok
               ? (r.clone().json() as Promise<{
                   all?: number[];
