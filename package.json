@@ -1,6 +1,6 @@
 {
   "name": "github-search-cli",
-  "version": "9.4.2",
+  "version": "9.4.3",
   "description": "Search GitHub from your terminal — repo search, trending repos, npm package search, bookmarks, deep-dive, compare, export. Keyboard-driven TUI + pipeable CLI.",
   "type": "module",
   "packageManager": "bun@1",
