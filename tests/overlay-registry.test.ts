@@ -76,10 +76,23 @@ describe("overlay registry seam", () => {
   test("no stale registered id has been deleted from tui.ts", () => {
     // A registered overlay whose id is no longer in tui.ts means somebody
     // removed the dispatcher branch but left the registry entry behind.
+    // (Plain expect instead of expect.soft: bun-types has no soft API.)
     const src = readTui();
     const used = tuiOverlayIds(src);
     for (const o of OVERLAYS) {
-      expect.soft(used.has(o.id), `stale registration: ${o.id}`).toBe(true);
+      expect(used.has(o.id), `stale registration: ${o.id}`).toBe(true);
     }
+  });
+
+  test("update modal never references the removed updateSelect", () => {
+    // `updateSelect` was a vestigial reference from the 9.4.0 refactor. It
+    // was never declared, and every boot with upgrade state hit
+    // `showOverlay("update")` → `updateSelect.focus()` → ReferenceError →
+    // `bun start` exited 1. The modal is driven by updateSelectedOption +
+    // the global key handler, so any reintroduced `updateSelect` is a bug.
+    // Word boundaries keep the legit `updateSelectedOption` state variable
+    // from false-matching the guard.
+    const src = readTui();
+    expect(src).not.toMatch(/\bupdateSelect\b/);
   });
 });

@@ -92,7 +92,10 @@ export class SearchStateManager {
   constructor() {
     const session = restoreSession();
     if (session) {
-      this.state.currentMode = session.mode;
+      // Only search/trending are restorable here; packages/bookmarks pages
+      // are re-entered interactively, so clamp anything else to "search".
+      this.state.currentMode =
+        session.mode === "trending" ? "trending" : "search";
       this.state.currentQueryInput = session.query;
       this.state.currentSort = session.sort;
       this.state.currentLimit = session.limit;

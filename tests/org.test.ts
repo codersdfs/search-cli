@@ -152,7 +152,7 @@ describe("fetchOrgProfile", () => {
         return jsonResponse(ORG_PAYLOAD);
       }
       return jsonResponse(REPO_PAYLOADS);
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const p = await fetchOrgProfile("@vercel");
     expect(calls.some((c) => c.endsWith("/orgs/vercel"))).toBe(true);
@@ -162,7 +162,7 @@ describe("fetchOrgProfile", () => {
 
   it("throws a friendly error for a 404 org", async () => {
     globalThis.fetch = (async () =>
-      jsonResponse({ message: "Not Found" }, 404)) as typeof fetch;
+      jsonResponse({ message: "Not Found" }, 404)) as unknown as typeof fetch;
     await expect(fetchOrgProfile("nope-org-xyz")).rejects.toThrow(
       'Organization "nope-org-xyz" not found.',
     );
@@ -171,7 +171,7 @@ describe("fetchOrgProfile", () => {
   it("wraps network failures in an error naming the org", async () => {
     globalThis.fetch = (async () => {
       throw new Error("ECONNREFUSED");
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await expect(fetchOrgProfile("vercel")).rejects.toThrow(
       'Failed to fetch org "vercel": ECONNREFUSED',
     );
@@ -188,7 +188,7 @@ describe("fetchOrgProfile", () => {
     globalThis.fetch = (async (url: string | URL) => {
       calls.push(String(url));
       return jsonResponse({ ...ORG_PAYLOAD, public_repos: 0 });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const p = await fetchOrgProfile("vercel");
     expect(calls).toHaveLength(1);
     expect(p.fetchedRepoCount).toBe(0);
@@ -200,7 +200,7 @@ describe("fetchOrgProfile", () => {
       if (String(url).endsWith("/orgs/vercel"))
         return jsonResponse(ORG_PAYLOAD);
       return jsonResponse({ message: "boom" }, 500);
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const p = await fetchOrgProfile("vercel");
     expect(p.login).toBe("vercel");
     expect(p.fetchedRepoCount).toBe(0);
@@ -213,7 +213,7 @@ describe("fetchOrgProfile", () => {
       if (String(url).endsWith("/orgs/vercel"))
         return jsonResponse(ORG_PAYLOAD);
       return jsonResponse([]);
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await fetchOrgProfile("vercel");
     expect(sawAuth).toBeUndefined();
   });
@@ -223,7 +223,7 @@ describe("fetchOrgProfile", () => {
       if (String(url).endsWith("/orgs/vercel"))
         return jsonResponse(ORG_PAYLOAD);
       return jsonResponse({ message: "unexpected shape" });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const p = await fetchOrgProfile("vercel");
     expect(p.login).toBe("vercel");
     expect(p.fetchedRepoCount).toBe(0);

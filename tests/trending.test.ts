@@ -212,12 +212,12 @@ describe("TUI rendering", () => {
 
     const root = renderer.root;
     root.flexDirection = "column";
-    root.backgroundColor = "#1a1b26";
+    renderer.setBackgroundColor("#1a1b26");
 
     // Header
     const header = new TextRenderable(renderer, {
       content: "⟠ tulipsearch — Trending",
-      color: "#bb9af7",
+      fg: "#bb9af7",
       height: 1,
     });
     root.add(header);
@@ -233,8 +233,8 @@ describe("TUI rendering", () => {
       const label = `${i + 1} ${i === 1 ? "│" : " "}${name}  `;
       const tt = new TextRenderable(renderer, {
         content: label,
-        color: i === 1 ? "#7dcfff" : "#565f89",
-        backgroundColor: "#1a1b26",
+        fg: i === 1 ? "#7dcfff" : "#565f89",
+        bg: "#1a1b26",
         height: 1,
       });
       tabBox.add(tt);
@@ -244,9 +244,9 @@ describe("TUI rendering", () => {
     // Separator
     const sep = new TextRenderable(renderer, {
       content: "─".repeat(80),
-      color: "#363b54",
+      fg: "#363b54",
       height: 1,
-      backgroundColor: "#1a1b26",
+      bg: "#1a1b26",
     });
     root.add(sep);
 
@@ -303,8 +303,8 @@ describe("TUI rendering", () => {
       descriptionColor: "#565f89",
       selectedDescriptionColor: "#6c7086",
       keyBindings: [
-        { key: "j", action: "move-down" },
-        { key: "k", action: "move-up" },
+        { name: "j", action: "move-down" },
+        { name: "k", action: "move-up" },
       ],
     });
     listBox.add(repoSelect);
@@ -313,9 +313,9 @@ describe("TUI rendering", () => {
     // Footer
     const footer = new TextRenderable(renderer, {
       content: " ↑↓ navigate  ↵ open  / search  1-5 tab  q quit",
-      color: "#565f89",
+      fg: "#565f89",
       height: 1,
-      backgroundColor: "#1a1b26",
+      bg: "#1a1b26",
     });
     root.add(footer);
 

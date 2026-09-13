@@ -11,9 +11,14 @@ import {
   dim,
   t,
 } from "@opentui/core";
+import type { CliRenderer } from "@opentui/core";
 import type { Repo, ParsedQuery } from "./types";
 import { openUrl } from "./open-url";
 import { SearchModule, TrendingAdapter } from "./search";
+import {
+  detectTerminalBackground,
+  deriveSurfaceLayers,
+} from "./themes";
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
   bg: "#1a1b26",
@@ -128,7 +133,7 @@ export function formatRepoLine(repo: Repo, rank: number): StyledText {
   const line2 = t`  ${dim(fg(C.muted)(desc))}`;
   const chunks = [
     ...line1.chunks,
-    { text: "\n", __isChunk: true as const, fg: C.text },
+    fg(C.text)("\n"),
     ...line2.chunks,
   ];
   return new StyledText(chunks);
@@ -157,7 +162,15 @@ export function getTrendingQuery(tab: TabName): string {
 }
 // ─── Main TUI entry ───────────────────────────────────────────────────
 export async function launchTrending(): Promise<void> {
-  let renderer;
+  // Match the app backdrop to the terminal's own background (OSC 11), before
+  // the renderer takes over stdin. Falls back to the Tokyo Night bg. Surface
+  // and border layers are blended toward that background for a seamless look.
+  const terminalBg = await detectTerminalBackground();
+  if (terminalBg) {
+    C.bg = terminalBg;
+    Object.assign(C, deriveSurfaceLayers(terminalBg));
+  }
+  let renderer: CliRenderer;
   try {
     renderer = await createCliRenderer();
   } catch (err) {
@@ -170,7 +183,7 @@ export async function launchTrending(): Promise<void> {
   }
   const root = renderer.root;
   root.flexDirection = "column";
-  root.backgroundColor = C.bg;
+  renderer.setBackgroundColor(C.bg);
   // ── State ──
   let selectedTab = 1; // "This Week" default
   let currentPeriod = "this week";
@@ -194,7 +207,7 @@ export async function launchTrending(): Promise<void> {
     rowTexts.length = 0;
     const loadingText = new TextRenderable(renderer, {
       content: t`${dim(fg(C.muted)(`  Loading trending repos...`))}`,
-      backgroundColor: C.bg,
+      bg: C.bg,
       height: 1,
     });
     scrollBox.add(loadingText);
@@ -222,7 +235,7 @@ export async function launchTrending(): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       const errText = new TextRenderable(renderer, {
         content: t`${fg(C.red)(`  Error: ${msg.slice(0, 70)}`)}`,
-        backgroundColor: C.bg,
+        bg: C.bg,
         height: 1,
       });
       scrollBox.add(errText);
@@ -325,9 +338,9 @@ export async function launchTrending(): Promise<void> {
   outerBox.add(underlineBox);
   const divider = new TextRenderable(renderer, {
     content: "─".repeat(80),
-    color: C.border,
+    fg: C.border,
     height: 1,
-    backgroundColor: C.bg,
+    bg: C.bg,
   });
   outerBox.add(divider);
   // ── Repo list (scrollable) ──
@@ -363,8 +376,8 @@ export async function launchTrending(): Promise<void> {
       const starsStr = `★ ${fmtStars(r.stars)}`.padEnd(12).slice(0, 12);
       const rankText = new TextRenderable(renderer, {
         content: t`${bold(fg(rc)(rankStr))}`,
-        backgroundColor: C.rankBg,
-        color: rc,
+        bg: C.rankBg,
+        fg: rc,
         height: 1,
       });
       const descStr = desc.length > 60 ? desc.slice(0, 57) + "..." : desc;
@@ -373,12 +386,12 @@ export async function launchTrending(): Promise<void> {
       const line2 = t`${fg(C.descText)(`${pad}${descStr}`)}`;
       const chunks = [
         ...line1.chunks,
-        { text: "\n", __isChunk: true as const, fg: C.text },
+        fg(C.text)("\n"),
         ...line2.chunks,
       ];
       const rowText = new TextRenderable(renderer, {
         content: new StyledText(chunks),
-        backgroundColor: rowBg,
+        bg: rowBg,
         height: 2,
       });
       const rowBox = new BoxRenderable(renderer, {
@@ -401,7 +414,7 @@ export async function launchTrending(): Promise<void> {
   });
   const footerText = new TextRenderable(renderer, {
     content: " ↑↓ navigate  ↵ open  / search  1-3 tab  q quit  r refresh",
-    color: C.muted,
+    fg: C.muted,
     height: 1,
   });
   footerBox.add(footerText);
@@ -422,7 +435,7 @@ export async function launchTrending(): Promise<void> {
       if (idx < 0 || idx >= rowBoxes.length) return;
       const bg = selected ? C.selectionBg : idx % 2 === 0 ? C.bg : C.surface;
       rowBoxes[idx].backgroundColor = bg;
-      if (rowTexts[idx]) rowTexts[idx].backgroundColor = bg;
+      if (rowTexts[idx]) rowTexts[idx].bg = bg;
     };
     setBg(oldIdx, false);
     setBg(newIdx, true);

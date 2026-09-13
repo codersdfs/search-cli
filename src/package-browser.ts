@@ -15,6 +15,10 @@ import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
 import { createPackageSearch } from "./package";
+import {
+  detectTerminalBackground,
+  deriveSurfaceLayers,
+} from "./themes";
 const C = {
   bg: "#1a1b26",
   surface: "#16161e",
@@ -58,6 +62,14 @@ function formatPackageLine(pack: Package): StyledText {
 }
 // ─── Main TUI entry ───────────────────────────────────────────────────
 export async function launchPackageBrowser(): Promise<void> {
+  // Match the app backdrop to the terminal's own background (OSC 11), before
+  // the renderer takes over stdin. Falls back to the local palette default.
+  // Surface and border layers are blended toward that background as well.
+  const terminalBg = await detectTerminalBackground();
+  if (terminalBg) {
+    C.bg = terminalBg;
+    Object.assign(C, deriveSurfaceLayers(terminalBg));
+  }
   let renderer: CliRenderer;
   try {
     renderer = await createCliRenderer();

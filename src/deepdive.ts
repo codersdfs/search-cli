@@ -4,6 +4,12 @@ import { NetworkError } from "./errors";
 
 const USER_AGENT = "ghfind/1.0";
 
+function buildHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
 /** Language breakdown: { [lang]: bytes } */
 type LanguageMap = Record<string, number>;
 
@@ -26,8 +32,7 @@ export async function fetchDeepDive(
   repo: Repo,
   token?: string,
 ): Promise<DeepDiveData> {
-  const auth = token ? { Authorization: `Bearer ${token}` } : {};
-  const headers = { "User-Agent": USER_AGENT, ...auth };
+  const headers = buildHeaders(token);
 
   const [languagesRes, contributorsRes] = await Promise.all([
     fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/languages`, {
@@ -58,10 +63,14 @@ export async function fetchDeepDive(
   return {
     summary: formatSummary(repo),
     languages: formatLanguages(
-      languagesRes.ok ? await languagesRes.json().catch(() => ({})) : {},
+      languagesRes.ok
+        ? ((await languagesRes.json().catch(() => ({}))) as LanguageMap)
+        : {},
     ),
     contributors: formatContributors(
-      contributorsRes.ok ? await contributorsRes.json().catch(() => []) : [],
+      contributorsRes.ok
+        ? ((await contributorsRes.json().catch(() => [])) as Contributor[])
+        : [],
     ),
     readme: formatReadme(readmeText),
   };

@@ -29,7 +29,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
         ? ["clip"]
         : p === "darwin"
           ? ["pbcopy"]
-          : await findLinuxClipCmd();
+          : await findLinuxClipboard();
     if (!cmd) return false;
     const proc = spawn(cmd[0], cmd.slice(1), {
       stdio: ["pipe", "ignore", "ignore"],

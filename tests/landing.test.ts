@@ -72,7 +72,7 @@ describe("bookmarks button rendering", () => {
   beforeEach(async () => {
     setup = await createTestRenderer({ width: 80, height: 24 });
   });
-  afterEach(() => setup.destroy?.());
+  afterEach(() => setup.renderer.destroy());
 
   async function frame(): Promise<string> {
     await setup.renderOnce();

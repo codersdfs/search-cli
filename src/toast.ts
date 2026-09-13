@@ -1,5 +1,6 @@
 /** Toast popup — absolute-positioned card pinned top-right, auto-hides. */
 import { BoxRenderable, TextRenderable } from "@opentui/core";
+import type { RenderContext } from "@opentui/core";
 
 /** Only the color keys the toast reads (lazily, so runtime theme swaps apply). */
 export interface ToastColors {
@@ -10,7 +11,7 @@ export interface ToastColors {
 }
 
 export function createToast(
-  renderer: Parameters<BoxRenderable["constructor"]>[0],
+  renderer: RenderContext,
   root: { add(child: unknown): unknown },
   colors: ToastColors,
 ) {
@@ -29,8 +30,8 @@ export function createToast(
   });
   const text = new TextRenderable(renderer, {
     content: "",
-    color: colors.text,
-    backgroundColor: colors.surfaceDim,
+    fg: colors.text,
+    bg: colors.surfaceDim,
     height: 1,
   });
   box.add(text);
@@ -61,7 +62,7 @@ export function createToast(
       return box.visible;
     },
     get borderColor(): string {
-      return box.borderColor as string;
+      return String(box.borderColor);
     },
   };
 }

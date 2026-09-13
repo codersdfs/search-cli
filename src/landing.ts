@@ -78,22 +78,24 @@ export function createBookmarksButton(
   });
   const label = new TextRenderable(renderer, {
     content: bookmarksButtonLabel(0),
-    color: colors.text,
+    fg: colors.text,
     height: 1,
   });
   box.add(label);
+  let currentLabel = bookmarksButtonLabel(0);
 
   return {
     box,
     setCount(n: number): void {
-      label.content = bookmarksButtonLabel(n);
+      currentLabel = bookmarksButtonLabel(n);
+      label.content = currentLabel;
     },
     setSelected(selected: boolean): void {
       box.borderColor = selected ? colors.accent : colors.border;
-      label.color = selected ? colors.accent : colors.text;
+      label.fg = selected ? colors.accent : colors.text;
     },
     get labelText(): string {
-      return label.content as string;
+      return currentLabel;
     },
     get borderColor(): unknown {
       return box.borderColor;

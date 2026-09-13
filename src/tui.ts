@@ -31,7 +31,14 @@ import {
   SelectRenderable,
   ScrollBoxRenderable,
 } from "@opentui/core";
-import type { Repo, SearchOptions, SortStrategy } from "./types";
+import type { CliRenderer } from "@opentui/core";
+import type {
+  Repo,
+  SearchOptions,
+  SortStrategy,
+  Package,
+  SessionState,
+} from "./types";
 import { fetchOrgProfile, type OrgProfile } from "./org";
 import {
   parseQuery,
@@ -79,12 +86,16 @@ import { buildComparisonTable } from "./compare";
 import { renderMarkdown } from "./markdown-render";
 import { fetchTopics, type TopicItem } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
-import { listThemes, loadTheme } from "./themes";
+import {
+  listThemes,
+  loadTheme,
+  detectTerminalBackground,
+  deriveSurfaceLayers,
+} from "./themes";
 import {
   createPackageSearch,
   sortPackages,
   PACKAGE_SORT_MODES,
-  type Package,
   type PackageSortMode,
 } from "./package";
 import { StatusManager } from "./status";
@@ -111,7 +122,7 @@ import {
   recordPreUpdateState,
 } from "./update-check";
 import { debugLog } from "./storage";
-const colors = {
+const colors: Record<string, string> = {
   bg: "#3D3B3B",
   surface: "#4a4848",
   surfaceAlt: "#525050",
@@ -153,7 +164,11 @@ const SORT_MODES: { key: SortStrategy; label: string }[] = [
 
 // ─── Main ─────────────────────────────────────────────────────────────
 export async function launchBrowser(theme_override?: string): Promise<void> {
-  let renderer;
+  // Ask the terminal for its real background color (OSC 11) BEFORE the
+  // renderer takes over stdin — after that, reading the reply gets messy.
+  // Used below so the app backdrop matches the user's terminal theme.
+  const terminalBg = await detectTerminalBackground();
+  let renderer: CliRenderer;
   try {
     const isTTY = process.stdout.isTTY && process.stdin.isTTY;
     if (isTTY) {
@@ -188,13 +203,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   const root = renderer.root;
   root.flexDirection = "column";
-  root.border = true;
-  root.borderTop = true;
-  root.borderBottom = true;
-  root.borderLeft = true;
-  root.borderRight = true;
-  root.borderColor = colors.borderAccent;
-  root.backgroundColor = colors.bg;
 
   // ── Config ──
   const config = loadConfig();
@@ -203,6 +211,18 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   // Apply theme
   const theme = loadTheme(theme_override || config.theme);
   Object.assign(colors, theme);
+  // Prefer the terminal's own background so the app blends into the terminal
+  // instead of painting a rectangle of theme-bg over it. Falls back to the
+  // theme bg when the terminal can't be queried (conhost, piped, etc.).
+  if (terminalBg) {
+    colors.bg = terminalBg;
+    // Blend card/surface/border layers toward that background so panels are
+    // subtle tints of the terminal color rather than foreign theme chips.
+    Object.assign(colors, deriveSurfaceLayers(terminalBg));
+  }
+  // Must come after the theme is applied — this paints the whole terminal
+  // backdrop, and doing it earlier bakes in the hardcoded default palette.
+  renderer.setBackgroundColor(colors.bg);
 
   // ── Session restore ──
   const session = restoreSession();
@@ -214,7 +234,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
   let currentMode: "landing" | "search" | "trending" | "packages" =
-    session?.mode ?? "search";
+    session?.mode === "trending" || session?.mode === "packages"
+      ? session.mode
+      : "search";
   let packages: Package[] = [];
   let currentPackageSort: PackageSortMode = "best-match";
   let packageResultsRaw: Package[] = [];
@@ -248,11 +270,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   const header = new TextRenderable(renderer, {
     content:
       " ghfind — GitHub repo browser   [/]search  [Space]menu  [\u2192]open  [?]help  [q]uit",
-    backgroundColor: colors.bg,
-    color: colors.muted,
+    bg: colors.bg,
+    fg: colors.muted,
     height: 1,
-    borderBottom: true,
-    borderBottomColor: colors.border,
   });
 
   // ── Trending tab bar (hidden in search mode) ────────────────────────
@@ -275,8 +295,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       const label = ` ${name} `;
       const tt = new TextRenderable(renderer, {
         content: label,
-        color: isActive ? colors.bg : colors.muted,
-        backgroundColor: isActive ? colors.blue : colors.bg,
+        fg: isActive ? colors.bg : colors.muted,
+        bg: isActive ? colors.blue : colors.bg,
         height: 1,
       });
       trendingTabTexts.push(tt);
@@ -284,8 +304,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       if (i < TAB_NAMES.length - 1) {
         const sp = new TextRenderable(renderer, {
           content: "  ",
-          color: colors.muted,
-          backgroundColor: colors.bg,
+          fg: colors.muted,
+          bg: colors.bg,
           height: 1,
         });
         trendingTabTexts.push(sp);
@@ -295,23 +315,15 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   }
   root.add(header);
   root.add(trendingTabBox);
-  // ── Gap between header/tabs and search ────────────────────────────────
-  const gapBox = new BoxRenderable(renderer, {
-    height: 1,
-    visible: true,
-  });
-  root.add(gapBox);
 
   // ── Search input row ────────────────────────────────────────────────
   const searchBox = new BoxRenderable(renderer, {
     visible: true,
-    bordered: true,
-    borderColor: colors.border,
-    title: "",
-    titleColor: colors.blue,
     width: "100%",
     flexDirection: "row",
     marginTop: 1,
+    paddingY: 1,
+    paddingLeft: 1,
     backgroundColor: colors.surface,
   });
   const searchInput = new InputRenderable(renderer, {
@@ -320,8 +332,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     value: "",
     backgroundColor: colors.surface,
     textColor: colors.text,
-    borderColor: colors.blue,
-    selectedBorderColor: colors.blue,
     paddingX: 0,
     flexGrow: 1,
   });
@@ -332,11 +342,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   const toolbarText = new TextRenderable(renderer, {
     content: formatToolbar(currentSort, currentLimit, totalCount),
     visible: true, // hidden in trending mode
-    backgroundColor: colors.surface, // Surface panel
-    color: colors.muted,
+    fg: colors.muted,
     height: 1,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     paddingX: 1,
   });
   root.add(toolbarText);
@@ -352,9 +359,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   // Results pane
   const resultsBox = new BoxRenderable(renderer, {
-    bordered: true,
+    border: true,
     borderColor: colors.border,
-    borderBottomColor: colors.border,
     title: " Results ",
     titleColor: colors.blue,
     width: "50%",
@@ -384,11 +390,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   // Detail / Graph pane
   const detailBox = new BoxRenderable(renderer, {
-    bordered: true,
-    borderColor: colors.border,
-    borderBottomColor: colors.border,
-    title: " Details ",
-    titleColor: colors.green,
     width: "50%",
     flexDirection: "column",
     paddingX: 1,
@@ -398,7 +399,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const detailText = new TextRenderable(renderer, {
     content: "",
-    color: colors.text,
+    fg: colors.text,
     wrapMode: "none",
   });
   detailBox.add(detailText);
@@ -424,8 +425,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       "╚██████╔╝██║  ██║██║     ██║██║ ╚████║██████╔",
       " ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝",
     ].join("\n"),
-    color: colors.accent,
-    backgroundColor: colors.bg,
+    fg: colors.accent,
+    bg: colors.bg,
     height: 6,
   });
   landingBox.add(landingBanner);
@@ -483,7 +484,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const spacerTop = new TextRenderable(renderer, { content: "", height: 1 });
     const titleLine = new TextRenderable(renderer, {
       content: opt.title,
-      color: i === 0 ? colors.accent : colors.text,
+      fg: i === 0 ? colors.accent : colors.text,
       height: 1,
     });
     const spacerBot = new TextRenderable(renderer, { content: "", height: 1 });
@@ -494,8 +495,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   const landingHint = new TextRenderable(renderer, {
     content: "   \u2191\u2193 Navigate  \u21E9 Select  [?]help  [q]uit",
-    color: colors.muted,
-    backgroundColor: colors.bg,
+    fg: colors.muted,
+    bg: colors.bg,
     height: 1,
     marginTop: 1,
   });
@@ -516,10 +517,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     for (let i = 0; i < landingCards.length; i++) {
       const isSel = i === landingSelected;
       landingCards[i].borderColor = isSel ? colors.accent : colors.border;
-      const children = landingCards[i].children ?? [];
+      const children = landingCards[i].getChildren();
       const titleChild = children[1] as TextRenderable;
       if (titleChild) {
-        titleChild.color = isSel ? colors.accent : colors.text;
+        titleChild.fg = isSel ? colors.accent : colors.text;
       }
     }
   }
@@ -552,7 +553,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   // Hide main content so overlays can take 100% of the content area
   function hideMainContent() {
     trendingTabBox.visible = false;
-    gapBox.visible = false;
     searchBox.visible = false;
     toolbarText.visible = false;
     body.visible = false;
@@ -563,7 +563,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       trendingTabBox.visible = true;
     } else {
       searchBox.visible = true;
-      gapBox.visible = true;
       toolbarText.visible = true;
     }
     body.visible = true;
@@ -590,7 +589,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         landingBox.visible = true;
         body.visible = false;
         trendingTabBox.visible = false;
-        gapBox.visible = false;
         searchBox.visible = false;
         toolbarText.visible = false;
       } else {
@@ -632,7 +630,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     } else if (type === "update") {
       updateDim.visible = true;
       updateBox.visible = true;
-      updateSelect.focus();
+      // Selection is driven by updateSelectedOption + the global key handler
+      // (see the "Update panel" block); there is no focusable Select here.
     }
     renderer.requestRender();
   }
@@ -643,8 +642,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
   });
   const helpScroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
@@ -655,15 +652,15 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     viewportOptions: { backgroundColor: colors.bg },
     contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
     scrollbarOptions: {
-      backgroundColor: colors.bg,
-      foregroundColor: colors.muted,
       width: 1,
+      trackOptions: {
+        backgroundColor: colors.bg,
+        foregroundColor: colors.muted,
+      },
     },
   });
   for (const section of helpSections) {
     const sectionBox = new BoxRenderable(renderer, {
-      borderBottom: true,
-      borderBottomColor: colors.border,
       title: section.title,
       titleColor:
         (colors as Record<string, string>)[section.titleColor] ??
@@ -679,7 +676,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       sectionBox.add(
         new TextRenderable(renderer, {
           content: `  ${keys} ${row.action}`,
-          color: colors.text,
+          fg: colors.text,
         }),
       );
     }
@@ -687,7 +684,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       sectionBox.add(
         new TextRenderable(renderer, {
           content: `  ${section.note}`,
-          color: colors.muted,
+          fg: colors.muted,
         }),
       );
     }
@@ -701,8 +698,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Search History ",
     titleColor: colors.blue,
   });
@@ -741,8 +736,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Bookmarks ",
     titleColor: colors.green,
   });
@@ -781,8 +774,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Saved Searches ",
     titleColor: colors.yellow,
   });
@@ -805,8 +796,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Topics ",
     titleColor: colors.purple ?? colors.blue,
   });
@@ -845,8 +834,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Export ",
     titleColor: colors.green,
   });
@@ -886,15 +873,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Comparison ",
     titleColor: colors.yellow,
   });
   const compareText = new TextRenderable(renderer, {
     content: "",
-    color: colors.text,
-    backgroundColor: colors.bg,
+    fg: colors.text,
+    bg: colors.bg,
   });
   compareBox.add(compareText);
   root.add(compareBox);
@@ -904,15 +889,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Notifications ",
     titleColor: colors.yellow,
   });
   const notifsText = new TextRenderable(renderer, {
     content: "(no notifications)",
-    color: colors.text,
-    backgroundColor: colors.bg,
+    fg: colors.text,
+    bg: colors.bg,
   });
   notifsBox.add(notifsText);
   root.add(notifsBox);
@@ -933,8 +916,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.bg,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Share Repo ",
     titleColor: colors.blue,
   });
@@ -1041,11 +1022,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const leaderFooter = new TextRenderable(renderer, {
     content: " ↑↓ select   Enter run   Esc/q close ",
-    color: colors.muted,
-    backgroundColor: colors.surfaceDim,
+    fg: colors.muted,
+    bg: colors.surfaceDim,
     height: 1,
-    borderTop: true,
-    borderTopColor: colors.border,
     paddingX: 2,
   });
   leaderBox.add(leaderSelect);
@@ -1087,8 +1066,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const updateText = new TextRenderable(renderer, {
     content: "",
-    color: colors.accent,
-    backgroundColor: colors.surfaceDim,
+    fg: colors.accent,
+    bg: colors.surfaceDim,
   });
 
   // Horizontal option boxes
@@ -1113,8 +1092,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const updateNowText = new TextRenderable(renderer, {
     content: "   Update Now  ",
-    color: updateSelectedOption === 0 ? colors.yellow : colors.text,
-    backgroundColor: colors.surfaceDim,
+    fg: updateSelectedOption === 0 ? colors.yellow : colors.text,
+    bg: colors.surfaceDim,
   });
   updateNowBox.add(updateNowText);
 
@@ -1129,8 +1108,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const laterText = new TextRenderable(renderer, {
     content: "  Later",
-    color: updateSelectedOption === 1 ? colors.yellow : colors.text,
-    backgroundColor: colors.surfaceDim,
+    fg: updateSelectedOption === 1 ? colors.yellow : colors.text,
+    bg: colors.surfaceDim,
   });
   laterBox.add(laterText);
 
@@ -1145,8 +1124,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   const neverText = new TextRenderable(renderer, {
     content: "  Don't show again",
-    color: updateSelectedOption === 2 ? colors.yellow : colors.text,
-    backgroundColor: colors.surfaceDim,
+    fg: updateSelectedOption === 2 ? colors.yellow : colors.text,
+    bg: colors.surfaceDim,
   });
   neverBox.add(neverText);
 
@@ -1157,10 +1136,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       updateSelectedOption === 1 ? colors.yellow : colors.border;
     neverBox.borderColor =
       updateSelectedOption === 2 ? colors.yellow : colors.border;
-    updateNowText.color =
+    updateNowText.fg =
       updateSelectedOption === 0 ? colors.yellow : colors.text;
-    laterText.color = updateSelectedOption === 1 ? colors.yellow : colors.text;
-    neverText.color = updateSelectedOption === 2 ? colors.yellow : colors.text;
+    laterText.fg = updateSelectedOption === 1 ? colors.yellow : colors.text;
+    neverText.fg = updateSelectedOption === 2 ? colors.yellow : colors.text;
     renderer.requestRender();
   }
 
@@ -1169,8 +1148,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   const updateFooter = new TextRenderable(renderer, {
     content: "  ←→ select  Enter  Esc/q close",
-    color: colors.muted,
-    backgroundColor: colors.surfaceDim,
+    fg: colors.muted,
+    bg: colors.surfaceDim,
     height: 1,
     paddingX: 1,
   });
@@ -1543,13 +1522,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         name: "Quit",
         description: "Exit ghfind",
         action: () => {
-          saveSession({
-            mode: currentMode,
-            query: currentQueryInput,
-            sort: currentSort,
-            limit: currentLimit,
-            trendingTab,
-          });
+          saveSession(buildSessionState());
           cleanup();
         },
       },
@@ -1673,7 +1646,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       saveSearch(
         name,
         currentQueryInput,
-        currentMode,
+        currentMode === "trending" ? "trending" : "search",
         currentSort,
         currentLimit,
         currentMode === "trending" ? trendingTab : undefined,
@@ -1712,8 +1685,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.surface,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " Org profile ",
     titleColor: colors.green,
   });
@@ -1726,22 +1697,24 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     viewportOptions: { backgroundColor: colors.bg },
     contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
     scrollbarOptions: {
-      backgroundColor: colors.bg,
-      foregroundColor: colors.muted,
       width: 1,
+      trackOptions: {
+        backgroundColor: colors.bg,
+        foregroundColor: colors.muted,
+      },
     },
   });
   const orgText = new TextRenderable(renderer, {
     content: "",
-    color: colors.text,
-    backgroundColor: colors.bg,
+    fg: colors.text,
+    bg: colors.bg,
   });
   orgScroll.add(orgText);
   orgBox.add(orgScroll);
   const orgFooter = new TextRenderable(renderer, {
     content: "  ↑↓/jk scroll  Esc/q close",
-    color: colors.muted,
-    backgroundColor: colors.bg,
+    fg: colors.muted,
+    bg: colors.bg,
     height: 1,
     paddingX: 1,
   });
@@ -1812,8 +1785,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     flexGrow: 1,
     backgroundColor: colors.surface,
-    borderBottom: true,
-    borderBottomColor: colors.border,
     title: " README ",
     titleColor: colors.green,
   });
@@ -1826,22 +1797,24 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     viewportOptions: { backgroundColor: colors.bg },
     contentOptions: { backgroundColor: colors.bg, flexDirection: "column" },
     scrollbarOptions: {
-      backgroundColor: colors.bg,
-      foregroundColor: colors.muted,
       width: 1,
+      trackOptions: {
+        backgroundColor: colors.bg,
+        foregroundColor: colors.muted,
+      },
     },
   });
   const readmeText = new TextRenderable(renderer, {
     content: "",
-    color: colors.text,
-    backgroundColor: colors.bg,
+    fg: colors.text,
+    bg: colors.bg,
   });
   readmeScroll.add(readmeText);
   readmeBox.add(readmeScroll);
   const readmeFooter = new TextRenderable(renderer, {
     content: "  ↑↓/jk scroll  Esc/q close",
-    color: colors.muted,
-    backgroundColor: colors.bg,
+    fg: colors.muted,
+    bg: colors.bg,
     height: 1,
     paddingX: 1,
   });
@@ -1889,12 +1862,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   // ── Status bar ──────────────────────────────────────────────────────
   const statusBar = new TextRenderable(renderer, {
     content: " Ready. Press Enter to search.",
-    backgroundColor: colors.surface,
-    color: colors.muted,
+    fg: colors.muted,
     height: 1,
     paddingX: 1,
-    borderTop: true,
-    borderTopColor: colors.border,
   });
   root.add(statusBar);
 
@@ -1917,6 +1887,23 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   function setStatus(msg: string) {
     statusMgr.set("idle", msg);
+  }
+
+  /** Session snapshot; only restorable modes are persisted (see SessionState). */
+  function buildSessionState(): SessionState {
+    const mode: SessionState["mode"] =
+      currentMode === "trending"
+        ? "trending"
+        : currentMode === "packages"
+          ? "packages"
+          : "search";
+    return {
+      mode,
+      query: currentQueryInput,
+      sort: currentSort,
+      limit: currentLimit,
+      trendingTab,
+    };
   }
 
   function setToolbar() {
@@ -2081,11 +2068,25 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         ),
         fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}`, {
           headers,
-        }).then((r) => (r.ok ? r.clone().json() : null)),
+        })        .then(
+          (r):
+            | Promise<{ all?: number[]; topics?: string[]; message?: string } | null>
+            | null =>
+            r.ok
+              ? (r.clone().json() as Promise<{
+                  all?: number[];
+                  topics?: string[];
+                  message?: string;
+                }>)
+              : null,
+        ),
       ]);
       let chartSection = "";
       if (chartRes.ok) {
-        const data = await chartRes.json();
+        const data = (await chartRes.json()) as {
+          all?: number[];
+          message?: string;
+        };
         if (data?.all && data.all.length >= 2) {
           chartCommitData = data.all;
           // Chart width: leave room for y-axis labels (6 chars) and padding.
@@ -2250,7 +2251,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   function showSearchMode() {
     currentMode = "search";
     trendingTabBox.visible = false;
-    gapBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
     body.visible = true;
@@ -2263,7 +2263,6 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   function showPackagesMode() {
     currentMode = "packages";
     trendingTabBox.visible = false;
-    gapBox.visible = false;
     searchBox.visible = true;
     toolbarText.visible = true;
     body.visible = true;
@@ -2807,13 +2806,7 @@ ${pack.description ?? ""}`;
         toggleGraph();
         return;
       }
-      saveSession({
-        mode: currentMode,
-        query: currentQueryInput,
-        sort: currentSort,
-        limit: currentLimit,
-        trendingTab,
-      });
+      saveSession(buildSessionState());
       cleanup();
       return;
     }
@@ -2826,12 +2819,9 @@ ${pack.description ?? ""}`;
 
     // Space toggles leader menu (open if closed, close if open)
     // Skip when the search input is focused so spaces can be typed in queries
+    // (overlays were already handled above, so this is always "open" here)
     if (key.name === "space" && !searchInput.focused) {
-      if (currentOverlay === "leader") {
-        showOverlay("none");
-      } else {
-        showLeaderMenu();
-      }
+      showLeaderMenu();
       return;
     }
 
@@ -2843,6 +2833,13 @@ ${pack.description ?? ""}`;
       const next = themes[(idx + 1) % themes.length];
       const nextTheme = loadTheme(next);
       Object.assign(colors, nextTheme);
+      // Keep the terminal-matched backdrop and blended layers across theme
+      // switches (fall back to the new theme's own layers when no detection).
+      if (terminalBg) {
+        colors.bg = terminalBg;
+        Object.assign(colors, deriveSurfaceLayers(terminalBg));
+      }
+      renderer.setBackgroundColor(colors.bg);
       config.theme = next;
       saveConfig(config);
       renderer.requestRender();
@@ -2851,13 +2848,9 @@ ${pack.description ?? ""}`;
 
     // 'c' toggles compare on selected repo (when not typing in search)
     if (key.name === "c" && !searchInput.focused) {
-      if (currentOverlay === "compare") {
-        showOverlay("none");
-      } else {
-        toggleCompareOnSelected();
-        refreshCompare();
-        showOverlay("compare");
-      }
+      toggleCompareOnSelected();
+      refreshCompare();
+      showOverlay("compare");
       return;
     }
 

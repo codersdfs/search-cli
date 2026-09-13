@@ -126,6 +126,8 @@ export interface SessionState {
   query: string;
   sort: SortStrategy;
   limit: number;
+  /** Active trending tab (restored when mode is "trending"). */
+  trendingTab?: string;
   theme?: string;
 }
 

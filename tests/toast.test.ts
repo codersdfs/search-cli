@@ -16,7 +16,7 @@ describe("toast", () => {
 
   beforeEach(async () => {
     setup = await createTestRenderer({ width: 80, height: 24 });
-    cleanup = setup.destroy ?? (() => {});
+    cleanup = setup.renderer.destroy.bind(setup.renderer);
   });
   afterEach(() => cleanup());
 
@@ -26,7 +26,11 @@ describe("toast", () => {
   }
 
   test("renders message in a rounded bordered card pinned top-right", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     toast.show("★ Bookmarked owner/repo");
     const f = await frame();
     expect(f).toContain("★ Bookmarked owner/repo");
@@ -42,7 +46,11 @@ describe("toast", () => {
   });
 
   test("hidden by default and disappears after hide()", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     expect(toast.visible).toBe(false);
     expect(await frame()).not.toContain("Bookmarked");
 
@@ -55,7 +63,11 @@ describe("toast", () => {
   });
 
   test("auto-hides after the timeout", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     toast.show("★ Bookmarked owner/repo", 30);
     expect(await frame()).toContain("Bookmarked");
     await new Promise((r) => setTimeout(r, 80));
@@ -64,7 +76,11 @@ describe("toast", () => {
   });
 
   test("re-showing resets the hide timer", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     toast.show("first", 50);
     await new Promise((r) => setTimeout(r, 30));
     toast.show("second", 50); // resets timer at t=30ms; would fire at t=80
@@ -76,7 +92,11 @@ describe("toast", () => {
   });
 
   test("accent overrides border color (green bookmark vs yellow unbookmark)", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     toast.show("★ Bookmarked r");
     expect(String(toast.borderColor)).toBe(String(RGBA.fromHex(COLORS.green)));
     toast.show("☆ Unbookmarked r", 2000, COLORS.yellow);
@@ -84,7 +104,11 @@ describe("toast", () => {
   });
 
   test("width hugs the message", async () => {
-    const toast = createToast(setup.renderer, setup.renderer.root, COLORS);
+    const toast = createToast(
+      setup.renderer,
+      setup.renderer.root as unknown as { add(child: unknown): unknown },
+      COLORS,
+    );
     toast.show("hi"); // width = 2 + 4 = 6
     const lines = (await frame()).split("\n");
     const boxLine = lines.find((l) => l.includes("╭"))!;
