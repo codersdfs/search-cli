@@ -5,6 +5,18 @@ All notable changes to `github-search-cli` (published as the `ghfind` binary).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Published versions and dates mirror [npm](https://www.npmjs.com/package/github-search-cli?activeTab=versions).
 
 ---
+## [9.4.3] — 2026-09-13 (released)
+
+### Added
+- nothing added
+
+### Changed
+
+- tui bug that local works but global doesn't
+
+### Fixed
+
+- tui bug that local works but global doesn't
 
 ## [9.4.2] — 2026-09-12 (released)
 
