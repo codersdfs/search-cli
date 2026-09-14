@@ -5,9 +5,61 @@ All notable changes to `github-search-cli` (published as the `ghfind` binary).
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Published versions and dates mirror [npm](https://www.npmjs.com/package/github-search-cli?activeTab=versions).
 
 ---
+
+## [Unreleased]
+
+nothing yet
+
+---
+
+## [9.5.0] — 2026-09-14
+
+### Added
+
+- **`ghfind user <name>`** — GitHub user profiles from the terminal, the
+  user-side counterpart to `ghfind org <name>`. Fetches the user's metadata
+  and public repos from the GitHub REST API and aggregates them into one
+  summary: public repo count, total stars/forks of the fetched repos,
+  followers/following, top languages by repo count, top 5 repos by stars, and
+  the 5 most recently pushed repos. Supports `--json`, `--csv`, `--markdown`,
+  `--count`, and `--limit` just like `org`, and honors `--token` for higher
+  rate limits. Leading `@` is stripped (`ghfind user @torvalds` works), and
+  Organization / Bot accounts are labeled with an `[org]` / `[bot]` badge in
+  text output (`[staff]` for site admins).
+
+### Fixed
+
+- `ghfind org <name>` mangled multi-word names with dashes (`ghfind org "in
+tech"` looked up `in-tech`) — names are now joined with spaces, which the
+  API handles. In practice org logins are single tokens, so existing one-word
+  lookups are unaffected.
+
+### Internal
+
+- `src/user.ts` mirrors the org-profile module shape: pure
+  `normalizeUser`/`normalizeUserRepo` aggregate functions testable with
+  fixtures, thin formatters, and a `fetchUserProfile` wrapper that degrades
+  gracefully when the repos request fails (metadata is still returned).
+- 27 new tests in `tests/user.test.ts` covering normalization, aggregation,
+  `@`-stripping, 404/network error paths, token headers, zero-repo users,
+  non-array API responses, badges, and all four formatters.
+- **TUI overlay registry seam** — `src/tui.ts` is 2,867 lines and was the
+  most-changed file in the repo (28 of the last 200 commits). A new
+  `src/tui/overlays/registry.ts` introduces the seam that future
+  migrations will consume: `Overlay` interface plus `OVERLAYS` array and
+  `getOverlay()` lookup. The first overlay (`help`) is extracted behind
+  it. Behaviour is unchanged. Migration is gradual; subsequent commits
+  move one overlay at a time and rewire `showOverlay()` to query the
+  registry. 6 guard tests in `tests/overlay-registry.test.ts` pin the
+  registry contract and source-grep `src/tui.ts` to fail on drift between
+  the registered ids and the dispatcher's union type.
+
+---
+
 ## [9.4.3] — 2026-09-13 (released)
 
 ### Added
+
 - nothing added
 
 ### Changed
@@ -79,27 +131,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   `updateSelectedOption` + the global key handler, which now renders
   correctly ("Updated ghfind X → Y" panel). Guarded by a source-grep test in
   `tests/overlay-registry.test.ts`.
-
----
-
-## [Unreleased]
-
-### Changed
-
-- **TUI overlay registry seam** — `src/tui.ts` is 2,867 lines and was the
-  most-changed file in the repo (28 of the last 200 commits). A new
-  `src/tui/overlays/registry.ts` introduces the seam that future
-  migrations will consume: `Overlay` interface plus `OVERLAYS` array and
-  `getOverlay()` lookup. The first overlay (`help`) is extracted behind
-  it. Behaviour is unchanged. Migration is gradual; subsequent commits
-  move one overlay at a time and rewire `showOverlay()` to query the
-  registry.
-
-### Added
-
-- 6 guard tests in `tests/overlay-registry.test.ts` pin the registry
-  contract and source-grep `src/tui.ts` to fail on drift between the
-  registered ids and the dispatcher's union type.
 
 ---
 

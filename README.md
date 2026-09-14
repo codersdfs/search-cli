@@ -39,6 +39,8 @@ Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https
 | Side-by-side repo compare                  | ✅       | ❌                       | ❌    |
 | Deep-dive (README, contributors, activity) | ✅       | ❌                       | ❌    |
 | npm package search                         | ✅       | ❌                       | ❌    |
+| Org profile                                | ✅       | ✅                       | ❌    |
+| User profile                               | ✅       | ❌                       | ❌    |
 | Pipeable JSON / CSV / Markdown export      | ✅       | JSON only                | ❌    |
 | No login required                          | ✅       | ❌                       | ❌    |
 
@@ -63,6 +65,8 @@ ghfind "language:Rust stars:>1000" --json | jq '.[].fullName'
 ghfind "language:Zig" --count
 ghfind --trending --json --since weekly
 ghfind login                    # import the gh CLI token or paste one
+ghfind org vercel               # org profile: repos, stars, top languages
+ghfind user torvalds            # user profile: repos, stars, followers
 ```
 
 ### Non-interactive
@@ -103,6 +107,7 @@ ghfind --completion fish | source
 <tr><td><b>Export</b></td><td>Space → Export — JSON, CSV, Markdown to file</td></tr>
 <tr><td><b>Share</b></td><td>Space → Share repo — copy repo link to clipboard</td></tr>
 <tr><td><b>Org profile</b></td><td>Space → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
+<tr><td><b>User profile</b></td><td>User summary like org profile — repos, stars, followers, top languages (<code>ghfind user <name></code>)</td></tr>
 <tr><td><b>Notifications</b></td><td>Space → Notifications — view & dismiss alerts</td></tr>
 <tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
 <tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
@@ -234,6 +239,12 @@ npm run build    # build dist/
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+### v9.5.0
+
+- New `ghfind user <name>` command — user profiles like `ghfind org`: repos, total stars/forks, followers, top languages, top repos
+- Supports `--json`, `--csv`, `--markdown`, `--count`, `--limit`, `--token`; `@` prefix accepted
+- Fixed `ghfind org` mangling multi-word names with dashes
 
 ### v9.3.0
 

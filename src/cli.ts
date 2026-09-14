@@ -36,6 +36,13 @@ import {
   formatOrgMarkdown,
   formatOrgText,
 } from "./org";
+import {
+  fetchUserProfile,
+  formatUserCsv,
+  formatUserJson,
+  formatUserMarkdown,
+  formatUserText,
+} from "./user";
 import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
 import { runLoginWizard } from "./login";
@@ -79,6 +86,7 @@ interface CLIFlags {
   compare: string[]; // repo fullNames to compare
   doctor: boolean;
   org?: string; // org profile lookup (ghfind org <name>)
+  user?: string; // user profile lookup (ghfind user <name>)
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -184,12 +192,22 @@ function parseArgs(args: string[]): CLIFlags {
         flags.completion = args[++i];
         break;
       case "org": {
-        // Collect org name until next flag (allows multi-word quoted names)
+        // Collect org name until next flag (single token — GitHub org logins
+        // contain no spaces; a quoted multi-word name is an error)
         const parts: string[] = [];
         while (i + 1 < args.length && !args[i + 1].startsWith("-")) {
           parts.push(args[++i]);
         }
-        flags.org = parts.join("-");
+        flags.org = parts.join(" ");
+        break;
+      }
+      case "user": {
+        // Collect user name until next flag (single token, same as org)
+        const userParts: string[] = [];
+        while (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+          userParts.push(args[++i]);
+        }
+        flags.user = userParts.join(" ");
         break;
       }
       case "--compare": {
@@ -245,6 +263,8 @@ Usage:
   ghfind --releases                Check bookmarks for new releases
   ghfind --compare <repo1> <repo2> Compare two+ repos side-by-side
   ghfind org <name> --json         Org profile: repos, stars, top languages
+  ghfind user <name> --json        User profile: repos, stars, top languages
+  ghfind user <name> --json        User profile: repos, stars, top languages
   ghfind pkg <query> --json         Search npm packages, output JSON
   ghfind pkg <query>                Search npm packages, text list
   ghfind --watch <query>           Watch mode (poll every Ns)
@@ -334,6 +354,12 @@ Options:
     return;
   }
 
+  // User profile mode — same shape as org profile
+  if (flags.user !== undefined) {
+    await runUserProfile(flags, outputFormat);
+    return;
+  }
+
   const isNonInteractive =
     outputFormat ||
     flags.count ||
@@ -368,6 +394,33 @@ function buildSearchContext(flags: CLIFlags): SearchContext {
     parsed,
     provider: createGitHubSearch(undefined, flags.token ? [flags.token] : []),
   };
+}
+
+/** `ghfind user <name>` — aggregate user profile: metadata, stars, top languages, top repos. */
+async function runUserProfile(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
+  try {
+    const profile = await fetchUserProfile(flags.user!, {
+      token: flags.token,
+      limit: flags.limit,
+    });
+    if (outputFormat === "json") {
+      console.log(formatUserJson(profile));
+    } else if (outputFormat === "csv") {
+      console.log(formatUserCsv(profile));
+    } else if (outputFormat === "markdown") {
+      console.log(formatUserMarkdown(profile));
+    } else if (flags.count) {
+      console.log(profile.publicRepoCount);
+    } else {
+      console.log(formatUserText(profile));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
 }
 
 /** `ghfind org <name>` — aggregate org profile: metadata, stars, top languages, top repos. */
