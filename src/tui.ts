@@ -630,6 +630,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     } else if (type === "update") {
       updateDim.visible = true;
       updateBox.visible = true;
+      // Fresh notes start at the top of the changelog
+      updateScroll.scrollTop = 0;
       // Selection is driven by updateSelectedOption + the global key handler
       // (see the "Update panel" block); there is no focusable Select here.
     }
@@ -1049,9 +1051,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     visible: false,
     position: "absolute",
     width: "55%",
-    height: 16,
+    height: 24,
     left: "22.5%",
-    top: "25%",
+    top: "20%",
     backgroundColor: colors.surfaceDim,
     border: true,
     borderStyle: "rounded",
@@ -1068,6 +1070,25 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     content: "",
     fg: colors.accent,
     bg: colors.surfaceDim,
+  });
+  // ponytail: notes render as plain text with \n; keep it a column so lines stack
+  const updateScroll = new ScrollBoxRenderable(renderer, {
+    flexGrow: 1,
+    backgroundColor: colors.surfaceDim,
+    scrollY: true,
+    scrollX: false,
+    viewportOptions: { backgroundColor: colors.surfaceDim },
+    contentOptions: {
+      backgroundColor: colors.surfaceDim,
+      flexDirection: "column",
+    },
+    scrollbarOptions: {
+      width: 1,
+      trackOptions: {
+        backgroundColor: colors.surfaceDim,
+        foregroundColor: colors.muted,
+      },
+    },
   });
 
   // Horizontal option boxes
@@ -1146,13 +1167,14 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   updateOptionsRow.add(laterBox);
 
   const updateFooter = new TextRenderable(renderer, {
-    content: "  ←→ select  Enter  Esc/q close",
+    content: "  ↑↓/jk/PgUp/PgDn scroll  ←→ select  Enter  Esc/q close",
     fg: colors.muted,
     bg: colors.surfaceDim,
     height: 1,
     paddingX: 1,
   });
-  updateBox.add(updateText);
+  updateBox.add(updateScroll);
+  updateScroll.add(updateText);
   updateBox.add(updateOptionsRow);
   updateBox.add(updateFooter);
   root.add(updateDim);
@@ -1558,8 +1580,14 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (state.lastInstalledVersion === currentVersion) return;
     // We just upgraded — show notes for the new version
     const notes = fetchReleaseNotes(currentVersion);
+    // Box is 55% of the terminal; subtract border + padding so wrapped
+    // lines never clip horizontally.
+    const notesWidth = Math.max(
+      30,
+      Math.floor((process.stdout.columns || 80) * 0.55) - 8,
+    );
     const notesBlock = notes
-      ? renderMarkdown(notes, { width: 60 })
+      ? renderMarkdown(notes, { width: notesWidth })
       : "  No release notes found for this version.";
     updateSelectedOption = 0;
     updateText.content = `  Updated ghfind ${state.lastInstalledVersion} → ${currentVersion}\n\n${notesBlock}`;
@@ -1580,8 +1608,12 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (latest) {
       updateSelectedOption = 0;
       const notes = fetchReleaseNotes(latest);
+      const notesWidth = Math.max(
+        30,
+        Math.floor((process.stdout.columns || 80) * 0.55) - 8,
+      );
       const notesBlock = notes
-        ? renderMarkdown(notes, { width: 60 })
+        ? renderMarkdown(notes, { width: notesWidth })
         : `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
       updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n${notesBlock}`;
       renderUpdateOptions();
@@ -2752,6 +2784,24 @@ ${pack.description ?? ""}`;
       if (currentOverlay === "update") {
         if (key.name === "escape" || key.name === "q") {
           showOverlay("none");
+          renderer.requestRender();
+          return;
+        }
+        // Notes area is scrollable — ↑↓/jk move a fifth of a page,
+        // PageUp/PageDown/Home/End jump, all via the ScrollBox's native
+        // handler (same semantics as the readme/org viewers); ←/→ still
+        // drive the button row, not the scrollbar.
+        if (
+          key.name === "pageup" ||
+          key.name === "pagedown" ||
+          key.name === "home" ||
+          key.name === "end" ||
+          key.name === "up" ||
+          key.name === "down" ||
+          key.name === "j" ||
+          key.name === "k"
+        ) {
+          updateScroll.handleKeyPress(key);
           renderer.requestRender();
           return;
         }

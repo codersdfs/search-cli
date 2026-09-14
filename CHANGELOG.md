@@ -8,7 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ## [Unreleased]
 
-nothing yet
+### Fixed
+
+- **Update panel clipped the changelog** — the modal was hard-capped at 16
+  rows and put the release notes in a single unsized text block, so anything
+  past the first ~10 lines of the notes was invisible with no hint that more
+  existed. The notes area is now a scrollable region (same mechanics as the
+  README/org viewers): `↑↓/jk` move a fifth of a page, `PageUp`/`PageDown`
+  and `Home`/`End` jump, a scrollbar shows when content overflows, and scroll
+  position resets each time the panel opens. The box is taller (24 rows), and
+  notes render at the panel's actual width so wrapped lines no longer clip
+  horizontally on narrow terminals.
 
 ---
 
