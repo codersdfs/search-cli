@@ -122,6 +122,11 @@ import {
   recordPreUpdateState,
 } from "./update-check";
 import { debugLog } from "./storage";
+import {
+  landingConsumesKey,
+  landingKeysActive,
+  moveSelection,
+} from "./landing";
 const colors: Record<string, string> = {
   bg: "#3D3B3B",
   surface: "#4a4848",
@@ -494,7 +499,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   }
 
   const landingHint = new TextRenderable(renderer, {
-    content: "   \u2191\u2193 Navigate  \u21E9 Select  [?]help  [q]uit",
+    content:
+      "   \u2191\u2193 Navigate  \u21E9 Select  [b]ookmarks  [?]help  [q]uit",
     fg: colors.muted,
     bg: colors.bg,
     height: 1,
@@ -525,29 +531,42 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     }
   }
 
-  // Landing keyboard handler
+  // Landing keyboard handler. Registered before the global handler below,
+  // and both listeners receive the same key event — so keys the landing
+  // screen consumes must be claimed with stopPropagation(), or the global
+  // handler re-reads them (e.g. "/" focusing the search input on top of the
+  // menu, or "?" opening help and instantly closing it again).
   renderer.keyInput.on("keypress", (key) => {
-    if (currentMode === "landing") {
-      if (key.name === "up" || key.name === "k") {
-        landingSelected = Math.max(0, landingSelected - 1);
-        updateLandingCards();
-        renderer.requestRender();
-      } else if (key.name === "down" || key.name === "j") {
-        landingSelected = Math.min(
-          landingOptions.length - 1,
-          landingSelected + 1,
-        );
-        updateLandingCards();
-        renderer.requestRender();
-      } else if (key.name === "enter" || key.name === "return") {
-        landingOptions[landingSelected].action();
-      } else if (key.name === "?" || key.name === "h") {
-        showOverlay(currentOverlay === "help" ? "none" : "help");
-      } else if (key.name === "q") {
-        cleanup();
-      }
-      return;
+    if (!landingKeysActive(currentMode, currentOverlay)) return;
+    if (key.name === "up" || key.name === "k") {
+      landingSelected = moveSelection(
+        landingSelected,
+        -1,
+        landingOptions.length,
+      );
+      updateLandingCards();
+      renderer.requestRender();
+    } else if (key.name === "down" || key.name === "j") {
+      landingSelected = moveSelection(
+        landingSelected,
+        1,
+        landingOptions.length,
+      );
+      updateLandingCards();
+      renderer.requestRender();
+    } else if (key.name === "enter" || key.name === "return") {
+      landingOptions[landingSelected].action();
+    } else if (key.name === "b") {
+      refreshBookmarks();
+      showOverlay("bookmarks");
+    } else if (key.name === "?" || key.name === "h") {
+      showOverlay(currentOverlay === "help" ? "none" : "help");
+    } else if (key.name === "q") {
+      cleanup();
+    } else {
+      return; // not a landing key — let the global handler see it
     }
+    if (landingConsumesKey(key.name)) key.stopPropagation();
   });
 
   // Hide main content so overlays can take 100% of the content area
@@ -598,6 +617,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       return;
     }
     currentOverlay = type;
+    // An overlay opened from the landing screen must hide the menu too
+    // (hideMainContent only covers the search/trending/toolbar boxes).
+    landingBox.visible = false;
     // Leader menu is a floating overlay — main content stays visible behind it
     if (type !== "leader") {
       hideMainContent();
@@ -2852,6 +2874,14 @@ ${pack.description ?? ""}`;
     }
 
     // ── Main view handling (no overlay active) ────────────────────────
+
+    // The landing screen owns the keyboard: its handler above already
+    // consumed its keys, and everything else must be ignored here so hidden
+    // main-view bindings (search focus, leader menu, theme, compare, quit)
+    // can't fire through the landing menu.
+    if (currentMode === "landing") {
+      return;
+    }
 
     // q quits
     if (key.name === "q") {

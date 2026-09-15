@@ -1,6 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { createTestRenderer } from "@opentui/core/testing";
 import { RGBA } from "@opentui/core";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   createBookmarksButton,
   bookmarksButtonLabel,
@@ -356,5 +358,61 @@ describe("landing + bookmarks overlay key routing", () => {
     h.press("j");
     h.press("j");
     expect(h.state.bookmarkSel).toBe(2);
+  });
+});
+
+// ── Regression: landing keys must not leak into the main view ─────────
+// The TUI registers two global keypress listeners that both receive the
+// same key event. The landing handler must claim the keys it acts on
+// with stopPropagation(), and the global handler must ignore everything
+// while the landing menu owns the screen — otherwise hidden main-view
+// bindings fire through it (e.g. "/" stacking the search input on top of
+// the menu, or "?" opening help and instantly closing it).
+
+describe("landing / main-view key isolation", () => {
+  function readTui(): string {
+    return readFileSync(join(process.cwd(), "src/tui.ts"), "utf8");
+  }
+
+  test("landing handler claims its keys with stopPropagation", () => {
+    const src = readTui();
+    // The handler must consult the landing seam helpers...
+    expect(src).toContain("landingKeysActive(currentMode, currentOverlay)");
+    expect(src).toContain("landingConsumesKey(key.name)");
+    // ...and actually claim the event it acted on.
+    expect(src).toContain("key.stopPropagation()");
+  });
+
+  test("global handler ignores all keys while the landing menu is up", () => {
+    const src = readTui();
+    expect(src).toContain('if (currentMode === "landing") {');
+    expect(src).toContain("      return;\n    }");
+  });
+
+  test("the landing screen exports the seam it relies on", () => {
+    // Guards against the helpers being deleted while tui.ts still imports
+    // them (the seam must stay exercised, not just present).
+    const mod = readFileSync(join(process.cwd(), "src/landing.ts"), "utf8");
+    expect(mod).toContain("export function landingKeysActive");
+    expect(mod).toContain("export function landingConsumesKey");
+  });
+
+  test("b opens bookmarks from landing without leaking to main view", () => {
+    const src = readTui();
+    // The b branch must live in the landing handler (before the global
+    // handler's landing guard), not somewhere it can double-fire.
+    const landing = src.slice(
+      0,
+      src.indexOf('if (currentMode === "landing") return;'),
+    );
+    expect(landing).toContain('key.name === "b"');
+  });
+
+  test("overlay opening from landing hides the menu", () => {
+    const src = readTui();
+    // hideMainContent does not touch landingBox, so showOverlay must hide it
+    // explicitly — otherwise the bookmarks/help overlay draws on top of the
+    // still-visible landing menu.
+    expect(src).toContain("landingBox.visible = false;");
   });
 });

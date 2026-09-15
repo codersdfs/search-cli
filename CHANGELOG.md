@@ -10,6 +10,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ### Fixed
 
+- **Landing-screen keys leaked into the main view** — pressing `/` on the
+  landing menu focused the search input on top of it, and `Space`, `t`, `c`,
+  `?`, and `q` all double-fired through the second key listener (help opened
+  and instantly closed; quit ran cleanup twice). The landing handler now
+  claims its keys with `stopPropagation()` via the `landingKeysActive` /
+  `landingConsumesKey` seam (previously built and tested but never wired),
+  and the global handler ignores everything while the landing menu owns the
+  screen. Also fixed while routing keys: `b` on the landing screen now opens
+  bookmarks (hint bar updated), and overlays opened from landing hide the
+  menu instead of drawing on top of it.
+
 - **Update panel clipped the changelog** — the modal was hard-capped at 16
   rows and put the release notes in a single unsized text block, so anything
   past the first ~10 lines of the notes was invisible with no hint that more
