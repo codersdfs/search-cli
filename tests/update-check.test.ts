@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { unlinkSync, existsSync } from "fs";
+import { existsSync, mkdtempSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { mock } from "bun:test";
 
-// Set state dir before importing
-const testDir = join(tmpdir(), `ghfind-test-update-${Date.now()}`);
+// Set state dir before importing. mkdtempSync keeps concurrent test processes
+// from sharing one state dir (a `Date.now()` name collides in the same ms).
+const testDir = mkdtempSync(join(tmpdir(), "ghfind-test-update-"));
 process.env.XDG_STATE_HOME = testDir;
 
 describe("update-check state", () => {

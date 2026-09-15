@@ -2,8 +2,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "path";
 import { tmpdir } from "os";
-import { mkdirSync } from "fs";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import {
   parseHostsYmlToken,
   readGhCliToken,
@@ -73,13 +78,18 @@ describe("maskToken", () => {
 });
 
 describe("readGhCliToken", () => {
-  const dir = join(tmpdir(), `ghfind-login-gh-${Date.now()}`);
+  // Fresh, collision-proof dir per test. `tmpdir()/ghfind-login-gh-${Date.now()}`
+  // was shared whenever two suites started in the same millisecond (e.g. tests
+  // run concurrently in separate processes), so "no hosts.yml exists" could see
+  // a hosts.yml another process had just written.
+  let dir: string;
 
   beforeEach(() => {
-    mkdirSync(dir, { recursive: true });
+    dir = mkdtempSync(join(tmpdir(), "ghfind-login-gh-"));
   });
 
   afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -108,18 +118,19 @@ describe("readGhCliToken", () => {
 });
 
 describe("persistToken", () => {
-  const configFile = join(
-    tmpdir(),
-    `ghfind-login-config-${Date.now()}`,
-    "config.json",
-  );
+  // Same collision-proof, self-cleaning temp dir as above.
+  let configDir: string;
+  let configFile: string;
 
   beforeEach(() => {
+    configDir = mkdtempSync(join(tmpdir(), "ghfind-login-config-"));
+    configFile = join(configDir, "config.json");
     process.env.GHFIND_CONFIG = configFile;
   });
 
   afterEach(() => {
     delete process.env.GHFIND_CONFIG;
+    rmSync(configDir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 

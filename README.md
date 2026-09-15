@@ -252,39 +252,22 @@ npm run build    # build dist/
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.5.1
+
+- Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
+- Fixed the update panel clipping the changelog — release notes are now scrollable (`↑↓`/`j`/`k`, `PgUp`/`PgDn`, `Home`/`End`) in a taller panel
+
 ### v9.5.0
 
 - New `ghfind user <name>` command — user profiles like `ghfind org`: repos, total stars/forks, followers, top languages, top repos
 - Supports `--json`, `--csv`, `--markdown`, `--count`, `--limit`, `--token`; `@` prefix accepted
 - Fixed `ghfind org` mangling multi-word names with dashes
-- Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
-- Fixed the update panel clipping the changelog — release notes are now scrollable (`↑↓`/`j`/`k`, `PgUp`/`PgDn`, `Home`/`End`) in a taller panel
 
 ### v9.3.0
 
 - Fixed `c` keybinding in TUI not adding repos to comparison — a missing closing brace in the space-key handler broke every later key handler (`c`, `t`, `?`)
 - README viewer renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
 - Widened compare table columns (min 35 chars), added Description + URL rows, and raised the topic cap to 5 per repo
-
-### v9.2.1
-
-- npm package search (beta) and a new landing screen
-- Removed the bundled Bun binary — downloaded at install time instead; package size 39.5 MB → 100 KB
-- Postinstall failures no longer break `npm install`; `bun` dropped from engines
-- Fixed TUI layout on small terminals, trending visibility from the landing screen, and independent trending-tab fetches
-
-### v9.1.1
-
-- Bundle `vendor/` and `dist/` for offline install
-- Postinstall exits non-zero on Bun download failure; bundled Bun 1.3.12 → 1.3.14
-
-### v9.1.0
-
-- Automatic update checking against the npm registry, with a Y/N/L modal
-- Leader menu (Space) consolidating all contextual actions
-- Topic explorer, notifications panel, saved searches, activity graph, README viewer
-- Tab qualifier auto-complete, PageUp/PageDown, `Ctrl+X` clear history, `Ctrl+C` clear notifications
-- TUI runs on Node.js 20+ via the downloaded Bun binary
 
 ---
 

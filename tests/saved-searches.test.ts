@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { unlinkSync } from "fs";
+import { mkdtempSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
-const testDir = join(tmpdir(), `ghfind-test-saved-${Date.now()}`);
+// mkdtempSync keeps concurrent test processes from sharing one state dir —
+// a `Date.now()` name collides when two suites start in the same millisecond.
+const testDir = mkdtempSync(join(tmpdir(), "ghfind-test-saved-"));
 process.env.XDG_STATE_HOME = testDir;
 
 describe("saved-searches", () => {

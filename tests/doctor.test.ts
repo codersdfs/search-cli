@@ -1,7 +1,7 @@
 // Tests for `ghfind --doctor` diagnostics
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "path";
-import { writeFileSync } from "fs";
+import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 
 describe("doctor", () => {
@@ -10,8 +10,7 @@ describe("doctor", () => {
 
   beforeEach(() => {
     process.env.GHFIND_CONFIG = join(
-      tmpdir(),
-      `ghfind-doctor-${Date.now()}`,
+      mkdtempSync(join(tmpdir(), "ghfind-doctor-")),
       "config.json",
     );
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -33,10 +32,8 @@ describe("doctor", () => {
   });
 
   it("flags an invalid config file as a failure", async () => {
-    const badPath = join(tmpdir(), `ghfind-doctor-bad-${Date.now()}`);
+    const badPath = mkdtempSync(join(tmpdir(), "ghfind-doctor-bad-"));
     process.env.GHFIND_CONFIG = join(badPath, "config.json");
-    const { existsSync, mkdirSync } = await import("fs");
-    if (!existsSync(badPath)) mkdirSync(badPath, { recursive: true });
     writeFileSync(process.env.GHFIND_CONFIG, "{ not valid json");
     const { runDoctor } = await import("../src/doctor.ts");
     await runDoctor();

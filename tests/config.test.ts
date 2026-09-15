@@ -1,7 +1,7 @@
 // Tests for config loading with controlled env vars
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "path";
-import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
+import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
 import { tmpdir } from "os";
 
 describe("config", () => {
@@ -9,8 +9,8 @@ describe("config", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = join(tmpdir(), `ghfind-test-${Date.now()}`);
-    mkdirSync(tmpDir, { recursive: true });
+    // Unique per test, and collision-proof across concurrent processes.
+    tmpDir = mkdtempSync(join(tmpdir(), "ghfind-test-"));
   });
 
   afterEach(() => {

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { unlinkSync } from "fs";
+import { mkdtempSync, unlinkSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import type { Repo } from "../src/types.ts";
 
-const testDir = join(tmpdir(), `ghfind-test-bookmarks-${Date.now()}`);
+// mkdtempSync keeps concurrent test processes from sharing one state dir —
+// a `Date.now()` name collides when two suites start in the same millisecond.
+const testDir = mkdtempSync(join(tmpdir(), "ghfind-test-bookmarks-"));
 process.env.XDG_STATE_HOME = testDir;
 
 const makeRepo = (name: string, stars = 100): Repo => ({

@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
-## [Unreleased]
+## [9.5.1] — 2026-09-15
 
 ### Fixed
 
@@ -20,7 +20,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   screen. Also fixed while routing keys: `b` on the landing screen now opens
   bookmarks (hint bar updated), and overlays opened from landing hide the
   menu instead of drawing on top of it.
-
 - **Update panel clipped the changelog** — the modal was hard-capped at 16
   rows and put the release notes in a single unsized text block, so anything
   past the first ~10 lines of the notes was invisible with no hint that more
@@ -31,9 +30,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   notes render at the panel's actual width so wrapped lines no longer clip
   horizontally on narrow terminals.
 
+### Internal
+
+- **Test isolation** — seven suites derived their temp dirs from a
+  `Date.now()` stamp (`tmpdir()/<name>-<ms>`), a name two concurrent
+  `bun test` processes can collide on, which intermittently failed
+  bookmarks / config / doctor / history / login / saved-searches /
+  update-check tests. They now use `mkdtempSync`, which is unique and
+  collision-proof (the pattern `tests/releases.test.ts` already used), and
+  the login `readGhCliToken` / `persistToken` dirs are removed after use
+  instead of accumulating in the temp folder.
+
 ---
 
-## [9.5.0] — 2026-09-15
+## [9.5.0] — 2026-09-15 (released)
 
 ### Added
 
