@@ -1,27 +1,51 @@
-name: CI
+name: Release
 
+# Tag-gated only: maintainers cut a release with `git tag vX.Y.Z && git push
+# --tags`. CI (ci.yml) already gates every PR and push to main, so this
+# workflow re-verifies the tag with the SAME gate, then builds binaries,
+# attaches them to the GitHub Release, and finally publishes to npm.
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with ci.yml and scripts/postinstall.js.
+  BUN_VERSION: 1.3.14
 
 jobs:
+  # Same gate as CI: install -> test -> format check -> build.
+  # Kept local (not reused from ci.yml) because ci.yml does not run on tags.
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"
-      - run: bun install --frozen-lockfile
-      - run: bun test
-      - run: bun run build
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Run tests
+        run: bun test
+      - name: Format check (Prettier)
+        run: bun run format:check
+      - name: Build dist
+        run: bun run build
+
+    # NOTE: `typecheck` and `lint` stay out of this gate too — see
+    # CONTRIBUTING.md "Known gaps".
 
   release:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -31,42 +55,50 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"
-      - run: bun install --frozen-lockfile
-      - run: bun run build
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Build dist
+        run: bun run build
       # Standalone self-contained binaries (no Node/Bun needed) for
       # Homebrew / Scoop / winget / curl-script installs.
       - name: Compile standalone binary
         shell: bash
         run: |
           os="${{ runner.os }}"
-          arch="${{ runner.arch }}"
           case "$os" in
             Linux)   plat="linux" ;;
             macOS)   plat="darwin" ;;
             Windows) plat="win32" ;;
           esac
+          # runner.arch is X64 / ARM64 — normalize to Bun-style arch names.
+          arch="${{ runner.arch }}"
+          case "$arch" in
+            X64)   arch="x64" ;;
+            ARM64) arch="arm64" ;;
+          esac
           name="ghfind-${plat}-${arch}"
-          version="$(node -p "require('./package.json').version")"
+          # package.json uses "type": "module", so plain `require()` fails.
+          version="$(node -p "JSON.parse(require('fs').readFileSync('./package.json','utf8')).version")"
           if [ "$os" = "Windows" ]; then
             name="${name}.exe"
           fi
           # Single-quoted value is a valid JS string literal for bun's --define
           bun build --compile --minify src/cli.ts --outfile "$name" --define "__GHFIND_VERSION__='$version'"
-      - uses: actions/upload-artifact@v4
+      - name: Upload compiled binary
+        uses: actions/upload-artifact@v4
         with:
-          name: ghfind-${{ matrix.os }}
-          path: dist/
+          name: ghfind-${{ runner.os }}-${{ runner.arch }}
+          path: ghfind-*
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*
             ghfind-*
           generate_release_notes: true
 
   publish-npm:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Runs after binaries are attached so npm never ships without them.
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,13 +107,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.14"
+          bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
-      - run: bun install --frozen-lockfile
-      - run: bun run build
-      - run: npm publish --provenance
+      - name: Install deps
+        run: bun install --frozen-lockfile
+      - name: Build dist
+        run: bun run build
+      - name: Publish to npm
+        run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

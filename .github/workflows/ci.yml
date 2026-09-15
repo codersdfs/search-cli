@@ -5,6 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs on the same ref (PR pushes, rapid merges).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Single source for the Bun toolchain. Keep in sync with
+  # scripts/postinstall.js (Bun download version).
+  BUN_VERSION: 1.3.14
+
 jobs:
   test:
     name: "${{ matrix.os }} — test, format, build"
@@ -18,7 +31,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Install deps
         run: bun install --frozen-lockfile
@@ -31,3 +44,7 @@ jobs:
 
       - name: Build dist
         run: bun run build
+
+    # NOTE: `typecheck` (tsc) and `lint` (biome) are intentionally NOT part
+    # of this gate. Both are known-broken on @opentui/core type drift — see
+    # CONTRIBUTING.md "Known gaps". Do not re-add until those tickets land.

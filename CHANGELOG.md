@@ -33,7 +33,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
-## [9.5.0] — 2026-09-14
+## [9.5.0] — 2026-09-15
 
 ### Added
 

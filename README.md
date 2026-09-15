@@ -117,6 +117,16 @@ ghfind --completion fish | source
 <details>
 <summary>Keybindings</summary>
 
+**Landing screen** (the mode menu shown on launch)
+
+| Key                   | Action                       |
+| --------------------- | ---------------------------- |
+| `↑` / `↓` — `j` / `k` | Navigate mode cards          |
+| `Enter`               | Select mode / open Bookmarks |
+| `b`                   | Jump straight to Bookmarks   |
+| `?` or `h`            | Help overlay                 |
+| `q`                   | Quit ghfind                  |
+
 **Global shortcuts** (main view, no overlay active)
 
 | Key                   | Action                                         |
@@ -164,14 +174,16 @@ Actions shown depend on current mode (search vs trending) and selection:
 
 **Overlay-specific shortcuts**
 
-| Key             | Context                                              | Action                                      |
-| --------------- | ---------------------------------------------------- | ------------------------------------------- |
-| `Esc` / `q`     | Any overlay                                          | Close overlay                               |
-| `Enter`         | Leader / History / Saved / Export / Topics / Share   | Confirm selection                           |
-| `d`             | History / Bookmarks / Saved searches / Notifications | Delete current entry                        |
-| `Ctrl+X`        | History                                              | Clear all history                           |
-| `Ctrl+C`        | Notifications                                        | Dismiss all notifications                   |
-| `Y` / `N` / `L` | Update modal                                         | Yes (install) / No (skip) / Later (dismiss) |
+| Key                              | Context                                              | Action                                      |
+| -------------------------------- | ---------------------------------------------------- | ------------------------------------------- |
+| `Esc` / `q`                      | Any overlay                                          | Close overlay                               |
+| `Enter`                          | Leader / History / Saved / Export / Topics / Share   | Confirm selection                           |
+| `d`                              | History / Bookmarks / Saved searches / Notifications | Delete current entry                        |
+| `Ctrl+X`                         | History                                              | Clear all history                           |
+| `Ctrl+C`                         | Notifications                                        | Dismiss all notifications                   |
+| `Y` / `N` / `L`                  | Update modal                                         | Yes (install) / No (skip) / Later (dismiss) |
+| `↑` / `↓` — `j` / `k`            | Update modal                                         | Scroll release notes                        |
+| `PgUp` / `PgDn` / `Home` / `End` | Update modal                                         | Jump through release notes                  |
 
 Trending tabs: `1`–`5` (Today → All) or `←`/`→` — `h`/`l`
 
@@ -220,14 +232,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 215 tests
+bun test         # 292 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 215 tests
+npm test         # 292 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -245,6 +257,8 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - New `ghfind user <name>` command — user profiles like `ghfind org`: repos, total stars/forks, followers, top languages, top repos
 - Supports `--json`, `--csv`, `--markdown`, `--count`, `--limit`, `--token`; `@` prefix accepted
 - Fixed `ghfind org` mangling multi-word names with dashes
+- Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
+- Fixed the update panel clipping the changelog — release notes are now scrollable (`↑↓`/`j`/`k`, `PgUp`/`PgDn`, `Home`/`End`) in a taller panel
 
 ### v9.3.0
 

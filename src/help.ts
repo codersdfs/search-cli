@@ -110,6 +110,10 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "d", action: "Delete entry (history, saved)" },
         { keys: "↑ ↓ / j k", action: "Navigate overlay list" },
         { keys: "← → / h l", action: "Navigate tabs / panels" },
+        {
+          keys: "PgUp/PgDn",
+          action: "Scroll update notes; Home/End jump to ends",
+        },
       ],
     },
     {
