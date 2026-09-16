@@ -29,6 +29,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   position resets each time the panel opens. The box is taller (24 rows), and
   notes render at the panel's actual width so wrapped lines no longer clip
   horizontally on narrow terminals.
+- **`--help` listed `ghfind user <name>` twice** — the 9.5.0 usage block
+  carried a duplicated line, so the profile examples were printed twice. It
+  now appears once, and the `ghfind pkg` line is aligned with its neighbours.
 
 ### Internal
 
@@ -40,6 +43,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   collision-proof (the pattern `tests/releases.test.ts` already used), and
   the login `readGhCliToken` / `persistToken` dirs are removed after use
   instead of accumulating in the temp folder.
+- **Docs sync** (README ↔ `src/help.ts` ↔ `--help`): README gained
+  `--releases` / `--compare` / `pkg` examples plus Packages and Releases
+  feature rows; the TUI help screen gained the `Org profile` command-menu
+  entry the leader menu already had. `tests/cli-help.test.ts` pins the
+  `--help` usage block (no duplicate rows, one description column).
+- `package-lock.json` root version synced to 9.5.1 (`bun.lock` carries no
+  root version), and the release workflow's manual dispatch now runs the
+  gate only — the GitHub Release and npm publish jobs are tag-gated, so
+  dispatching from a branch can't create a release on a non-tag ref.
+- `--doctor` tests remove their temp config dirs after each test instead of
+  leaving them behind.
+- **CI was red on `windows-latest`** — `tests/landing.test.ts` source-greps
+  `src/tui.ts` for a snippet containing `\n`, but Windows checks the tree out
+  with CRLF, so the assertion could never match there while every other OS
+  passed. The source-grep helpers now normalise line endings before
+  asserting; `tests/overlay-registry.test.ts` does the same.
 
 ---
 

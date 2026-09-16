@@ -11,6 +11,18 @@ import {
   landingConsumesKey,
 } from "../src/landing.ts";
 
+/**
+ * Read a source file with LF line endings. Windows CI checks the tree out
+ * with CRLF, so any expectation containing `\n` must normalise first —
+ * otherwise the test passes locally and fails on windows-latest.
+ */
+function readSource(relPath: string): string {
+  return readFileSync(join(process.cwd(), relPath), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
+}
+
 const COLORS = {
   accent: "#89b4fa",
   border: "#45475a",
@@ -371,7 +383,7 @@ describe("landing + bookmarks overlay key routing", () => {
 
 describe("landing / main-view key isolation", () => {
   function readTui(): string {
-    return readFileSync(join(process.cwd(), "src/tui.ts"), "utf8");
+    return readSource("src/tui.ts");
   }
 
   test("landing handler claims its keys with stopPropagation", () => {
@@ -392,7 +404,7 @@ describe("landing / main-view key isolation", () => {
   test("the landing screen exports the seam it relies on", () => {
     // Guards against the helpers being deleted while tui.ts still imports
     // them (the seam must stay exercised, not just present).
-    const mod = readFileSync(join(process.cwd(), "src/landing.ts"), "utf8");
+    const mod = readSource("src/landing.ts");
     expect(mod).toContain("export function landingKeysActive");
     expect(mod).toContain("export function landingConsumesKey");
   });

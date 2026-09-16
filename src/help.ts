@@ -82,6 +82,10 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Packages", action: "Switch to npm packages" },
         { keys: "Export", action: "Export results to file" },
         { keys: "Share", action: "Share repo as text" },
+        {
+          keys: "Org profile",
+          action: "Org summary: repos, stars, top languages",
+        },
         { keys: "Topics", action: "Browse GitHub topics" },
         { keys: "Saved", action: "View saved searches" },
         { keys: "Notifs", action: "Check GitHub notifications" },

@@ -44,6 +44,10 @@ jobs:
 
   release:
     needs: test
+    # A manual dispatch runs the gate only (dry run) — tag-gating the release
+    # and publish jobs keeps `workflow_dispatch` from a branch ref from
+    # creating a release on a non-tag ref or re-publishing an existing version.
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +103,7 @@ jobs:
   publish-npm:
     # Runs after binaries are attached so npm never ships without them.
     needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read

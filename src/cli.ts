@@ -261,12 +261,11 @@ Usage:
   ghfind <query> --pipe <target>   Pipe to clone/open
   ghfind --trending --json         Trending repos as JSON
   ghfind --releases                Check bookmarks for new releases
-  ghfind --compare <repo1> <repo2> Compare two+ repos side-by-side
+  ghfind --compare <r1> <r2>       Compare two+ repos side-by-side
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
-  ghfind user <name> --json        User profile: repos, stars, top languages
-  ghfind pkg <query> --json         Search npm packages, output JSON
-  ghfind pkg <query>                Search npm packages, text list
+  ghfind pkg <query> --json        Search npm packages, output JSON
+  ghfind pkg <query>               Search npm packages, text list
   ghfind --watch <query>           Watch mode (poll every Ns)
   ghfind init                      Run setup wizard
   ghfind login                     Import the gh CLI token or paste one

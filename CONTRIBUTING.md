@@ -36,7 +36,10 @@ bun run dev     # TUI with live reload
   overlay registry in `src/tui/overlays/` (`Overlay` interface, `OVERLAYS`
   array). One overlay per commit while parsing the monolith.
 - **Changelog first.** User-visible changes go under `[Unreleased]` in
-  `CHANGELOG.md` (Keep a Changelog format) in the same PR.
+  `CHANGELOG.md` (Keep a Changelog format) in the same PR. The full
+  README/CHANGELOG/release-notes/release checklist lives in
+  [.github/skills/docs-release/SKILL.md](.github/skills/docs-release/SKILL.md)
+  — coding agents follow it, and so should a release PR.
 - **No stray repo-junk.** Do not commit `*.tgz` bundles, `vendor/` binaries,
   `.bak` files, or scratch scripts — the repo was recently purged of all
   three.

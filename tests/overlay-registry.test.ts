@@ -15,7 +15,11 @@ import { join } from "node:path";
 // migrated yet — each new registration is a separate commit.
 
 function readTui(): string {
-  return readFileSync(join(process.cwd(), "src/tui.ts"), "utf8");
+  // Normalise CRLF (the Windows CI checkout) so multi-line expectations hold.
+  return readFileSync(join(process.cwd(), "src/tui.ts"), "utf8").replace(
+    /\r\n/g,
+    "\n",
+  );
 }
 
 function tuiOverlayIds(src: string): Set<string> {

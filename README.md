@@ -81,6 +81,9 @@ ghfind "query" --pipe open   # open in browser
 ghfind "query" --pipe clone  # clone commands
 ghfind --trending --json     # trending as JSON
 ghfind --watch "query"       # poll every 300s
+ghfind --releases            # new releases for bookmarked repos
+ghfind --compare a/b c/d     # side-by-side comparison
+ghfind pkg "query" --json    # npm package search as JSON
 ```
 
 ### Completions
@@ -98,6 +101,7 @@ ghfind --completion fish | source
 <table>
 <tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
 <tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
+<tr><td><b>Packages</b></td><td>npm registry search (beta) — <code>ghfind pkg "query"</code></td></tr>
 <tr><td><b>Bookmarks</b></td><td>Space → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
 <tr><td><b>Deep-dive</b></td><td>Space → Deep-dive — languages, contributors, README, activity chart</td></tr>
 <tr><td><b>Compare</b></td><td>Space → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
@@ -109,6 +113,7 @@ ghfind --completion fish | source
 <tr><td><b>Org profile</b></td><td>Space → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
 <tr><td><b>User profile</b></td><td>User summary like org profile — repos, stars, followers, top languages (<code>ghfind user <name></code>)</td></tr>
 <tr><td><b>Notifications</b></td><td>Space → Notifications — view & dismiss alerts</td></tr>
+<tr><td><b>Releases</b></td><td><code>--releases</code> — new-release feed for bookmarked repos</td></tr>
 <tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
 <tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
 <tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
@@ -232,14 +237,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 292 tests
+bun test         # 295 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 292 tests
+npm test         # 295 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
