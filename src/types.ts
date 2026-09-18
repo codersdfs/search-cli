@@ -73,6 +73,8 @@ export interface SearchOptions {
   page?: number;
   /** Trending period: daily|weekly|monthly. Used by TrendingAdapter. */
   trendingSince?: "daily" | "weekly" | "monthly";
+  /** Trending language filter (e.g. "rust", "python"). Used by TrendingAdapter. */
+  trendingLanguage?: string;
   /** Verbose logging (outgoing query, errors, rate limits). */
   verbose: boolean;
 }

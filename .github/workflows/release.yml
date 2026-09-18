@@ -100,9 +100,34 @@ jobs:
             ghfind-*
           generate_release_notes: true
 
-  publish-npm:
-    # Runs after binaries are attached so npm never ships without them.
+  # One combined checksums file for all platforms, attached to the release.
+  # curl installer (scripts/install.sh) and package maintainers verify
+  # downloads against this.
+  checksums:
     needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ghfind-*
+          merge-multiple: true
+          path: artifacts
+      - name: Generate SHA256SUMS.txt
+        run: |
+          cd artifacts
+          sha256sum ghfind-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/SHA256SUMS.txt
+
+  publish-npm:
+    # Runs after binaries AND checksums are attached so npm never ships
+    # without them.
+    needs: [release, checksums]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

@@ -26,6 +26,14 @@
 npm install -g github-search-cli
 ```
 
+Or via the **curl installer** (Linux/macOS — downloads the standalone
+binary, verifies its SHA256 against the release checksums, no Node
+needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codersdfs/search-cli/main/scripts/install.sh | sh
+```
+
 Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https://github.com/codersdfs/search-cli/releases) — `ghfind-<os>-<arch>` executables for Linux, macOS, and Windows.
 
 ## Why ghfind?
@@ -86,6 +94,40 @@ ghfind --compare a/b c/d     # side-by-side comparison
 ghfind pkg "query" --json    # npm package search as JSON
 ```
 
+## Use with AI agents
+
+ghfind speaks the [Model Context Protocol](https://modelcontextprotocol.io) —
+any MCP client (Claude Code, Cursor, Codex, …) can call its GitHub search
+as tools:
+
+```bash
+claude mcp add ghfind -- ghfind mcp
+```
+
+or in your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "ghfind": { "command": "ghfind", "args": ["mcp"] }
+  }
+}
+```
+
+Exposed tools: `ghfind_search_repos`, `ghfind_trending`,
+`ghfind_npm_packages`, `ghfind_org_profile`, `ghfind_user_profile`,
+`ghfind_compare_repos`, `ghfind_deep_dive`, `ghfind_bookmarked_releases`,
+and `ghfind_skill` (a token-efficient CLI usage guide for agents).
+Unauthenticated requests are rate-limited to 60/hr — set `GITHUB_TOKEN`
+in the environment for 5,000/hr.
+
+CLI-first agents can skip MCP entirely:
+
+```bash
+ghfind skill            # list agent skills
+ghfind skill ghfind-cli # print the token-efficient CLI guide
+```
+
 ### Completions
 
 ```bash
@@ -117,6 +159,8 @@ ghfind --completion fish | source
 <tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
 <tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
 <tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
+<tr><td><b>MCP server</b></td><td><code>ghfind mcp</code> — GitHub search as tools for AI agents (Claude Code, Cursor, …)</td></tr>
+<tr><td><b>Agent skill</b></td><td><code>ghfind skill</code> — token-efficient CLI usage guide for coding agents</td></tr>
 </table>
 
 <details>
@@ -224,7 +268,7 @@ Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, 
 }
 ```
 
-Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`
+Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
 
 ---
 
@@ -237,14 +281,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 295 tests
+bun test         # 335 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 295 tests
+npm test         # 335 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -257,6 +301,14 @@ npm run build    # build dist/
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.6.0
+
+- **MCP server (beta)** — `ghfind mcp` turns ghfind into a tool server: Claude Code, Cursor, Codex, and any MCP client can call GitHub search over stdio (nine tools, no new dependencies)
+- **Agent skill (beta)** — `ghfind skill` gives coding agents a token-efficient usage guide; `ghfind trending` accepts a language filter (`ghfind trending rust`)
+- **curl installer** — `curl -fsSL https://raw.githubusercontent.com/codersdfs/search-cli/main/scripts/install.sh | sh` downloads the standalone binary and verifies it against the release's `SHA256SUMS.txt`
+- **`NO_COLOR` support** — `ghfind --doctor` drops ANSI colors when `NO_COLOR` is set or stdout isn't a TTY
+- Fixed the stale `scripts/brew.rb` formula (wrong repo, version, and asset names)
+
 ### v9.5.1
 
 - Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
@@ -267,12 +319,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - New `ghfind user <name>` command — user profiles like `ghfind org`: repos, total stars/forks, followers, top languages, top repos
 - Supports `--json`, `--csv`, `--markdown`, `--count`, `--limit`, `--token`; `@` prefix accepted
 - Fixed `ghfind org` mangling multi-word names with dashes
-
-### v9.3.0
-
-- Fixed `c` keybinding in TUI not adding repos to comparison — a missing closing brace in the space-key handler broke every later key handler (`c`, `t`, `?`)
-- README viewer renders full markdown (headings, code blocks, lists, tables, blockquotes, rules) instead of stripping formatting
-- Widened compare table columns (min 35 chars), added Description + URL rows, and raised the topic cap to 5 per repo
 
 ---
 

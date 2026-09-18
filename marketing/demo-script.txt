@@ -1,0 +1,44 @@
+# Demo GIF shot list (record BEFORE launching)
+
+Target: 25–40 seconds, 90×28 terminal, **tokyo-night** theme (matches
+the README), font size large enough to read in a 1280px-wide embed.
+
+Tools (pick one):
+- `vhs` — scriptable, reproducible, produces GIF + .tape file you can
+  commit (recommended; the .tape doubles as documentation)
+- `asciinema` + `agg`
+- `termtosvg`
+
+Suggested vhs settings: `Set Width 1200`, `Set Height 700`,
+`Set FontSize 20`, `Set Theme "Tokyo Night"`, `Set TypingSpeed 75ms`.
+
+## Shot list (in order, each = one command)
+
+| # | Action | Why this shot |
+| --- | --- | --- |
+| 1 | Type `ghfind` slowly — landing screen appears, navigate the mode cards with ↑↓ | shows it's a real TUI in <3s |
+| 2 | `/`, type `language:rust stars:>1000`, Enter | the qualifier syntax people know from GitHub |
+| 3 | ↓↓ through results, press Enter on one (opens browser — or just hover on the README preview) | proof results are real repos |
+| 4 | Space → Deep-dive on a big repo (e.g. `oven-sh/bun`), scroll contributors + rendered README | the "wow" shot — full README in a terminal |
+| 5 | `1` → `2` tab switches on trending, scroll | trending tabs, motion |
+| 6 | Space → Bookmark on a repo; toast pops | bookmark feedback loop |
+| 7 | `q`, then show the one-liner in a plain shell: `ghfind "topic:cli" --json \| jq '.[0].fullName'` | converts the skeptics — it's pipeable too |
+
+## Rules
+
+- No fake numbers anywhere — results must be live queries (viewers will
+  search for the same repos).
+- Pause ~1s between shots; trim dead time in post.
+- The GIF replaces `demo.svg` in the README hero slot. Keep the static
+  SVG as fallback for `<details>`/slow connections.
+- Commit the `.tape` file under `marketing/` — reproducibility is
+  itself a selling point.
+- Upload the same GIF as the X post-1 media and as the dev.to
+  cover-image frame; one asset, three surfaces.
+
+## Social preview image (Settings → General → Social preview)
+
+1280×640: dark background, `ghfind` in the tokyo-night accent color,
+one line of qualifier text, one line of JSON output. The GitHub repo
+card is the thumbnail for HN, Reddit, X, and newsletters — this is the
+highest-leverage image in the whole kit.

@@ -6,6 +6,59 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.6.0] — 2026-09-18 (released)
+
+### Added
+
+- **MCP server (beta)** (`ghfind mcp`) — ghfind now speaks the
+  [Model Context Protocol](https://modelcontextprotocol.io): any MCP client
+  (Claude Code, Cursor, Codex, …) can call GitHub search as tools over stdio.
+  Zero new dependencies — the server is a small JSON-RPC 2.0 layer over the
+  existing modules. Nine tools: `ghfind_search_repos`, `ghfind_trending`,
+  `ghfind_npm_packages`, `ghfind_org_profile`, `ghfind_user_profile`,
+  `ghfind_compare_repos`, `ghfind_deep_dive`, `ghfind_bookmarked_releases`,
+  and `ghfind_skill`. Implements the 2025-06-18 lifecycle (initialize →
+  initialized notification → operation), speaks 2025-06-18 / 2025-03-26 /
+  2024-11-05, reports tool failures as `isError` results per spec, and logs
+  agent searches into the TUI history. `ghfind mcp --token <t>` pins a token;
+  otherwise config/`GITHUB_TOKEN` applies.
+- **Agent skill (beta)** (`ghfind skill [name]`) — a token-efficient CLI usage guide
+  for coding agents (search syntax, flags, rate limits, token-efficiency
+  tips) so they stop parsing `--help`. Bare `ghfind skill` lists the catalog;
+  the registry (`src/agent-skill.ts`) is generic, so third parties can
+  register their own skills alongside the built-in `ghfind-cli` one.
+- **Trending language filter** — `SearchOptions.trendingLanguage` and the
+  `ghfind_trending` MCP tool accept a github.com/trending language slug
+  (`rust`, `python`, …); `buildTrendingUrl` validates against the known
+  language list and drops unknown slugs instead of scraping an error page.
+- **`NO_COLOR` support** — `ghfind --doctor` no longer emits ANSI color
+  codes when `NO_COLOR` is set (any value, per
+  [no-color.org](https://no-color.org/)) or when stdout is not a TTY.
+- **curl installer** (`scripts/install.sh`) — downloads the standalone
+  binary for the detected platform from GitHub Releases, verifies it
+  against the release's `SHA256SUMS.txt`, installs to `~/.local/bin` or
+  `/usr/local/bin` (overridable with `GHFIND_INSTALL_DIR`, never needs
+  sudo), and prints a PATH hint when needed.
+- **`SHA256SUMS.txt` on every release** — new `checksums` job in the
+  release workflow merges all platform binaries' checksums into one
+  file attached to the GitHub Release; the curl installer and package
+  maintainers verify against it.
+- **Community health files** — `SECURITY.md` (private vulnerability
+  reporting), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), and
+  `SUPPORT.md` (routes users to `--doctor`, issues, and discussions).
+
+### Fixed
+
+- **`scripts/brew.rb` formula was stale and broken** — pointed at the
+  wrong repo (`frank/search-cli`), version 0.1.0, and `search-cli-*`
+  asset names that never matched the release artifacts. Now targets
+  `codersdfs/search-cli` releases with the correct `ghfind-*` asset
+  names (plus linux-arm64), a livecheck block, and a version-pinning
+  test. Still a template: SHA256 placeholders are filled from
+  `SHA256SUMS.txt` when the tap lands.
+
+---
+
 ## [9.5.1] — 2026-09-15
 
 ### Fixed

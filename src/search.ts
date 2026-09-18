@@ -519,6 +519,72 @@ function appendPage(url: string, page: number, perPage: number): string {
 
 const TRENDING_URL = "https://github.com/trending";
 
+/**
+ * Languages github.com/trending accepts as a `?language=` filter (path-slug
+ * form, lowercase). The MCP `ghfind_trending` tool validates against this
+ * list instead of round-tripping an invalid language through a scrape.
+ */
+export const TRENDING_LANGUAGES: ReadonlySet<string> = new Set([
+  "c",
+  "c#",
+  "c++",
+  "clojure",
+  "crystal",
+  "css",
+  "dart",
+  "dockerfile",
+  "elixir",
+  "go",
+  "haskell",
+  "html",
+  "java",
+  "javascript",
+  "jupyter-notebook",
+  "kotlin",
+  "lua",
+  "objective-c",
+  "ocaml",
+  "perl",
+  "php",
+  "powershell",
+  "python",
+  "r",
+  "ruby",
+  "rust",
+  "scala",
+  "shell",
+  "solidity",
+  "svelte",
+  "swift",
+  "typescript",
+  "vue",
+  "zig",
+]);
+
+/**
+ * Normalize a user-supplied language to the slug form github.com/trending
+ * uses: lowercase, whitespace runs collapsed to dashes ("Jupyter Notebook"
+ * → "jupyter-notebook").
+ */
+export function trendingLanguageSlug(language: string): string {
+  return language.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+/** Build the github.com/trending URL for a period + optional language filter. */
+export function buildTrendingUrl(
+  since: "daily" | "weekly" | "monthly",
+  language?: string,
+): string {
+  const params = new URLSearchParams();
+  if (since !== "daily") params.set("since", since);
+  if (language) {
+    const slug = trendingLanguageSlug(language);
+    if (TRENDING_LANGUAGES.has(slug)) params.set("language", slug);
+  }
+  const qs = params.toString();
+  return qs ? `${TRENDING_URL}?${qs}` : TRENDING_URL;
+}
+
 function trendingRepoToRepo(r: RawTrendingRepo): Repo {
   return {
     id: 0,
@@ -540,9 +606,7 @@ function trendingRepoToRepo(r: RawTrendingRepo): Repo {
     pushedAt: "",
     score: r.starsToday,
   };
-}
-
-/**
+} /**
  * Trending adapter — scrapes github.com/trending HTML and returns SearchResponse.
  */
 export class TrendingAdapter implements SearchAdapter {
@@ -558,8 +622,7 @@ export class TrendingAdapter implements SearchAdapter {
     options: SearchOptions,
   ): Promise<SearchResponse> {
     const since = options.trendingSince ?? "daily";
-    const url =
-      since === "daily" ? TRENDING_URL : `${TRENDING_URL}?since=${since}`;
+    const url = buildTrendingUrl(since, options.trendingLanguage);
     let res: Response;
     try {
       res = await fetch(url, { headers: { "User-Agent": "ghfind" } });
@@ -639,6 +702,7 @@ export class SearchModule implements SearchProvider {
       String(options.limit),
       String(options.page ?? 1),
       options.trendingSince ?? "none",
+      options.trendingLanguage ?? "none",
     );
     const cached = SearchModule.cache.get(cacheKey);
     if (cached) {

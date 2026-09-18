@@ -42,4 +42,22 @@ describe("doctor", () => {
     await runDoctor();
     expect(process.exitCode).toBe(1);
   });
+
+  it("emits no ANSI escape codes when NO_COLOR is set", async () => {
+    const logs: string[] = [];
+    // console.log is already spied in beforeEach; swap in a collecting impl.
+    (
+      console.log as unknown as {
+        mockImplementation: (fn: (...args: unknown[]) => void) => void;
+      }
+    ).mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    });
+    process.env.NO_COLOR = "1";
+    const { runDoctor } = await import("../src/doctor.ts");
+    await runDoctor();
+    const output = logs.join("\n");
+    expect(output).toContain("ghfind doctor");
+    expect(output).not.toContain("\x1b[");
+  });
 });

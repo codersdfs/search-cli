@@ -20,4 +20,4 @@ complete -c ghfind -l version -d "Print version"
 complete -c ghfind -l help -d "Print help"
 complete -c ghfind -l completion -d "Shell" -r -f -a "bash zsh fish"
 
-complete -c ghfind -f -a "login init doctor org pkg"
+complete -c ghfind -f -a "login init doctor org pkg mcp skill"

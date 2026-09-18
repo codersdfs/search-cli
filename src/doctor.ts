@@ -237,7 +237,11 @@ function checkDirs(): void {
 }
 
 function printReport(): void {
+  // Respect NO_COLOR (https://no-color.org/): plain text when set (any value,
+  // including the empty string) or when stdout is not a TTY.
+  const noColor = process.env.NO_COLOR !== undefined || !process.stdout.isTTY;
   const colors = (s: string, n: CheckStatus) => {
+    if (noColor) return s;
     const code =
       n === "PASS" ? "\x1b[32m" : n === "WARN" ? "\x1b[33m" : "\x1b[31m";
     return `${code}${s}\x1b[0m`;

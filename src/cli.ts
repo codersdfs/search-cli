@@ -53,6 +53,13 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { launchBrowser } from "./tui";
 import { getVersion } from "./version";
+import { runMcpServer } from "./mcp-server";
+import {
+  ensureBuiltinSkill,
+  formatSkillCatalog,
+  getSkill,
+  listSkills,
+} from "./agent-skill";
 import type { SearchOptions } from "./types";
 import { SearchCliError } from "./errors";
 
@@ -87,6 +94,8 @@ interface CLIFlags {
   doctor: boolean;
   org?: string; // org profile lookup (ghfind org <name>)
   user?: string; // user profile lookup (ghfind user <name>)
+  mcp: boolean; // run the MCP server (ghfind mcp)
+  skill?: string; // agent skill guide (ghfind skill [name])
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -112,6 +121,7 @@ function parseArgs(args: string[]): CLIFlags {
     registry: "npm",
     compare: [],
     doctor: false,
+    mcp: false,
   };
 
   let queryParts: string[] = [];
@@ -191,6 +201,20 @@ function parseArgs(args: string[]): CLIFlags {
       case "--completion":
         flags.completion = args[++i];
         break;
+      case "mcp":
+        flags.mcp = true;
+        break;
+      case "skill": {
+        // Optional skill id (ids contain no spaces); a following flag means none.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.skill = next;
+          i++;
+        } else {
+          flags.skill = "";
+        }
+        break;
+      }
       case "org": {
         // Collect org name until next flag (single token — GitHub org logins
         // contain no spaces; a quoted multi-word name is an error)
@@ -266,6 +290,8 @@ Usage:
   ghfind user <name> --json        User profile: repos, stars, top languages
   ghfind pkg <query> --json        Search npm packages, output JSON
   ghfind pkg <query>               Search npm packages, text list
+  ghfind mcp                       Run the MCP server for AI agents (stdio)
+  ghfind skill [name]              Print the agent skill guide (or catalog)
   ghfind --watch <query>           Watch mode (poll every Ns)
   ghfind init                      Run setup wizard
   ghfind login                     Import the gh CLI token or paste one
@@ -318,6 +344,18 @@ Options:
   // Login — store a GitHub token for higher rate limits
   if (flags.login) {
     await runLoginWizard();
+    return;
+  }
+
+  // MCP server — expose ghfind as tools to AI agents over stdio
+  if (flags.mcp) {
+    await runMcpServer({ token: flags.token });
+    return;
+  }
+
+  // Agent skill guide — token-efficient usage doc for coding agents
+  if (flags.skill !== undefined) {
+    printAgentSkill(flags.skill);
     return;
   }
   // Package search (prototype, ticket 002-008)
@@ -393,6 +431,25 @@ function buildSearchContext(flags: CLIFlags): SearchContext {
     parsed,
     provider: createGitHubSearch(undefined, flags.token ? [flags.token] : []),
   };
+}
+
+/** `ghfind skill [name]` — print the agent skill catalog or one skill's content. */
+function printAgentSkill(name: string): void {
+  ensureBuiltinSkill();
+  if (!name) {
+    console.log(formatSkillCatalog());
+    return;
+  }
+  const skill = getSkill(name);
+  if (!skill) {
+    console.error(
+      `Unknown skill: ${name}. Available: ${listSkills()
+        .map((s) => s.name)
+        .join(", ")}`,
+    );
+    process.exit(1);
+  }
+  console.log(skill.content);
 }
 
 /** `ghfind user <name>` — aggregate user profile: metadata, stars, top languages, top repos. */

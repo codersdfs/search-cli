@@ -28,6 +28,8 @@ _ghfind() {
     'doctor[Environment diagnostics]'
     'org[Org profile]:org name:'
     'pkg[Search packages]:query:'
+    'mcp[Run the MCP server for AI agents (stdio)]'
+    'skill[Print an agent skill guide]:skill name:'
   )
   _arguments "${opts[@]}" '*:query:'
 }
