@@ -1,6 +1,11 @@
 // Tests for buildTrendingUrl + TRENDING_LANGUAGES (MCP trending tool support)
 import { describe, expect, test } from "vitest";
-import { buildTrendingUrl, TRENDING_LANGUAGES } from "../src/search.ts";
+import {
+  buildTrendingUrl,
+  TRENDING_LANGUAGES,
+  resolveTrendingLanguage,
+  trendingLanguageSlug,
+} from "../src/search.ts";
 
 describe("buildTrendingUrl", () => {
   test("daily with no language is the bare trending URL", () => {
@@ -43,6 +48,31 @@ describe("buildTrendingUrl", () => {
     expect(buildTrendingUrl("daily", "Jupyter Notebook")).toBe(
       "https://github.com/trending?language=jupyter-notebook",
     );
+  });
+});
+
+describe("resolveTrendingLanguage", () => {
+  test("empty/missing input returns undefined (no filter)", () => {
+    expect(resolveTrendingLanguage(undefined)).toBeUndefined();
+    expect(resolveTrendingLanguage(null)).toBeUndefined();
+    expect(resolveTrendingLanguage("")).toBeUndefined();
+    expect(resolveTrendingLanguage("   ")).toBeUndefined();
+  });
+
+  test("valid languages return their slug", () => {
+    expect(resolveTrendingLanguage("rust")).toBe("rust");
+    expect(resolveTrendingLanguage("TypeScript")).toBe("typescript");
+    expect(resolveTrendingLanguage("C#")).toBe("c#");
+    expect(resolveTrendingLanguage("Jupyter Notebook")).toBe(
+      "jupyter-notebook",
+    );
+  });
+
+  test("unknown languages throw with a suggestion list", () => {
+    expect(() => resolveTrendingLanguage("klingon")).toThrow(
+      /not a trending language filter/,
+    );
+    expect(() => resolveTrendingLanguage("klingon")).toThrow(/rust, python/);
   });
 });
 

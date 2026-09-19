@@ -12,6 +12,7 @@ _ghfind() {
     '--sort[Sort strategy]:(best-match stars updated forks)'
     '--token[GitHub token]:token:'
     '--trending[Trending mode]'
+    '--language[Trending language filter]:language:'
     '--since[Trending period]:(daily weekly monthly)'
     '--pipe[Pipe target]:(clone open)'
     '--format[Output format]:(urls names ssh-urls clone-commands ids)'
@@ -28,6 +29,8 @@ _ghfind() {
     'doctor[Environment diagnostics]'
     'org[Org profile]:org name:'
     'pkg[Search packages]:query:'
+    'trending[Trending repos, optionally by language]'
+    'deep-dive[Repo deep-dive: languages, contributors, README]:owner/repo:'
     'mcp[Run the MCP server for AI agents (stdio)]'
     'skill[Print an agent skill guide]:skill name:'
   )

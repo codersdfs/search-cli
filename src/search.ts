@@ -570,6 +570,25 @@ export function trendingLanguageSlug(language: string): string {
   return language.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+/**
+ * Validate a user-supplied trending language and return its slug, or null if
+ * empty. Throws with a user-facing suggestion list for unknown languages.
+ * Shared by the MCP trending tool and the CLI trending filter.
+ */
+export function resolveTrendingLanguage(
+  language: string | undefined | null,
+): string | undefined {
+  const trimmed = typeof language === "string" ? language.trim() : "";
+  if (!trimmed) return undefined;
+  const slug = trendingLanguageSlug(trimmed);
+  if (!TRENDING_LANGUAGES.has(slug)) {
+    throw new Error(
+      `"${trimmed}" is not a trending language filter. Try one of: rust, python, typescript, javascript, go, zig.`,
+    );
+  }
+  return slug;
+}
+
 /** Build the github.com/trending URL for a period + optional language filter. */
 export function buildTrendingUrl(
   since: "daily" | "weekly" | "monthly",

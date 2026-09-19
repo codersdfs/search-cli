@@ -6,6 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.7.0] — 2026-09-19 (released)
+
+### Added
+
+- **CLI parity with the MCP tools** — the three MCP-only capabilities are now
+  first-class CLI commands:
+  - `ghfind deep-dive <owner/repo> [--json]` — language breakdown, top
+    contributors, and a README excerpt (previously MCP-only; the agent skill
+    doc told agents to `curl` instead).
+  - `ghfind --compare` accepts `--json|--csv|--markdown` (previously
+    text-only) and reports repos that failed to resolve; it exits non-zero
+    when fewer than 2 repos resolve.
+  - Trending language filter on the CLI: `ghfind trending <lang>` (the form
+    the README already advertised), `ghfind --trending <lang>`, and
+    `ghfind --trending --language <lang>` — validated against the same
+    accepted-language list as the MCP tool.
+- `ghfind deep-dive --json` exposes a structured payload (language percents,
+  contributor counts, raw README) suitable for agents and scripting.
+
+### Changed
+
+- The MCP server now shares its repo-ref parsing, trending-language
+  validation, and deep-dive data pipeline with the CLI via new seams in
+  `deepdive.ts` and `search.ts` (no protocol behavior change).
+
+### Fixed
+
+- **`ghfind mcp` failed to typecheck** — `processServerLine` declared `msg`
+  as a `let` binding, so TypeScript's aliased-conditional narrowing did not
+  apply and every `respond`/`respondError` call site errored on
+  `JsonRpcId | undefined`. HEAD did not compile. The id is now extracted
+  into a `const` before the notification check; runtime behavior is
+  unchanged (all 31 MCP tests pass against the previous behavior).
+- **Deep-dive ran on a zeroed repo stub** — `ghfind deep-dive a/b --json`
+  reported `stars: 0`, `description: null`, and no timestamps because the
+  repo ref was never resolved. Both the CLI and the `ghfind_deep_dive` MCP
+  tool now fetch real repo metadata first (a 404 exits with
+  `Repo not found: owner/name`; network failures still degrade gracefully
+  to the stub).
+
+---
+
 ## [9.6.0] — 2026-09-18 (released)
 
 ### Added

@@ -27,8 +27,7 @@ import {
   rankRepos,
   createGitHubSearch,
   createTrendingSearch,
-  TRENDING_LANGUAGES,
-  trendingLanguageSlug,
+  resolveTrendingLanguage,
 } from "./search";
 import {
   createPackageSearch,
@@ -37,7 +36,11 @@ import {
 } from "./package";
 import { fetchOrgProfile, formatOrgText } from "./org";
 import { fetchUserProfile, formatUserJson } from "./user";
-import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
+import {
+  fetchDeepDive,
+  buildDeepDiveText,
+  resolveRepoFromRef,
+} from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { allCachedReleases } from "./releases";
 import { getBookmarks } from "./bookmarks";
@@ -199,45 +202,9 @@ function formatPackageLines(
     .join("\n");
 }
 
-const REPO_NAME_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
-
-function parseRepoName(input: string): { owner: string; name: string } {
-  const fullName = input
-    .trim()
-    .replace(/\.git$/, "")
-    .replace(/^@/, "");
-  if (!REPO_NAME_RE.test(fullName)) {
-    throw new McpToolError(
-      `"${input}" is not a repo name — use owner/name, e.g. facebook/react.`,
-    );
-  }
-  const [owner, name] = fullName.split("/");
-  return { owner, name };
-}
-
-/** Minimal Repo for deep-dive (fetchDeepDive only reads owner/name). */
-function stubRepo(fullName: string): Repo {
-  const { owner, name } = parseRepoName(fullName);
-  return {
-    id: 0,
-    fullName: `${owner}/${name}`,
-    name,
-    owner,
-    description: null,
-    url: `https://github.com/${owner}/${name}`,
-    stars: 0,
-    forks: 0,
-    watchers: 0,
-    language: null,
-    topics: [],
-    archived: false,
-    isFork: false,
-    private: false,
-    createdAt: "",
-    updatedAt: "",
-    pushedAt: "",
-    score: 0,
-  };
+/** Wrap a domain error as McpToolError so its message surfaces verbatim. */
+function asMcpToolError(err: unknown): McpToolError {
+  return new McpToolError(err instanceof Error ? err.message : String(err));
 }
 
 const TRENDING_QUERY = { keywords: [], qualifiers: [], raw: "trending" };
@@ -366,16 +333,12 @@ const TOOLS: ToolDefinition[] = [
       const token = resolveToken(state, args.token);
 
       let language: string | undefined;
-      const langArg =
-        typeof args.language === "string" ? args.language.trim() : "";
-      if (langArg) {
-        const slug = trendingLanguageSlug(langArg);
-        if (!TRENDING_LANGUAGES.has(slug)) {
-          throw new McpToolError(
-            `"${langArg}" is not a trending language filter. Try one of: rust, python, typescript, javascript, go, zig.`,
-          );
-        }
-        language = slug;
+      try {
+        language = resolveTrendingLanguage(
+          typeof args.language === "string" ? args.language : undefined,
+        );
+      } catch (err) {
+        throw asMcpToolError(err);
       }
 
       const trending = createTrendingSearch();
@@ -582,7 +545,12 @@ const TOOLS: ToolDefinition[] = [
     async run(args, state) {
       const repo = String(args.repo ?? "").trim();
       if (!repo) throw new McpToolError("repo must be a non-empty string.");
-      const stub = stubRepo(repo);
+      let stub: Repo;
+      try {
+        stub = await resolveRepoFromRef(repo, resolveToken(state, args.token));
+      } catch (err) {
+        throw asMcpToolError(err);
+      }
       const data = await fetchDeepDive(stub, resolveToken(state, args.token));
       return { text: buildDeepDiveText(data), data: { ...data } };
     },
@@ -720,8 +688,11 @@ export async function processServerLine(
     return;
   }
 
-  const isNotification = msg.id === undefined || msg.id === null;
-  const id = isNotification ? null : msg.id;
+  // Extract the id into a const so TS narrows `undefined` out of it below
+  // (aliased conditional narrowing doesn't apply through the `let msg` bind).
+  const rawId = msg.id;
+  const isNotification = rawId === undefined || rawId === null;
+  const id: JsonRpcId = isNotification ? null : rawId;
 
   // Notifications never get responses.
   if (msg.method === "notifications/initialized") {

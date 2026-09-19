@@ -1,5 +1,6 @@
 /**
- * Repo comparison — side-by-side table for 2+ repos.
+ * Repo comparison — side-by-side table for 2+ repos, plus JSON/CSV/Markdown
+ * exports (shared by the CLI `--compare` formatters and the MCP server).
  */
 import type { Repo } from "./types";
 
@@ -66,4 +67,78 @@ export function buildComparisonTable(repos: Repo[]): string {
 
   lines.push("└" + sep.map((s) => "─" + s + "─").join("┴") + "┘");
   return lines.join("\n");
+}
+
+// ─── Export formatters (parity with org/user/package modules) ──────────
+
+/** The repo fields the comparison surface exposes. */
+export interface ComparisonRepo {
+  fullName: string;
+  url: string;
+  description: string | null;
+  stars: number;
+  forks: number;
+  language: string | null;
+  createdAt: string;
+  updatedAt: string;
+  topics: string[];
+  archived: boolean;
+}
+
+function comparisonRepo(r: Repo): ComparisonRepo {
+  return {
+    fullName: r.fullName,
+    url: r.url,
+    description: r.description,
+    stars: r.stars,
+    forks: r.forks,
+    language: r.language,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    topics: r.topics,
+    archived: r.archived,
+  };
+}
+
+export function comparisonJson(repos: Repo[]): string {
+  return JSON.stringify(repos.map(comparisonRepo), null, 2);
+}
+
+function csvEscape(val: unknown): string {
+  const str = String(val ?? "");
+  if (str.includes('"') || str.includes(",") || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export function comparisonCsv(repos: Repo[]): string {
+  const header = "full_name,stars,forks,language,created,updated,archived,url";
+  const rows = repos.map((r) =>
+    [
+      r.fullName,
+      r.stars,
+      r.forks,
+      r.language ?? "",
+      r.createdAt?.slice(0, 10) ?? "",
+      r.updatedAt?.slice(0, 10) ?? "",
+      String(r.archived),
+      r.url,
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
+  return [header, ...rows].join("\n");
+}
+
+export function comparisonMarkdown(repos: Repo[]): string {
+  const header =
+    "| Repo | Stars | Forks | Language | Created | Updated | Topics |";
+  const sep =
+    "|------|-------|-------|----------|---------|---------|--------|";
+  const rows = repos.map(
+    (r) =>
+      `| [${r.fullName}](${r.url}) | ${r.stars.toLocaleString()} | ${r.forks.toLocaleString()} | ${r.language ?? "—"} | ${r.createdAt?.slice(0, 7) ?? "—"} | ${r.updatedAt?.slice(0, 10) ?? "—"} | ${(r.topics?.slice(0, 5).join(", ") ?? "") || "—"} |`,
+  );
+  return [header, sep, ...rows].join("\n");
 }

@@ -9,6 +9,7 @@ complete -c ghfind -l limit -d "Max results" -r
 complete -c ghfind -l sort -d "Sort strategy" -r -f -a "best-match stars updated forks"
 complete -c ghfind -l token -d "GitHub token" -r
 complete -c ghfind -l trending -d "Trending mode"
+complete -c ghfind -l language -d "Trending language filter" -r -f -a "rust python typescript javascript go c c++ c# java ruby php swift kotlin zig"
 complete -c ghfind -l since -d "Trending period" -r -f -a "daily weekly monthly"
 complete -c ghfind -l pipe -d "Pipe target" -r -f -a "clone open"
 complete -c ghfind -l format -d "Output format" -r -f -a "urls names ssh-urls clone-commands ids"
@@ -20,4 +21,4 @@ complete -c ghfind -l version -d "Print version"
 complete -c ghfind -l help -d "Print help"
 complete -c ghfind -l completion -d "Shell" -r -f -a "bash zsh fish"
 
-complete -c ghfind -f -a "login init doctor org pkg mcp skill"
+complete -c ghfind -f -a "login init doctor org pkg mcp skill trending deep-dive"

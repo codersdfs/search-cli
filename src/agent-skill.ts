@@ -54,7 +54,8 @@ Formats: --json | --csv | --markdown | --count | --format urls|names|ssh-urls|cl
 
 ## Trending repositories
 
-    ghfind --trending --json [--since daily|weekly|monthly]
+    ghfind --trending --json [--since daily|weekly|monthly] [--language rust]
+    ghfind trending rust --json      # subcommand form of the same thing
 
 ## npm packages
 
@@ -67,14 +68,14 @@ Formats: --json | --csv | --markdown | --count | --format urls|names|ssh-urls|cl
 
 ## Compare repositories
 
-    ghfind --compare owner/a owner/b [--json]
-Compare is text-only; there is no JSON formatter for it yet.
+    ghfind --compare owner/a owner/b [--json|--csv|--markdown]
+Errors if fewer than 2 of the requested repos resolve; unresolved names are
+reported in text output and via the error message.
 
 ## Deep-dive a repo (languages, contributors, README)
 
-Not exposed on the CLI. Fetch directly instead:
-  curl -s https://api.github.com/repos/OWNER/REPO/languages
-  curl -s https://raw.githubusercontent.com/OWNER/REPO/main/README.md
+    ghfind deep-dive owner/repo --json
+Text output (no flag) prints the same sections formatted for the terminal.
 
 ## Rate limits
 

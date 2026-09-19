@@ -7,7 +7,7 @@ _ghfind() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  opts="--json --csv --markdown --count --limit --sort --token --trending --since --pipe --format --registry --watch --interval --version --help --completion pkg login init doctor org mcp skill"
+  opts="--json --csv --markdown --count --limit --sort --token --trending --language --since --pipe --format --registry --watch --interval --version --help --completion pkg login init doctor org mcp skill trending deep-dive"
 
   case "${prev}" in
     --sort)
@@ -32,6 +32,10 @@ _ghfind() {
       ;;
     --registry)
       COMPREPLY=( $(compgen -W "npm" -- "${cur}") )
+      return 0
+      ;;
+    --language)
+      COMPREPLY=( $(compgen -W "rust python typescript javascript go c c++ c# java ruby php swift kotlin zig" -- "${cur}") )
       return 0
       ;;
     --limit|--interval)

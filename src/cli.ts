@@ -46,7 +46,20 @@ import {
 import { checkAndNotify, allCachedReleases } from "./releases";
 import { runInitWizard } from "./init";
 import { runLoginWizard } from "./login";
-import { buildComparisonTable } from "./compare";
+import {
+  buildComparisonTable,
+  comparisonJson,
+  comparisonCsv,
+  comparisonMarkdown,
+} from "./compare";
+import {
+  fetchDeepDiveRaw,
+  buildDeepDiveData,
+  buildDeepDiveJson,
+  buildDeepDiveText,
+  resolveRepoFromRef,
+} from "./deepdive";
+import { resolveTrendingLanguage } from "./search";
 import type { Repo } from "./types";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -96,6 +109,8 @@ interface CLIFlags {
   user?: string; // user profile lookup (ghfind user <name>)
   mcp: boolean; // run the MCP server (ghfind mcp)
   skill?: string; // agent skill guide (ghfind skill [name])
+  deepDive?: string; // repo deep-dive (ghfind deep-dive <owner/repo>)
+  language?: string; // trending language filter (--trending rust / ghfind trending rust)
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -142,6 +157,23 @@ function parseArgs(args: string[]): CLIFlags {
         break;
       case "--trending":
         flags.trending = true;
+        // `ghfind --trending rust` — first bare word is the language filter
+        break;
+      case "trending": {
+        // `ghfind trending rust` — subcommand form of --trending (README has
+        // claimed this works; now it does).
+        flags.trending = true;
+        if (
+          flags.query === "" &&
+          i + 1 < args.length &&
+          !args[i + 1].startsWith("-")
+        ) {
+          flags.language = args[++i];
+        }
+        break;
+      }
+      case "--language":
+        flags.language = args[++i];
         break;
       case "--watch":
         flags.watch = true;
@@ -204,6 +236,15 @@ function parseArgs(args: string[]): CLIFlags {
       case "mcp":
         flags.mcp = true;
         break;
+      case "deep-dive": {
+        // Single repo ref (owner/name); a following flag means none.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.deepDive = next;
+          i++;
+        }
+        break;
+      }
       case "skill": {
         // Optional skill id (ids contain no spaces); a following flag means none.
         const next = args[i + 1];
@@ -284,8 +325,12 @@ Usage:
   ghfind <query> --format <fmt>    Format lines (urls|names|ssh-urls|clone-commands|ids)
   ghfind <query> --pipe <target>   Pipe to clone/open
   ghfind --trending --json         Trending repos as JSON
+  ghfind trending <lang>           Trending repos, optionally by language
   ghfind --releases                Check bookmarks for new releases
   ghfind --compare <r1> <r2>       Compare two+ repos side-by-side
+  ghfind --compare a/b c/d --json  Compare as JSON|CSV|Markdown
+  ghfind deep-dive <owner/repo>    Deep-dive: languages, contributors, README
+  ghfind deep-dive a/b --json      Deep-dive as JSON
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
   ghfind pkg <query> --json        Search npm packages, output JSON
@@ -306,6 +351,7 @@ Options:
   --sort <strategy>                    Sort: best-match|stars|updated|forks
   --theme <name>                     Theme: tokyo-night|premium-dark (default: tokyo-night)
   --trending                           Trending mode
+  --language <lang>                    Trending language filter (e.g. rust)
   --since <period>                     Trending period: daily|weekly|monthly
   --pipe <target>                      Pipe target: clone|open
   --format <fmt>                       Line format: urls|names|ssh-urls|...
@@ -384,6 +430,12 @@ Options:
         ? "markdown"
         : undefined;
 
+  // Repo deep-dive — parity with the MCP ghfind_deep_dive tool
+  if (flags.deepDive !== undefined) {
+    await runDeepDive(flags, outputFormat);
+    return;
+  }
+
   // Org profile mode — independent of repo search handlers
   // (checks presence, not truthiness, so `ghfind org` with no name errors helpfully)
   if (flags.org !== undefined) {
@@ -403,7 +455,10 @@ Options:
     flags.format ||
     flags.pipe ||
     flags.watch ||
-    flags.releases;
+    flags.releases ||
+    // `ghfind trending rust` / `ghfind --trending rust` print a list —
+    // a language filter implies non-interactive output
+    (flags.trending && (!!flags.language || !!flags.query));
 
   // Non-interactive mode
   if (isNonInteractive) {
@@ -499,6 +554,32 @@ async function runOrgProfile(
       console.log(profile.publicRepoCount);
     } else {
       console.log(formatOrgText(profile));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind deep-dive <owner/repo>` — rich repo detail: languages, contributors, README. */
+async function runDeepDive(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
+  const ref = flags.deepDive!;
+  if (!ref) {
+    console.error(
+      "Usage: ghfind deep-dive <owner/repo> [--json] [--token <t>]",
+    );
+    process.exit(1);
+  }
+  try {
+    const repo = await resolveRepoFromRef(ref, flags.token); // validates + real metadata
+    const raw = await fetchDeepDiveRaw(repo, flags.token);
+    if (outputFormat === "json") {
+      console.log(buildDeepDiveJson(raw));
+    } else {
+      console.log(buildDeepDiveText(buildDeepDiveData(repo, raw)));
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -611,6 +692,20 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
             ? "monthly"
             : "daily";
       const trendingSearch = createTrendingSearch();
+      // Language filter: validated against github.com/trending's accepted
+      // set (same validation as the MCP ghfind_trending tool).
+      let language: string | undefined;
+      try {
+        // `ghfind trending rust` puts the language in flags.language;
+        // `ghfind --trending rust` leaves it as the query's first word.
+        language = resolveTrendingLanguage(
+          flags.language ??
+            (flags.query ? flags.query.split(/\s+/)[0] : undefined),
+        );
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
       const response = await trendingSearch.search(
         { keywords: [], qualifiers: [], raw: "trending" },
         {
@@ -619,6 +714,7 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
           json: false,
           verbose: false,
           trendingSince: since,
+          ...(language ? { trendingLanguage: language } : {}),
         },
       );
       if (outputFormat) {
@@ -710,6 +806,7 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
     compare: async (_ctx) => {
       const search = createGitHubSearch(undefined, [flags.token ?? ""]);
       const repos: Repo[] = [];
+      const missing: string[] = [];
       for (const fullName of flags.compare) {
         const res = await search.search(
           { keywords: [fullName], qualifiers: [], raw: fullName },
@@ -721,9 +818,27 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
             token: flags.token,
           },
         );
-        repos.push(...res.repos);
+        if (res.repos.length > 0) repos.push(...res.repos);
+        else missing.push(fullName);
       }
-      console.log(buildComparisonTable(repos));
+      if (repos.length < 2) {
+        console.error(
+          `Could not resolve enough repos to compare (found ${repos.length}${missing.length ? `; not found: ${missing.join(", ")}` : ""}).`,
+        );
+        process.exit(1);
+      }
+      const notFound = missing.length
+        ? `\n\nNot found: ${missing.join(", ")}`
+        : "";
+      if (outputFormat === "json") {
+        console.log(comparisonJson(repos));
+      } else if (outputFormat === "csv") {
+        console.log(comparisonCsv(repos));
+      } else if (outputFormat === "markdown") {
+        console.log(comparisonMarkdown(repos));
+      } else {
+        console.log(buildComparisonTable(repos) + notFound);
+      }
     },
   };
 

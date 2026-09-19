@@ -38,19 +38,19 @@ Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https
 
 ## Why ghfind?
 
-|                                            | `ghfind` | `gh search` (GitHub CLI) | `hub` |
-| ------------------------------------------ | -------- | ------------------------ | ----- |
-| Repo search + qualifiers                   | ✅       | ✅                       | ❌    |
-| Trending repos (day/week/month/year)       | ✅       | ❌                       | ❌    |
-| Full-screen TUI, keyboard-driven           | ✅       | ❌                       | ❌    |
-| Bookmarks, tags & release tracking         | ✅       | ❌                       | ❌    |
-| Side-by-side repo compare                  | ✅       | ❌                       | ❌    |
-| Deep-dive (README, contributors, activity) | ✅       | ❌                       | ❌    |
-| npm package search                         | ✅       | ❌                       | ❌    |
-| Org profile                                | ✅       | ✅                       | ❌    |
-| User profile                               | ✅       | ❌                       | ❌    |
-| Pipeable JSON / CSV / Markdown export      | ✅       | JSON only                | ❌    |
-| No login required                          | ✅       | ❌                       | ❌    |
+|                                             | `ghfind` | `gh search` (GitHub CLI) | `hub` |
+| ------------------------------------------- | -------- | ------------------------ | ----- |
+| Repo search + qualifiers                    | ✅       | ✅                       | ❌    |
+| Trending repos (day/week/month/year)        | ✅       | ❌                       | ❌    |
+| Full-screen TUI, keyboard-driven            | ✅       | ❌                       | ❌    |
+| Bookmarks, tags & release tracking          | ✅       | ❌                       | ❌    |
+| Side-by-side repo compare (JSON/CSV/MD)     | ✅       | ❌                       | ❌    |
+| Deep-dive (languages, contributors, README) | ✅       | ❌                       | ❌    |
+| npm package search                          | ✅       | ❌                       | ❌    |
+| Org profile                                 | ✅       | ✅                       | ❌    |
+| User profile                                | ✅       | ❌                       | ❌    |
+| Pipeable JSON / CSV / Markdown export       | ✅       | JSON only                | ❌    |
+| No login required                           | ✅       | ❌                       | ❌    |
 
 > **No separate runtime needed!** Only requires Node.js 20+. The TUI needs Bun,
 > which is downloaded automatically at install time. Non-interactive modes work
@@ -88,9 +88,12 @@ ghfind "query" --format urls # one URL per line
 ghfind "query" --pipe open   # open in browser
 ghfind "query" --pipe clone  # clone commands
 ghfind --trending --json     # trending as JSON
+ghfind trending rust --json  # trending, filtered by language
 ghfind --watch "query"       # poll every 300s
 ghfind --releases            # new releases for bookmarked repos
 ghfind --compare a/b c/d     # side-by-side comparison
+ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
+ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
 ghfind pkg "query" --json    # npm package search as JSON
 ```
 
@@ -281,14 +284,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 335 tests
+bun test         # 355 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 335 tests
+npm test         # 355 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -300,6 +303,13 @@ npm run build    # build dist/
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+### v9.7.0
+
+- **CLI parity with the MCP tools** — `ghfind deep-dive <owner/repo>` (languages, contributors, README excerpt, `--json`), `ghfind --compare` with `--json|--csv|--markdown`, and a trending language filter (`ghfind trending rust`, `--trending <lang>`)
+- **Deep-dive metadata fix** — real stars, description, and topics are fetched first instead of a zeroed stub; a 404 exits with `Repo not found`
+- Fixed `ghfind mcp` failing to typecheck (JSON-RPC id narrowing; runtime behavior unchanged)
+- The MCP server and CLI now share repo-ref parsing, language validation, and the deep-dive pipeline
 
 ### v9.6.0
 
@@ -313,12 +323,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
 - Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
 - Fixed the update panel clipping the changelog — release notes are now scrollable (`↑↓`/`j`/`k`, `PgUp`/`PgDn`, `Home`/`End`) in a taller panel
-
-### v9.5.0
-
-- New `ghfind user <name>` command — user profiles like `ghfind org`: repos, total stars/forks, followers, top languages, top repos
-- Supports `--json`, `--csv`, `--markdown`, `--count`, `--limit`, `--token`; `@` prefix accepted
-- Fixed `ghfind org` mangling multi-word names with dashes
 
 ---
 

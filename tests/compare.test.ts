@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildComparisonTable } from "../src/compare.ts";
+import {
+  buildComparisonTable,
+  comparisonJson,
+  comparisonCsv,
+  comparisonMarkdown,
+} from "../src/compare.ts";
 import type { Repo } from "../src/types.ts";
 
 const makeRepo = (
@@ -71,5 +76,52 @@ describe("compare", () => {
     expect(table).toContain("Updated");
     expect(table).toContain("2023-01");
     expect(table).toContain("2024-06-15");
+  });
+});
+
+describe("comparison exports", () => {
+  const repos = [
+    makeRepo("a", 1000, 100, "Rust"),
+    makeRepo("b", 2000, 200, "TypeScript"),
+  ];
+
+  it("comparisonJson emits a repo array with the comparison fields", () => {
+    const parsed = JSON.parse(comparisonJson(repos));
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toMatchObject({
+      fullName: "owner/a",
+      stars: 1000,
+      forks: 100,
+      language: "Rust",
+      url: "https://github.com/owner/a",
+    });
+  });
+
+  it("comparisonCsv has a header row and one row per repo", () => {
+    const lines = comparisonCsv(repos).split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toBe(
+      "full_name,stars,forks,language,created,updated,archived,url",
+    );
+    expect(lines[1]).toContain("owner/a");
+    expect(lines[1]).toContain("1000");
+  });
+
+  it("comparisonCsv escapes values containing commas", () => {
+    const tricky = [makeRepo("x", 1, 1, "a,b lang")];
+    const lines = comparisonCsv([tricky[0], makeRepo("y", 2, 2, "Go")]).split(
+      "\n",
+    );
+    expect(lines[1]).toContain('"a,b lang"');
+  });
+
+  it("comparisonMarkdown links the repo names", () => {
+    const md = comparisonMarkdown(repos);
+    expect(md).toContain(
+      "| Repo | Stars | Forks | Language | Created | Updated | Topics |",
+    );
+    expect(md).toContain("[owner/a](https://github.com/owner/a)");
+    expect(md).toContain("1,000");
   });
 });
