@@ -1,14 +1,14 @@
 // Tests for `ghfind login` token management.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { join } from "path";
-import { tmpdir } from "os";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
-} from "fs";
+} from "node:fs";
 import {
   parseHostsYmlToken,
   readGhCliToken,

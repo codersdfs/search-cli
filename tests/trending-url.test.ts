@@ -4,7 +4,6 @@ import {
   buildTrendingUrl,
   TRENDING_LANGUAGES,
   resolveTrendingLanguage,
-  trendingLanguageSlug,
 } from "../src/search.ts";
 
 describe("buildTrendingUrl", () => {

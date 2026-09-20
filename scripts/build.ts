@@ -2,7 +2,7 @@
  * Build script — compile ghfind for distribution.
  * Usage: npm run build
  */
-import { execFileSync } from "child_process";
+import { execFileSync } from "node:child_process";
 
 async function main() {
   console.log("Building ghfind...");

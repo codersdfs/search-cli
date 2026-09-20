@@ -4,7 +4,7 @@
  * The TUI view layer reads from SearchState and dispatches actions.
  * This module is testable without the OpenTUI renderer.
  */
-import type { Repo, SearchOptions, SortStrategy, SessionState } from "./types";
+import type { Repo, SortStrategy, SessionState } from "./types";
 import type { TabName } from "./trending";
 import { tabSince } from "./trending";
 import {
@@ -24,7 +24,6 @@ import {
   touchSavedSearch,
 } from "./saved-searches";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
-import { fetchTopics } from "./explore";
 import { loadConfig } from "./config";
 
 export type Overlay =
@@ -131,8 +130,6 @@ export class SearchStateManager {
         timestamp: Date.now(),
         resultCount: response.repos.length,
       });
-    } catch (err) {
-      throw err;
     } finally {
       this.state.isLoading = false;
     }

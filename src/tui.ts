@@ -38,6 +38,8 @@ import type {
   SortStrategy,
   Package,
   SessionState,
+  HistoryEntry,
+  SavedSearch,
 } from "./types";
 import { fetchOrgProfile, type OrgProfile } from "./org";
 import {
@@ -54,13 +56,7 @@ import {
 import { tabSince, TAB_NAMES, fmtStars } from "./trending";
 import { loadConfig, saveConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
-import {
-  SearchCliError,
-  NetworkError,
-  RateLimitError,
-  BadQueryError,
-  NoResultsError,
-} from "./errors";
+import { SearchCliError, NoResultsError } from "./errors";
 import {
   appendHistory,
   readHistory,
@@ -68,12 +64,7 @@ import {
   clearHistory,
   rotateHistory,
 } from "./history";
-import {
-  getBookmarks,
-  isBookmarked,
-  toggleBookmark,
-  removeBookmark,
-} from "./bookmarks";
+import { getBookmarks, toggleBookmark, removeBookmark } from "./bookmarks";
 import {
   getSavedSearches,
   saveSearch,
@@ -84,7 +75,7 @@ import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { renderMarkdown } from "./markdown-render";
-import { fetchTopics, type TopicItem } from "./explore";
+import { fetchTopics } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
 import {
   listThemes,
@@ -269,8 +260,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   let currentPage = 1;
   let totalCount = 0;
   let deepDiveActive = false;
-  let compareList: Repo[] = [];
-  let quitArmed = false;
+  const compareList: Repo[] = [];
+  const _quitArmed = false;
 
   const header = new TextRenderable(renderer, {
     content:
@@ -1259,7 +1250,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   function popMenuLevel(): boolean {
     if (menuStack.length <= 1) return false;
     const prev = menuStack[menuStack.length - 2];
-    const current = menuStack.pop()!;
+    const current = menuStack.pop();
+    if (!current) return false;
     leaderSelect.options = prev.entries.map((e) => ({
       name:
         e.type === "category" ? `  ${e.icon} ${e.name} \u2192` : `  ${e.name}`,
@@ -1283,7 +1275,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   function buildMenuHierarchy(): MenuCategory[] {
     const hasRepo = (() => {
       const opt = resultsSelect.getSelectedOption();
-      return opt?.value && typeof (opt.value as any)?.fullName === "string";
+      return (
+        opt?.value &&
+        typeof (opt.value as { fullName?: unknown })?.fullName === "string"
+      );
     })();
 
     const groups: MenuCategory[] = [];
@@ -1694,7 +1689,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (currentQueryInput) {
       const name =
         currentQueryInput.length > 40
-          ? currentQueryInput.slice(0, 37) + "..."
+          ? `${currentQueryInput.slice(0, 37)}...`
           : currentQueryInput;
       saveSearch(
         name,
@@ -1925,16 +1920,11 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     statusBar.content = ` ${text}`;
     renderer.requestRender();
   });
-
-  // ── Startup tip ──
-  if (config.theme !== undefined || true) {
-    // Show a tip after 2s idle
-    setTimeout(() => {
-      if (currentOverlay === "none") {
-        setStatus(nextTip());
-      }
-    }, 2000);
-  }
+  setTimeout(() => {
+    if (currentOverlay === "none") {
+      setStatus(nextTip());
+    }
+  }, 2000);
 
   // ── Helper functions ────────────────────────────────────────────────
 
@@ -2097,7 +2087,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
           val >= 1000
             ? `${(val / 1000).toFixed(1).replace(/\.0$/, "")}k`
             : String(val);
-        label = label.padStart(5) + " ";
+        label = `${label.padStart(5)} `;
       }
       lines.push(`${label}┆${chars.join("")}`);
     }
@@ -2624,7 +2614,8 @@ ${pack.description ?? ""}`;
         if (key.name === "d") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
-            deleteHistoryEntry((sel.value as any).index);
+            const idx = (sel.value as { index?: number }).index;
+            if (idx !== undefined) deleteHistoryEntry(idx);
             refreshHistory();
             setStatus("Deleted history entry");
           }
@@ -2641,8 +2632,9 @@ ${pack.description ?? ""}`;
         if (key.name === "enter" || key.name === "return") {
           const sel = historySelect.getSelectedOption();
           if (sel?.value) {
-            const entry = (sel.value as any).entry;
+            const entry = (sel.value as { entry?: HistoryEntry }).entry;
             showOverlay("none");
+            if (!entry) return;
             if (entry.mode === "trending") {
               if (entry.tab)
                 trendingTab = entry.tab as (typeof TAB_NAMES)[number];
@@ -2663,7 +2655,10 @@ ${pack.description ?? ""}`;
         if (key.name === "d") {
           const sel = bookmarksSelect.getSelectedOption();
           if (sel?.value) {
-            removeBookmark((sel.value as any).repo.fullName);
+            removeBookmark(
+              (sel.value as { repo?: { fullName: string } }).repo?.fullName ??
+                "",
+            );
             refreshBookmarks();
             setStatus("Bookmark removed");
           }
@@ -2672,7 +2667,8 @@ ${pack.description ?? ""}`;
         }
         if (key.name === "enter" || key.name === "return") {
           const sel = bookmarksSelect.getSelectedOption();
-          if (sel?.value) openUrl((sel.value as any).repo.url);
+          if (sel?.value)
+            openUrl((sel.value as { repo?: { url?: string } }).repo?.url ?? "");
           return;
         }
         return;
@@ -2683,7 +2679,7 @@ ${pack.description ?? ""}`;
         if (key.name === "d") {
           const sel = savedSelect.getSelectedOption();
           if (sel?.value) {
-            deleteSavedSearch((sel.value as any).name);
+            deleteSavedSearch((sel.value as { name?: string }).name ?? "");
             refreshSavedSearches();
             setStatus("Saved search deleted");
           }
@@ -2693,7 +2689,7 @@ ${pack.description ?? ""}`;
         if (key.name === "enter" || key.name === "return") {
           const sel = savedSelect.getSelectedOption();
           if (sel?.value) {
-            const s = sel.value as any;
+            const s = sel.value as SavedSearch;
             showOverlay("none");
             touchSavedSearch(s.name);
             if (s.mode === "trending") {
@@ -2718,9 +2714,9 @@ ${pack.description ?? ""}`;
         if (key.name === "enter" || key.name === "return") {
           const sel = topicsSelect.getSelectedOption();
           if (sel?.value) {
-            const topic = sel.value as any;
+            const topic = sel.value as { name?: string };
             showOverlay("none");
-            searchInput.value = `topic:${topic.name}`;
+            searchInput.value = `topic:${topic.name ?? ""}`;
             showSearchMode();
             doSearch(`topic:${topic.name}`);
           }
@@ -2973,7 +2969,7 @@ ${pack.description ?? ""}`;
     // Number keys 1-5 switch trending tabs (only in trending mode)
     if (/^[1-5]$/.test(key.name)) {
       if (currentMode === "trending") {
-        const idx = parseInt(key.name) - 1;
+        const idx = parseInt(key.name, 10) - 1;
         if (idx >= 0 && idx < TAB_NAMES.length) {
           trendingTab = TAB_NAMES[idx];
           loadTrending();
@@ -3025,16 +3021,16 @@ ${pack.description ?? ""}`;
   });
 
   // ── Update check (before start) ──────────────────────────────────────
-  const currentVersion = getVersion();
+  const _currentVersion = getVersion();
   // ── Start ──────────────────────────────────────────────────────────
   // Check for updates (non-blocking — doesn't delay TUI startup)
-  if (!session || !session.mode) {
+  if (!session?.mode) {
     showLanding(true);
   }
   checkForUpdateAndShow();
   checkPostUpgradePanel();
   renderer.start();
-  if (session && session.mode) {
+  if (session?.mode) {
     if (currentMode === "trending") {
       loadTrending();
     } else {

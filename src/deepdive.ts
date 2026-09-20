@@ -1,6 +1,5 @@
 /** Repo deep-dive — fetch and format rich repo details. */
 import type { Repo } from "./types";
-import { NetworkError } from "./errors";
 
 const USER_AGENT = "ghfind/1.0";
 

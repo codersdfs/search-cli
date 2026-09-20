@@ -7,9 +7,9 @@
  *   3. ~/.config/ghfind/config.json
  */
 import type { Config } from "./types";
-import { homedir } from "os";
-import { join } from "path";
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 /** Directory for persistent state (history, bookmarks, session). */
 export function stateDir(): string {

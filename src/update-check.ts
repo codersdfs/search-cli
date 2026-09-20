@@ -5,12 +5,13 @@
  * Persists check state in the XDG state dir via storage.ts.
  */
 import { readJSON, writeJSON, debugLog } from "./storage";
-import { stateDir } from "./config";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { join, dirname, posix } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const REGISTRY_URL = "https://registry.npmjs.org/github-search-cli/latest";
+// The npm package name is `github-search-cli`; `ghfind` is the bin name.
+const PKG_NAME = "github-search-cli";
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REQUEST_TIMEOUT_MS = 5000;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -147,39 +148,100 @@ export function suppressUpdateNotices(): void {
 }
 
 /**
- * Attempt to update ghfind in-place.
- * Uses `process.versions.bun` for reliable runtime detection (works on all platforms).
+ * Where the running install lives and which package manager owns it.
+ *
+ * Detection walks up from the package dir to its `node_modules` ancestor:
+ * - npm global install: `<prefix>/node_modules/<pkg>` (Windows) or
+ *   `<prefix>/lib/node_modules/<pkg>` (Unix)
+ * - Bun global install: `<bun-home>/install/global/node_modules/<pkg>`
+ * - Anything else (compiled binary, `bunx`/`npx` cache edges, dev checkout
+ *   without a `node_modules` ancestor): `null` — self-update is refused
+ *   rather than npm-installing a copy the user isn't running.
  */
-export async function performUpdate(): Promise<boolean> {
-  // The npm package name is `github-search-cli`; `ghfind` is the bin name.
-  const pkg = "github-search-cli";
-  const isBun =
-    typeof process.versions !== "undefined" && "bun" in process.versions;
-  const cmd = isBun
-    ? ["bun", "install", "-g", pkg]
-    : ["npm", "install", "-g", pkg];
+export interface InstallLocation {
+  channel: "npm" | "bun";
+  /** npm prefix that owns the running install (npm channel only). */
+  prefix?: string;
+}
 
+/**
+ * Detect the install channel and owning npm prefix for a package directory.
+ * Separators are normalized so layouts match regardless of the host OS.
+ */
+export function detectInstallLocation(pkgDir: string): InstallLocation | null {
+  const norm = pkgDir.split("\\").join("/");
+  const nodeModules = posix.dirname(norm);
+  if (posix.basename(nodeModules) !== "node_modules") return null;
+  const owner = posix.dirname(nodeModules);
+  // Bun's global root is ~/.bun by default (BUN_INSTALL override may rename
+  // it, but the default layout is what `bun install -g` produces for the
+  // overwhelming majority of installs).
+  if (/(^|\/)\.bun(\/|$)/.test(owner)) return { channel: "bun" };
+  // Unix npm global layout nests one level deeper: <prefix>/lib/node_modules
+  const prefix = posix.basename(owner) === "lib" ? posix.dirname(owner) : owner;
+  return { channel: "npm", prefix };
+}
+
+/**
+ * Build the install command for an update, targeting the npm prefix that
+ * owns the running install. Under Bun this must NOT be `bun install -g`:
+ * that writes to Bun's own global dir, leaving the running npm copy stale
+ * while still exiting 0.
+ */
+export function buildUpdateCommand(loc: InstallLocation): string[] {
+  if (loc.channel === "bun") return ["bun", "install", "-g", PKG_NAME];
+  const args = ["npm", "install", "-g"];
+  if (loc.prefix) args.push("--prefix", loc.prefix);
+  args.push(PKG_NAME);
+  return args;
+}
+
+/** Minimal quoting for win32 spawns, which go through a shell. */
+function quoteWin32(arg: string): string {
+  return /\s/.test(arg) ? `"${arg}"` : arg;
+}
+
+/**
+ * Attempt to update ghfind in-place.
+ *
+ * Runs the install command through `node:child_process` on every runtime
+ * (works under Bun and Node alike; on Windows npm is `npm.cmd`, which needs
+ * `shell: true` to resolve). Always returns a definitive boolean — the TUI
+ * surfaces false as "Update failed".
+ */
+export async function performUpdate(
+  location: InstallLocation | null = detectInstallLocation(PKG_DIR),
+): Promise<boolean> {
+  if (!location) {
+    debugLog(
+      "Update skipped: the running install is not under a node_modules tree " +
+        "(compiled binary or dev checkout). Update it manually.",
+    );
+    return false;
+  }
+  const argv = buildUpdateCommand(location);
   try {
-    if (isBun) {
-      const proc = Bun.spawn(cmd, {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      await proc.exited;
-      if (proc.exitCode !== 0) {
-        const err = await proc.stderr.text();
-        debugLog(`Install failed (code ${proc.exitCode}): ${err}`);
-      }
-      return proc.exitCode === 0;
-    }
-    // Node fallback
-    const { spawn } = await import("child_process");
-    return await new Promise<boolean>((resolve) => {
-      const proc = spawn(cmd[0], cmd.slice(1), { stdio: "ignore" });
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
+    const { spawn } = await import("node:child_process");
+    const useShell = process.platform === "win32";
+    const proc = spawn(
+      argv[0],
+      useShell ? argv.slice(1).map(quoteWin32) : argv.slice(1),
+      { stdio: ["ignore", "ignore", "pipe"], shell: useShell },
+    );
+    let stderr = "";
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderr += String(chunk);
     });
-  } catch {
+    const code = await new Promise<number | null>((resolve) => {
+      proc.on("close", (c) => resolve(c));
+      proc.on("error", () => resolve(-1));
+    });
+    if (code !== 0) {
+      debugLog(`Install failed (code ${code}): ${stderr.trim()}`);
+    }
+    return code === 0;
+  } catch (e) {
+    debugLog(`Update failed: ${e instanceof Error ? e.message : String(e)}`);
     return false;
   }
 }
@@ -215,7 +277,7 @@ export function fetchReleaseNotes(version: string): string | null {
     const changelogPath = join(PKG_DIR, "CHANGELOG.md");
     const changelog = readFileSync(changelogPath, "utf-8");
     // ponytail: find "## [version]" header, slice until next "## "
-    const header = "## [" + version + "]";
+    const header = `## [${version}]`;
     const start = changelog.indexOf(header);
     if (start === -1) return null;
     const bodyStart = start + header.length;

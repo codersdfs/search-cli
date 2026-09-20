@@ -37,13 +37,14 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "lint": "bunx biome@2.5.13 check .",
+    "lint": "biome check .",
     "check": "prettier --check . && bun test"
   },
   "dependencies": {
     "@opentui/core": "^0.4.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "prettier": "^3.2.0",

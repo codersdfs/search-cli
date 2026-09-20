@@ -5,7 +5,7 @@
  * clone-commands, ids) register in a single registry. One `format()` function
  * dispatches. `exportToFile` and `pipeExec` are methods on the same module.
  */
-import { writeFileSync } from "fs";
+import { writeFileSync } from "node:fs";
 import type { Repo } from "./types";
 import { openUrl } from "./open-url";
 

@@ -19,7 +19,7 @@ export function formatShare(repo: Repo, format: ShareFormat): string {
 }
 
 /** Copy text to clipboard via platform command. */
-import { spawn } from "child_process";
+import { spawn } from "node:child_process";
 
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -46,7 +46,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 async function findLinuxClipboard(): Promise<string[] | null> {
-  const { execFileSync } = await import("child_process");
+  const { execFileSync } = await import("node:child_process");
   try {
     execFileSync("xclip", ["-version"], { stdio: "ignore" });
     return ["xclip", "-selection", "clipboard"];

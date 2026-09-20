@@ -21,8 +21,8 @@ bun run dev     # TUI with live reload
 | `bun test`          | Run the test suite (Bun's runner)             |
 | `bun run check`     | Green gate — Prettier check + full test suite |
 | `bun run format`    | Format everything with Prettier               |
-| `bun run typecheck` | `tsc --noEmit` (see _Known gaps_ below)       |
-| `bun run lint`      | Biome lint (see _Known gaps_ below)           |
+| `bun run typecheck` | `tsc --noEmit`                                |
+| `bun run lint`      | Biome lint (`biome check .`)                  |
 | `bun run build`     | Build `dist/` via tsup                        |
 
 ## Conventions
@@ -52,15 +52,16 @@ bun run dev     # TUI with live reload
   working; compile binaries can't read `package.json` from disk, so version
   must flow through `src/version.ts`.
 
-## Known gaps (status quo, not yours to fix unless you take the ticket)
+## Quality gates
 
-| Area                | Status                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bun run typecheck` | Fails on `@opentui/core` 0.4.5 type drift (code uses 0.4.3-era `color`/`backgroundColor` options). Tracked in [.issues/tickets/typecheck-opentui-drift.md](.issues/tickets/typecheck-opentui-drift.md). |
-| `bun run lint`      | Biome 2.x configured with `recommended: true`; first clean baseline is tracked in [.issues/tickets/typecheck-opentui-drift.md](.issues/tickets/typecheck-opentui-drift.md).                             |
-
-The green gate (`bun run check`), release workflow, and CI all deliberately
-exclude both until those tickets land.
+All four gates are green and enforced: `bun test`, `bun run format:check`,
+`bun run lint` (Biome 2.5.14), and `bun run typecheck` (`tsc --noEmit`). CI
+runs all four on every push/PR; `bun run check` (Prettier + tests) is the
+local fast path. Lint policy: `tests/**` tolerates `!` assertions and `any`
+in mocks (biome.json overrides); `tests/fixtures/**` is excluded as test
+data. The former typecheck/lint known gaps are closed — see
+[.issues/tickets/typecheck-opentui-drift.md](.issues/tickets/typecheck-opentui-drift.md)
+for the resolution record.
 
 ## Releasing
 

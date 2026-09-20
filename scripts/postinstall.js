@@ -13,12 +13,12 @@ import {
   chmodSync,
   writeFileSync,
   readFileSync,
-} from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { platform, arch } from "os";
-import { spawnSync } from "child_process";
-import { inflateRawSync } from "zlib";
+} from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { platform, arch } from "node:os";
+import { spawnSync } from "node:child_process";
+import { inflateRawSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -121,8 +121,8 @@ try {
   let cdOffset = buffer.indexOf(cdSig, 0);
   while (cdOffset !== -1) {
     const nameLen = buffer.readUInt16LE(cdOffset + 28);
-    const extraLen = buffer.readUInt16LE(cdOffset + 30);
-    const commentLen = buffer.readUInt16LE(cdOffset + 32);
+    const _extraLen = buffer.readUInt16LE(cdOffset + 30);
+    const _commentLen = buffer.readUInt16LE(cdOffset + 32);
     const localHeaderOffset = buffer.readUInt32LE(cdOffset + 42);
     const compSize = buffer.readUInt32LE(cdOffset + 20);
     const compMethod = buffer.readUInt16LE(cdOffset + 10);

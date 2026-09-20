@@ -27,7 +27,7 @@ describe("error-report", () => {
     // 80 char title + "[bug] " prefix; URLSearchParams encodes the rest
     const m = url.match(/title=([^&]+)/);
     expect(m).not.toBeNull();
-    const decoded = decodeURIComponent(m![1]);
+    const decoded = decodeURIComponent(m?.[1] ?? "");
     expect(decoded.length).toBeLessThanOrEqual("[bug] ".length + 80);
   });
 

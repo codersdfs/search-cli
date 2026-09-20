@@ -6,9 +6,9 @@
  * standalone single-file binaries where package.json is not present.
  * Fallback: read package.json relative to this module (source / dist trees).
  */
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 declare const __GHFIND_VERSION__: string | undefined;
 

@@ -26,12 +26,12 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     if (codeLines.length === 0) return;
     const maxLen = Math.max(...codeLines.map((l) => l.length), codeLang.length);
     const barW = Math.min(maxLen + 4, width - 2);
-    out.push("┌" + "─".repeat(barW) + "┐");
-    if (codeLang) out.push("│ " + codeLang.padEnd(barW - 1) + "│");
+    out.push(`┌${"─".repeat(barW)}┐`);
+    if (codeLang) out.push(`│ ${codeLang.padEnd(barW - 1)}│`);
     for (const cl of codeLines) {
-      out.push("│ " + cl.padEnd(barW - 1) + "│");
+      out.push(`│ ${cl.padEnd(barW - 1)}│`);
     }
-    out.push("└" + "─".repeat(barW) + "┘");
+    out.push(`└${"─".repeat(barW)}┘`);
     out.push("");
     codeLines = [];
     codeLang = "";
@@ -54,16 +54,16 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     const totalW = colW.reduce((a, b) => a + b, 0) + colCount * 3 - 1;
     if (totalW > width) {
       for (const row of dataRows) {
-        out.push("  " + row.map((c) => c.trim()).join(" │ "));
+        out.push(`  ${row.map((c) => c.trim()).join(" │ ")}`);
       }
     } else {
-      const sep = "┌" + colW.map((w) => "─".repeat(w + 2)).join("┬") + "┐";
-      const mid = "├" + colW.map((w) => "─".repeat(w + 2)).join("┼") + "┤";
-      const end = "└" + colW.map((w) => "─".repeat(w + 2)).join("┴") + "┘";
+      const sep = `┌${colW.map((w) => "─".repeat(w + 2)).join("┬")}┐`;
+      const mid = `├${colW.map((w) => "─".repeat(w + 2)).join("┼")}┤`;
+      const end = `└${colW.map((w) => "─".repeat(w + 2)).join("┴")}┘`;
       out.push(sep);
       dataRows.forEach((row, i) => {
         const cells = colW.map((w, ci) => (row[ci] ?? "").trim().padEnd(w));
-        out.push("│ " + cells.map((c) => ` ${c} `).join("│") + "│");
+        out.push(`│ ${cells.map((c) => ` ${c} `).join("│")}│`);
         if (i === 0) out.push(mid);
       });
       out.push(end);
@@ -102,7 +102,7 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
   }
 
   for (let i = 0; i < lines.length; i++) {
-    let line = lines[i];
+    const line = lines[i];
 
     // Code block boundaries
     if (/^```/.test(line)) {
@@ -160,7 +160,7 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     if (bqMatch) {
       const inner = renderInline(bqMatch[1]);
       for (const wl of wrapLine(inner, width - 4)) {
-        out.push("│ " + wl);
+        out.push(`│ ${wl}`);
       }
       continue;
     }
@@ -170,7 +170,7 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     if (ulMatch) {
       const indent = ulMatch[1].length;
       const depth = Math.floor(indent / 2);
-      const prefix = "  ".repeat(depth) + "• ";
+      const prefix = `${"  ".repeat(depth)}• `;
       const inner = renderInline(ulMatch[2]);
       for (const wl of wrapLine(inner, width - prefix.length)) {
         out.push(prefix + wl);
@@ -183,7 +183,7 @@ export function renderMarkdown(md: string, opts: RenderOptions = {}): string {
     if (olMatch) {
       const indent = olMatch[1].length;
       const depth = Math.floor(indent / 2);
-      const prefix = "  ".repeat(depth) + "◦ ";
+      const prefix = `${"  ".repeat(depth)}◦ `;
       const inner = renderInline(olMatch[2]);
       for (const wl of wrapLine(inner, width - prefix.length)) {
         out.push(prefix + wl);

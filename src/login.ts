@@ -6,10 +6,10 @@
  * used by `ghfind init` (~/.config/ghfind/config.json). `GITHUB_TOKEN` in the
  * environment always takes precedence at runtime (see src/config.ts).
  */
-import { createInterface } from "readline";
-import { homedir } from "os";
-import { join } from "path";
-import { existsSync, readFileSync } from "fs";
+import { createInterface } from "node:readline";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { loadConfig, saveConfig, configPath } from "./config";
 import type { Config } from "./types";
 

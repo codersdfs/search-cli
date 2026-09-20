@@ -22,11 +22,9 @@ import { runDoctor } from "./doctor";
 import { reportError } from "./error-report";
 import {
   format as formatOutput,
-  exportToFile,
   pipeExec,
   type Format,
   type ExportFormat,
-  type FormatLine,
 } from "./output";
 import { runWatch } from "./watch";
 import {
@@ -61,9 +59,9 @@ import {
 } from "./deepdive";
 import { resolveTrendingLanguage } from "./search";
 import type { Repo } from "./types";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./tui";
 import { getVersion } from "./version";
 import { runMcpServer } from "./mcp-server";
@@ -139,7 +137,7 @@ function parseArgs(args: string[]): CLIFlags {
     mcp: false,
   };
 
-  let queryParts: string[] = [];
+  const queryParts: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
@@ -200,8 +198,8 @@ function parseArgs(args: string[]): CLIFlags {
         flags.login = true;
         break;
       case "--limit": {
-        const parsed = parseInt(args[++i]);
-        if (isNaN(parsed) || parsed < 1 || parsed > 100) {
+        const parsed = parseInt(args[++i], 10);
+        if (Number.isNaN(parsed) || parsed < 1 || parsed > 100) {
           console.error(`Invalid limit: must be 1-100. Using default 50.`);
           flags.limit = 50;
         } else {
@@ -513,7 +511,12 @@ async function runUserProfile(
   outputFormat?: ExportFormat,
 ): Promise<void> {
   try {
-    const profile = await fetchUserProfile(flags.user!, {
+    const user = flags.user ?? "";
+    if (!user) {
+      console.error("Usage: ghfind user <name> [--json] [--token <t>]");
+      process.exit(1);
+    }
+    const profile = await fetchUserProfile(user, {
       token: flags.token,
       limit: flags.limit,
     });
@@ -540,7 +543,12 @@ async function runOrgProfile(
   outputFormat?: ExportFormat,
 ): Promise<void> {
   try {
-    const profile = await fetchOrgProfile(flags.org!, {
+    const org = flags.org ?? "";
+    if (!org) {
+      console.error("Usage: ghfind org <name> [--json] [--token <t>]");
+      process.exit(1);
+    }
+    const profile = await fetchOrgProfile(org, {
       token: flags.token,
       limit: flags.limit,
     });
@@ -566,7 +574,7 @@ async function runDeepDive(
   flags: CLIFlags,
   outputFormat?: ExportFormat,
 ): Promise<void> {
-  const ref = flags.deepDive!;
+  const ref = flags.deepDive;
   if (!ref) {
     console.error(
       "Usage: ghfind deep-dive <owner/repo> [--json] [--token <t>]",
@@ -684,7 +692,7 @@ async function runReleases(
 async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
   // Dispatch table: each handler receives shared context + flags, returns void.
   const handlers: Record<string, (ctx: SearchContext) => Promise<void>> = {
-    trending: async (ctx) => {
+    trending: async (_ctx) => {
       const since =
         flags.since === "weekly"
           ? "weekly"
@@ -773,7 +781,7 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         token: flags.token,
       });
       const repos = rankRepos(response.repos, flags.sort);
-      await pipeExec(repos, flags.pipe!);
+      if (flags.pipe) await pipeExec(repos, flags.pipe);
     },
     format: async (ctx) => {
       const response = await ctx.provider.search(ctx.parsed, {

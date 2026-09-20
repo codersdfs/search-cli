@@ -2,7 +2,7 @@
  * Watch mode — periodically re-run a search and show changes.
  *
  */
-import type { ParsedQuery, SearchOptions, Repo } from "./types";
+import type { SearchOptions, Repo } from "./types";
 import {
   parseQuery,
   applyFlagFilters,

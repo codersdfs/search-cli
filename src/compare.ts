@@ -52,9 +52,9 @@ export function buildComparisonTable(repos: Repo[]): string {
   const sep = ["".padEnd(14, "─"), ...names.map(() => "".padEnd(colW, "─"))];
 
   const lines: string[] = [
-    "┌" + sep.map((s) => "─" + s + "─").join("┬") + "┐",
-    "│" + header.map((h) => ` ${h} `).join("│") + "│",
-    "├" + sep.map((s) => "─" + s + "─").join("┼") + "┤",
+    `┌${sep.map((s) => `─${s}─`).join("┬")}┐`,
+    `│${header.map((h) => ` ${h} `).join("│")}│`,
+    `├${sep.map((s) => `─${s}─`).join("┼")}┤`,
   ];
 
   for (const row of rows) {
@@ -62,10 +62,10 @@ export function buildComparisonTable(repos: Repo[]): string {
       row.label.padEnd(14),
       ...row.values.map((v) => v.padEnd(colW)),
     ];
-    lines.push("│" + cells.map((c) => ` ${c} `).join("│") + "│");
+    lines.push(`│${cells.map((c) => ` ${c} `).join("│")}│`);
   }
 
-  lines.push("└" + sep.map((s) => "─" + s + "─").join("┴") + "┘");
+  lines.push(`└${sep.map((s) => `─${s}─`).join("┴")}┘`);
   return lines.join("\n");
 }
 

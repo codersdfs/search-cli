@@ -49,7 +49,7 @@ function formatPackageLine(pack: Package): StyledText {
   const scoreStr = `score ${pack.score.toFixed(2)}`.padEnd(12).slice(0, 12);
   const desc =
     (pack.description ?? "").length > 60
-      ? (pack.description ?? "").slice(0, 57) + "..."
+      ? `${(pack.description ?? "").slice(0, 57)}...`
       : (pack.description ?? "");
   const line1 = t`${bold(fg(C.nameText)(nameStr))}${fg(C.cyan)(dlStr)}${fg(C.gold)(scoreStr)}`;
   const line2 = t`${dim(fg(C.descText)(`     ${desc}`))}`;

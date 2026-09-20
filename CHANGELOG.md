@@ -6,6 +6,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Windows: URLs with query params were truncated at the first `&`** when opened via `cmd /c start` (every pre-filled crash-report/issue link lost its body and labels). Both openers now use `explorer.exe` on Windows, which receives the URL as a single argument.
+- **`open-url.ts` crashed under Node** (`Bun.spawn` unconditional); now runtime-agnostic with a detached `child_process.spawn` fallback.
+- **`--doctor` now detects stale/PATH-shadowing global installs** — multiple `ghfind` copies resolving to different versions are flagged with their prefixes and the exact uninstall command. This is the "updater said OK but nothing changed" trap.
+- Lint gate was permanently broken: `package.json` pinned `biome@2.5.13` (package never existed on npm); now uses `@biomejs/biome` ^2.5.14 with a migrated `biome.json`.
+- First clean lint baseline: 198 diagnostics triaged (auto-fixes + hand-fixes, incl. a dead `|| true` gate in `tui.ts` startup tips and an unsafe-autofix regression in `TrendingAdapter`); `tests/**` lint overrides for mocks/assertions; `tests/fixtures/**` excluded. CI now runs lint + typecheck on every push/PR (previously excluded as known-broken).
+- `mcp-server.ts`: assignment-in-expression violations; `trending-parser.ts`: stateful `RegExp.exec` loop replaced with `matchAll` (lastIndex reuse hazard); `themes.ts`: documented ANSI control-char regex.
+
+### Fixed
+
+- **In-app update installed to the wrong location when running under Bun** —
+  `performUpdate()` ran `bun install -g github-search-cli`, which targets
+  Bun's own global dir (`~/.bun`), not the npm prefix the running copy and
+  its `ghfind` shim live in. The command exited 0 while the running install
+  never changed. The updater now detects which package manager owns the
+  running tree (`detectInstallLocation`: npm global vs `~/.bun` global) and
+  shells out to `npm install -g --prefix <prefix>` for npm-owned installs,
+  so the update lands exactly where the running install is.
+- **Node fallback could not launch npm on Windows** — `child_process.spawn`
+  without a shell cannot execute `npm.cmd` (and recent Node rejects it with
+  `EINVAL`). The update spawn now goes through `node:child_process` on every
+  runtime with `shell: true` on win32 and properly quoted arguments, so the
+  Node fallback path actually works on Windows.
+- **Compiled binaries / dev checkouts no longer fake an update** — when the
+  running install has no `node_modules` ancestor, self-update is refused
+  with a debug hint instead of npm-installing a copy the user isn't running.
+
+---
+
 ## [9.7.0] — 2026-09-19 (released)
 
 ### Added

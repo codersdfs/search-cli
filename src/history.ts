@@ -2,7 +2,7 @@
  * Persistent search history — append-only JSONL with rotation.
  */
 import type { HistoryEntry } from "./types";
-import { readJSONL, appendJSONL, writeJSON, writeRaw } from "./storage";
+import { readJSONL, appendJSONL, writeRaw } from "./storage";
 
 const HISTORY_FILE = "history.jsonl";
 const MAX_ENTRIES = 500;
@@ -37,10 +37,10 @@ export function deleteHistoryEntry(index: number): void {
   );
   writeRaw(
     HISTORY_FILE,
-    remaining
+    `${remaining
       .reverse()
       .map((e) => JSON.stringify(e))
-      .join("\n") + "\n",
+      .join("\n")}\n`,
   );
 }
 
@@ -56,10 +56,10 @@ export function rotateHistory(): void {
   const trimmed = entries.slice(0, MAX_ENTRIES);
   writeRaw(
     HISTORY_FILE,
-    trimmed
+    `${trimmed
       .reverse()
       .map((e) => JSON.stringify(e))
-      .join("\n") + "\n",
+      .join("\n")}\n`,
   );
 }
 

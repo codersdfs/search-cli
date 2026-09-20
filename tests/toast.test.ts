@@ -114,6 +114,6 @@ describe("toast", () => {
     const boxLine = lines.find((l) => l.includes("╭"))!;
     // Border run for this card should be exactly 6 chars wide
     const m = boxLine.match(/╭─+╮/);
-    expect(m![0].length).toBe(6);
+    expect(m?.[0].length).toBe(6);
   });
 });

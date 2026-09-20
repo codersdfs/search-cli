@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, mkdtempSync, unlinkSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { mkdtempSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // Set state dir before importing. mkdtempSync keeps concurrent test processes
 // from sharing one state dir (a `Date.now()` name collides in the same ms).

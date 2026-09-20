@@ -6,8 +6,8 @@
 // The parser must never silently return an empty list — GitHub layout changes
 // surface as a parse error instead (see ParseError in src/errors.ts).
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { parseTrendingHtml } from "../src/trending-parser";
 import { ParseError } from "../src/errors";
 

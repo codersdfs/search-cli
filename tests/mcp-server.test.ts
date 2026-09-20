@@ -2,9 +2,9 @@
 // Network-touching tools run against a mocked globalThis.fetch, following
 // the precedent in tests/org.test.ts. State files go to a temp state dir.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   processServerLine,
   callTool,

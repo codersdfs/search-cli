@@ -801,7 +801,7 @@ export async function processServerLine(
 // ─── stdio transport ───────────────────────────────────────────────────
 
 function writeStdout(line: string): void {
-  process.stdout.write(line + "\n");
+  process.stdout.write(`${line}\n`);
 }
 
 /**
@@ -831,8 +831,9 @@ export async function runMcpServer(
   let buffer = "";
   process.stdin.on("data", (chunk: string) => {
     buffer += chunk;
-    let idx: number;
-    while ((idx = buffer.indexOf("\n")) >= 0) {
+    for (;;) {
+      const idx = buffer.indexOf("\n");
+      if (idx < 0) break;
       const line = buffer.slice(0, idx).trim();
       buffer = buffer.slice(idx + 1);
       if (!line) continue;

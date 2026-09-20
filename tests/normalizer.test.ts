@@ -5,7 +5,6 @@ import {
   type GitHubApiItem,
   type GitHubSearchEnvelope,
   InMemoryAdapter,
-  type SearchAdapter,
 } from "../src/search.ts";
 import { parseQuery } from "../src/search.ts";
 import type { SearchOptions, SearchResponse } from "../src/types.ts";

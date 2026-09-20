@@ -1,8 +1,8 @@
 // Tests for config loading with controlled env vars
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { join } from "path";
-import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from "fs";
-import { tmpdir } from "os";
+import { join } from "node:path";
+import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 describe("config", () => {
   const origEnv = { ...process.env };

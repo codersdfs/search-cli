@@ -1,7 +1,7 @@
 /**
  * Export — format repos as JSON, CSV, Markdown, or plain text.
  */
-import { writeFileSync } from "fs";
+import { writeFileSync } from "node:fs";
 import type { Repo } from "./types";
 
 export type ExportFormat = "json" | "csv" | "markdown" | "text";
