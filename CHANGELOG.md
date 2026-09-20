@@ -6,16 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
-## [Unreleased]
-
-### Fixed
-
-- **Windows: URLs with query params were truncated at the first `&`** when opened via `cmd /c start` (every pre-filled crash-report/issue link lost its body and labels). Both openers now use `explorer.exe` on Windows, which receives the URL as a single argument.
-- **`open-url.ts` crashed under Node** (`Bun.spawn` unconditional); now runtime-agnostic with a detached `child_process.spawn` fallback.
-- **`--doctor` now detects stale/PATH-shadowing global installs** — multiple `ghfind` copies resolving to different versions are flagged with their prefixes and the exact uninstall command. This is the "updater said OK but nothing changed" trap.
-- Lint gate was permanently broken: `package.json` pinned `biome@2.5.13` (package never existed on npm); now uses `@biomejs/biome` ^2.5.14 with a migrated `biome.json`.
-- First clean lint baseline: 198 diagnostics triaged (auto-fixes + hand-fixes, incl. a dead `|| true` gate in `tui.ts` startup tips and an unsafe-autofix regression in `TrendingAdapter`); `tests/**` lint overrides for mocks/assertions; `tests/fixtures/**` excluded. CI now runs lint + typecheck on every push/PR (previously excluded as known-broken).
-- `mcp-server.ts`: assignment-in-expression violations; `trending-parser.ts`: stateful `RegExp.exec` loop replaced with `matchAll` (lastIndex reuse hazard); `themes.ts`: documented ANSI control-char regex.
+## [9.7.1] — 2026-09-20 (released)
 
 ### Fixed
 
@@ -35,6 +26,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 - **Compiled binaries / dev checkouts no longer fake an update** — when the
   running install has no `node_modules` ancestor, self-update is refused
   with a debug hint instead of npm-installing a copy the user isn't running.
+- **Windows: URLs with query params were truncated at the first `&`** when opened via `cmd /c start` (every pre-filled crash-report/issue link lost its body and labels). Both openers now use `explorer.exe` on Windows, which receives the URL as a single argument.
+- **`open-url.ts` crashed under Node** (`Bun.spawn` unconditional); now runtime-agnostic with a detached `child_process.spawn` fallback.
+- **`--doctor` now detects stale/PATH-shadowing global installs** — multiple `ghfind` copies resolving to different versions are flagged with their prefixes and the exact uninstall command. This is the "updater said OK but nothing changed" trap.
+- Lint gate was permanently broken: `package.json` pinned `biome@2.5.13` (package never existed on npm); now uses `@biomejs/biome` ^2.5.14 with a migrated `biome.json`.
+- First clean lint baseline: 198 diagnostics triaged (auto-fixes + hand-fixes, incl. a dead `|| true` gate in `tui.ts` startup tips and an unsafe-autofix regression in `TrendingAdapter`); `tests/**` lint overrides for mocks/assertions; `tests/fixtures/**` excluded. CI now runs lint + typecheck on every push/PR (previously excluded as known-broken).
+- `mcp-server.ts`: assignment-in-expression violations; `trending-parser.ts`: stateful `RegExp.exec` loop replaced with `matchAll` (lastIndex reuse hazard); `themes.ts`: documented ANSI control-char regex.
 
 ---
 

@@ -36,11 +36,18 @@ jobs:
         run: bun test
       - name: Format check (Prettier)
         run: bun run format:check
+
+      - name: Lint (Biome)
+        run: bun run lint
+
+      - name: Typecheck (tsc)
+        run: bun run typecheck
+
       - name: Build dist
         run: bun run build
 
-    # NOTE: `typecheck` and `lint` stay out of this gate too — see
-    # CONTRIBUTING.md "Known gaps".
+    # Same gate as CI: tests, format, lint, typecheck. Keep in sync with
+    # ci.yml and the docs-release skill.
 
   release:
     needs: test

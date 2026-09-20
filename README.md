@@ -304,6 +304,13 @@ npm run build    # build dist/
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.7.1
+
+- **In-app update actually works now** — it used to `bun install -g` into `~/.bun` while your running copy lives in an npm prefix, reporting success while nothing changed; it now detects which package manager owns the running install and updates it in place
+- **New `ghfind --doctor` check** — flags stale/PATH-shadowing global installs (multiple `ghfind` copies with different versions) and prints the exact uninstall command
+- **Windows URL fix** — links with query params were truncated at the first `&` by `cmd /c start`; every pre-filled crash-report/issue link now opens complete
+- Fixed `open-url` crashing under Node; CI now enforces lint + typecheck gates (first green Biome baseline)
+
 ### v9.7.0
 
 - **CLI parity with the MCP tools** — `ghfind deep-dive <owner/repo>` (languages, contributors, README excerpt, `--json`), `ghfind --compare` with `--json|--csv|--markdown`, and a trending language filter (`ghfind trending rust`, `--trending <lang>`)
@@ -318,11 +325,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **curl installer** — `curl -fsSL https://raw.githubusercontent.com/codersdfs/search-cli/main/scripts/install.sh | sh` downloads the standalone binary and verifies it against the release's `SHA256SUMS.txt`
 - **`NO_COLOR` support** — `ghfind --doctor` drops ANSI colors when `NO_COLOR` is set or stdout isn't a TTY
 - Fixed the stale `scripts/brew.rb` formula (wrong repo, version, and asset names)
-
-### v9.5.1
-
-- Fixed landing-screen keys leaking into the main view — `/`, `Space`, `t`, `c`, `?`, `q` all double-fired; `b` on the landing screen now opens Bookmarks
-- Fixed the update panel clipping the changelog — release notes are now scrollable (`↑↓`/`j`/`k`, `PgUp`/`PgDn`, `Home`/`End`) in a taller panel
 
 ---
 
