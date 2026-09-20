@@ -106,7 +106,7 @@ function renderLines(width: number, height: number): string[] {
       : showTrace
         ? " ".repeat(width - splitCol - 2)
         : "";
-    lines.push(leftLine + "│" + rightLine);
+    lines.push(`${leftLine}│${rightLine}`);
   }
 
   lines.push(

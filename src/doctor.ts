@@ -5,11 +5,11 @@
  * Runs a battery of checks and prints a PASS / WARN / FAIL report, then exits
  * non-zero if any FAIL check was detected.
  */
-import { existsSync, readFileSync, mkdirSync } from "fs";
-import { spawnSync } from "child_process";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import { homedir, platform, arch } from "os";
+import { existsSync, readFileSync, mkdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { homedir, platform, arch } from "node:os";
 import { loadConfig, configPath, stateDir, cacheDir } from "./config";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -31,9 +31,14 @@ function add(status: CheckStatus, label: string, detail: string): void {
 function run(
   cmd: string,
   args: string[],
+  opts: { shell?: boolean; timeout?: number } = {},
 ): { status: number | null; stdout: string; stderr: string } {
   try {
-    const res = spawnSync(cmd, args, { encoding: "utf8", timeout: 15000 });
+    const res = spawnSync(cmd, args, {
+      encoding: "utf8",
+      timeout: 15000,
+      ...opts,
+    });
     return {
       status: res.status,
       stdout: res.stdout ?? "",
@@ -123,13 +128,13 @@ function checkSystemBun(bundledOk: boolean): void {
     add(
       "WARN",
       "System Bun",
-      "No \`bun\` on PATH. Bundled Bun is working, so this is only a fallback.",
+      "No `bun` on PATH. Bundled Bun is working, so this is only a fallback.",
     );
   } else {
     add(
       "FAIL",
       "System Bun",
-      "No \`bun\` on PATH. Install it: curl -fsSL https://bun.sh/install | bash",
+      "No `bun` on PATH. Install it: curl -fsSL https://bun.sh/install | bash",
     );
   }
 }
@@ -236,6 +241,122 @@ function checkDirs(): void {
   }
 }
 
+const PKG_NAME = "github-search-cli";
+const BIN_NAME = "ghfind";
+
+function runningVersion(): string {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(join(PKG_DIR, "package.json"), "utf8"),
+    ) as { version?: string };
+    return pkg.version ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Best-effort version of the install that owns a `ghfind` shim on PATH.
+ * Prefers reading the sibling package.json (cheap, exact); falls back to
+ * executing the shim with `--version` (handles bun/unknown layouts).
+ */
+export function installVersionAt(
+  shimPath: string,
+): { version: string; dir: string } | null {
+  const dir = dirname(shimPath);
+  // npm layouts: <prefix>/node_modules/<pkg> (win) or <prefix>/lib/node_modules/<pkg> (unix)
+  for (const ancestor of [dir, dirname(dir)]) {
+    for (const sub of ["node_modules", join("lib", "node_modules")]) {
+      const pkgJson = join(ancestor, sub, PKG_NAME, "package.json");
+      if (existsSync(pkgJson)) {
+        try {
+          const pkg = JSON.parse(readFileSync(pkgJson, "utf8")) as {
+            version?: string;
+          };
+          return { version: pkg.version ?? "", dir: dirname(pkgJson) };
+        } catch {
+          // fall through to shim execution
+        }
+      }
+    }
+  }
+  // .cmd/.bat shims require shell:true under Node (EINVAL otherwise); the
+  // package.json read above already covered the common npm layouts.
+  const res = run(shimPath, ["--version"], {
+    shell: platform() === "win32",
+    timeout: 10000,
+  });
+  const m = /\d+\.\d+\.\d+/.exec(res.stdout);
+  return m ? { version: m[0], dir } : null;
+}
+
+/**
+ * Detect stale/shadowing global installs: multiple `ghfind` binaries on PATH
+ * resolving to different versions means the shell may keep launching an old
+ * copy even after a successful update — the exact "updater says OK but
+ * nothing changed" trap. Warns and names the offending prefixes.
+ */
+function checkInstallShadowing(): void {
+  const isWin = platform() === "win32";
+  const res = isWin ? run("where", [BIN_NAME]) : run("which", ["-a", BIN_NAME]);
+  const shims = [
+    ...new Set(
+      res.stdout
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0),
+    ),
+  ];
+  if (shims.length === 0) {
+    add("WARN", "Global installs", `${BIN_NAME} not found on PATH.`);
+    return;
+  }
+
+  const running = runningVersion();
+  const norm = (p: string) => (isWin ? p.replace(/\\/g, "/").toLowerCase() : p);
+  const seenDirs = new Set<string>();
+  const stale: string[] = [];
+  let knownCount = 0;
+
+  for (const shim of shims) {
+    const info = installVersionAt(shim);
+    // Group shims that live in the same install (ghfind + ghfind.cmd + ghfind.ps1)
+    const dirKey = norm(dirname(shim));
+    if (seenDirs.has(dirKey)) continue;
+    seenDirs.add(dirKey);
+    knownCount++;
+    const isRunningInstall = info !== null && norm(info.dir) === norm(PKG_DIR);
+    if (
+      !isRunningInstall &&
+      info !== null &&
+      running &&
+      info.version !== running
+    ) {
+      stale.push(`${dirname(shim)} (v${info.version} ≠ running v${running})`);
+    }
+  }
+
+  if (stale.length > 0) {
+    add(
+      "WARN",
+      "Global installs",
+      `${knownCount} install(s) on PATH; stale copies shadowing updates → ${stale.join("; ")}. Remove with: npm uninstall -g ${PKG_NAME} --prefix <dir>`,
+    );
+  } else if (knownCount > 1) {
+    add(
+      "PASS",
+      "Global installs",
+      `${knownCount} install(s) on PATH, all v${running || "?"}.`,
+    );
+  } else {
+    add(
+      "PASS",
+      "Global installs",
+      `v${running || "?"} at ${dirname(shims[0])}.`,
+    );
+  }
+}
+
 function printReport(): void {
   // Respect NO_COLOR (https://no-color.org/): plain text when set (any value,
   // including the empty string) or when stdout is not a TTY.
@@ -284,6 +405,7 @@ export async function runDoctor(): Promise<void> {
   checkConfig();
   checkGithubToken();
   checkDirs();
+  checkInstallShadowing();
   printReport();
 
   const hasFail = results.some((r) => r.status === "FAIL");

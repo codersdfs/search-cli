@@ -3,7 +3,7 @@
  *
  * ponytail: simple stdin prompts, no curses/readline UI.
  */
-import { createInterface } from "readline";
+import { createInterface } from "node:readline";
 import { saveConfig } from "./config";
 import { isLikelyGithubToken } from "./login";
 import { listThemes } from "./themes";
@@ -44,7 +44,7 @@ export async function runInitWizard(): Promise<void> {
     defaultSort: (["best-match", "stars", "updated", "forks"].includes(sortStr)
       ? sortStr
       : "best-match") as SortStrategy,
-    defaultLimit: Math.min(100, Math.max(10, parseInt(limitStr) || 50)),
+    defaultLimit: Math.min(100, Math.max(10, parseInt(limitStr, 10) || 50)),
     theme: themes.includes(themeStr) ? themeStr : themes[0],
     cacheTtlSeconds: 300,
     defaultTab: "search",

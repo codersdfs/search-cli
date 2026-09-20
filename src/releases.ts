@@ -1,16 +1,3 @@
-/**
- * Release tracker — checks bookmarked repos for new GitHub releases.
- *
- * Decisions (map 003):
- *   - Signal: new GitHub releases only (`GET /repos/{o}/{r}/releases?per_page=5`).
- *   - Seen state: `lastSeenAt` per bookmark; "new" = published after it.
- *   - Rate budget: etag conditional requests + token when present.
- *   - Prereleases shown (tagged `[pre]`), drafts never.
- *
- * ponytail: sequential fetches — fine for ≤100 bookmarks at launch;
- * parallelize with p-limit if users report slow startup.
- */
-import type { Bookmark } from "./types";
 import { readJSON, writeJSON } from "./storage";
 import { getBookmarks, getLastSeen, markSeen } from "./bookmarks";
 import { addNotification } from "./notifications";
@@ -68,7 +55,7 @@ async function fetchReleases(
     Accept: "application/vnd.github+json",
   };
   if (etag) headers["If-None-Match"] = etag;
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(
     `https://api.github.com/repos/${fullName}/releases?per_page=${PER_REPO}`,
     { headers },

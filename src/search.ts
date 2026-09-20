@@ -181,7 +181,7 @@ export function suggestFor(input: string): string[] {
     return QUALIFIER_SUGGESTIONS[trimmed];
   }
   const matches = KNOWN_QUALIFIERS.filter((k) => k.startsWith(trimmed));
-  return matches.map((k) => k + ":");
+  return matches.map((k) => `${k}:`);
 }
 
 export function tokenize(input: string): string[] {
@@ -329,7 +329,6 @@ export function githubSortParam(sort: SortStrategy): {
       return { sort: "forks", order: "desc" };
     case "updated":
       return { sort: "updated", order: "desc" };
-    case "best-match":
     default:
       return {};
   }
@@ -359,7 +358,6 @@ export function rankRepos(repos: Repo[], strategy: SortStrategy): Repo[] {
     case "updated":
       copy.sort(byKey((r) => Date.parse(r.updatedAt)));
       break;
-    case "best-match":
     default:
       break;
   }
@@ -473,7 +471,7 @@ export class GitHubSearchAdapter implements SearchAdapter {
           if (
             !parsed ||
             typeof parsed !== "object" ||
-            !Array.isArray((parsed as any).items)
+            !Array.isArray((parsed as { items?: unknown }).items)
           ) {
             this.logger.error(
               `[github] unexpected response shape: ${JSON.stringify(parsed).slice(0, 200)}`,
@@ -630,6 +628,7 @@ function trendingRepoToRepo(r: RawTrendingRepo): Repo {
  */
 export class TrendingAdapter implements SearchAdapter {
   readonly name = "trending";
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: part of the adapter constructor contract — callers pass a shared logger (search.ts:757) even though this adapter currently logs nothing itself.
   private readonly logger: Logger;
 
   constructor(logger: Logger = noopLogger) {

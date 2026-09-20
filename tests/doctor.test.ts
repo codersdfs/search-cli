@@ -1,8 +1,8 @@
 // Tests for `ghfind --doctor` diagnostics
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { join } from "path";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
+import { join } from "node:path";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 describe("doctor", () => {
   const origEnv = { ...process.env };
@@ -59,5 +59,53 @@ describe("doctor", () => {
     const output = logs.join("\n");
     expect(output).toContain("ghfind doctor");
     expect(output).not.toContain("\x1b[");
+  });
+});
+
+describe("installVersionAt", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "ghfind-doctor-install-"));
+
+  it("reads the version from a Windows-style npm prefix layout", () => {
+    // <prefix>/ghfind.cmd → <prefix>/node_modules/github-search-cli/package.json
+    const prefix = join(tmp, "win-prefix");
+    const pkgDir = join(prefix, "node_modules", "github-search-cli");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "github-search-cli", version: "9.1.0" }),
+    );
+    writeFileSync(join(prefix, "ghfind.cmd"), "@echo off\n");
+
+    const { installVersionAt } = require("../src/doctor.ts");
+    const info = installVersionAt(join(prefix, "ghfind.cmd"));
+    expect(info).not.toBeNull();
+    expect(info?.version).toBe("9.1.0");
+    expect(info?.dir.replace(/\\/g, "/")).toContain(
+      "win-prefix/node_modules/github-search-cli",
+    );
+  });
+
+  it("reads the version from a Unix-style npm prefix layout", () => {
+    // <prefix>/bin/ghfind → <prefix>/lib/node_modules/github-search-cli/package.json
+    const prefix = join(tmp, "unix-prefix");
+    const pkgDir = join(prefix, "lib", "node_modules", "github-search-cli");
+    mkdirSync(pkgDir, { recursive: true });
+    writeFileSync(
+      join(pkgDir, "package.json"),
+      JSON.stringify({ name: "github-search-cli", version: "9.4.4" }),
+    );
+    mkdirSync(join(prefix, "bin"), { recursive: true });
+    writeFileSync(join(prefix, "bin", "ghfind"), "#!/bin/sh\n");
+
+    const { installVersionAt } = require("../src/doctor.ts");
+    const info = installVersionAt(join(prefix, "bin", "ghfind"));
+    expect(info).not.toBeNull();
+    expect(info?.version).toBe("9.4.4");
+  });
+
+  it("returns null for a shim with no discoverable install", () => {
+    const { installVersionAt } = require("../src/doctor.ts");
+    const info = installVersionAt(join(tmp, "does-not-exist", "ghfind"));
+    expect(info).toBeNull();
   });
 });

@@ -9,11 +9,11 @@
  * Strategy 2: Fall back to the bundled dist/cli.js with Node.js (works for
  *   non-interactive modes).
  */
-import { existsSync } from "fs";
-import { spawnSync } from "child_process";
-import { join, dirname } from "path";
-import { fileURLToPath, pathToFileURL } from "url";
-import { platform } from "os";
+import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { platform } from "node:os";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
 

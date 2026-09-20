@@ -35,7 +35,7 @@ function parseRepoLink(block: string): RepoLink | undefined {
   // `/login?...&return_to=...` href fails the bare-path requirement and the
   // stargazers/forks links don't carry the heading's class="Link".
   const anchor = block.match(
-    /<a[^>]*?href="\/([A-Za-z0-9._-]+)\/([^\"?#]+)"[^>]*class="Link"/,
+    /<a[^>]*?href="\/([A-Za-z0-9._-]+)\/([^"?#]+)"[^>]*class="Link"/,
   );
   if (!anchor) return undefined;
   return { owner: anchor[1], name: anchor[2] };
@@ -43,7 +43,7 @@ function parseRepoLink(block: string): RepoLink | undefined {
 
 function parseStars(block: string): number {
   const starsMatch = block.match(
-    /href="\/[^\/\"]+\/[^\/\"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/,
+    /href="\/[^/"]+\/[^/"]+\/stargazers"[^>]*>.*?<\/svg>\s*(\d[\d,]*)/,
   );
   return starsMatch ? parseInt(starsMatch[1].replace(/,/g, ""), 10) : 0;
 }
@@ -69,10 +69,9 @@ export function parseTrendingHtml(html: string): RawTrendingRepo[] {
   const flat = flattenHtml(html);
   const repos: RawTrendingRepo[] = [];
   const articleRe = /<article class="Box-row">(.*?)<\/article>/gi;
-  let match: RegExpExecArray | null;
   let rank = 0;
 
-  while ((match = articleRe.exec(flat)) !== null) {
+  for (const match of flat.matchAll(articleRe)) {
     rank++;
     const block = match[1];
     const link = parseRepoLink(block);

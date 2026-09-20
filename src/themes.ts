@@ -242,6 +242,7 @@ export async function detectTerminalBackground(
     // Reply: ESC ] 11 ; <spec> (BEL | ESC \)
     const onData = (d: Buffer) => {
       buffer += d.toString("latin1");
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: matches raw ANSI OSC-11 escape bytes, which are control characters by definition
       const m = buffer.match(/\x1b\]11;([^\x07\x1b]*)(?:\x07|\x1b\\)/);
       if (m) finish(parseOscColor(m[1]));
     };

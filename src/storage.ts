@@ -12,8 +12,8 @@ import {
   writeFileSync,
   appendFileSync,
   unlinkSync,
-} from "fs";
-import { join } from "path";
+} from "node:fs";
+import { join } from "node:path";
 import { stateDir } from "./config";
 
 /** Ensure the state directory exists. */
@@ -43,7 +43,7 @@ export function appendJSONL(filename: string, obj: unknown): void {
   try {
     appendFileSync(
       join(stateDir(), filename),
-      JSON.stringify(obj) + "\n",
+      `${JSON.stringify(obj)}\n`,
       "utf-8",
     );
   } catch {
@@ -119,7 +119,7 @@ export const memoryStorage = {
   },
   appendJSONL(filename: string, obj: unknown): void {
     const existing = memStore.get(filename) ?? "";
-    memStore.set(filename, existing + JSON.stringify(obj) + "\n");
+    memStore.set(filename, `${existing + JSON.stringify(obj)}\n`);
   },
   readJSONL<T>(filename: string): T[] {
     const raw = memStore.get(filename);

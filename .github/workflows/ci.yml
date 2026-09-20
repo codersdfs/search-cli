@@ -20,7 +20,7 @@ env:
 
 jobs:
   test:
-    name: "${{ matrix.os }} — test, format, build"
+    name: "${{ matrix.os }} — test, format, lint, typecheck, build"
     strategy:
       fail-fast: false
       matrix:
@@ -42,9 +42,15 @@ jobs:
       - name: Format check (Prettier)
         run: bun run format:check
 
+      - name: Lint (Biome)
+        run: bun run lint
+
+      - name: Typecheck (tsc)
+        run: bun run typecheck
+
       - name: Build dist
         run: bun run build
 
-    # NOTE: `typecheck` (tsc) and `lint` (biome) are intentionally NOT part
-    # of this gate. Both are known-broken on @opentui/core type drift — see
-    # CONTRIBUTING.md "Known gaps". Do not re-add until those tickets land.
+    # All four quality gates run here: tests, format, lint, typecheck.
+    # `bun run check` (Prettier + tests) is the local fast path; CI is the
+    # full gate. Keep this comment in sync with CONTRIBUTING.md.

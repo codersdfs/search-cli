@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { existsSync, mkdtempSync, unlinkSync } from "fs";
-import { join } from "path";
-import { tmpdir } from "os";
+import { mkdtempSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { mock } from "bun:test";
 
 // Set state dir before importing. mkdtempSync keeps concurrent test processes
@@ -154,7 +154,7 @@ describe("version comparison", () => {
 
 describe("checkForUpdate", () => {
   it("returns latest version when newer version available", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.resolve({
         ok: true,
         json: async () => ({ version: "0.9.0" }),
@@ -170,7 +170,7 @@ describe("checkForUpdate", () => {
   });
 
   it("returns null when registry version is same", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.resolve({
         ok: true,
         json: async () => ({ version: "0.8.2" }),
@@ -186,7 +186,7 @@ describe("checkForUpdate", () => {
   });
 
   it("returns null when registry version is older", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.resolve({
         ok: true,
         json: async () => ({ version: "0.7.0" }),
@@ -202,7 +202,7 @@ describe("checkForUpdate", () => {
   });
 
   it("returns null on HTTP error", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.resolve({
         ok: false,
         status: 500,
@@ -218,7 +218,7 @@ describe("checkForUpdate", () => {
   });
 
   it("returns null on malformed registry response", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.resolve({
         ok: true,
         json: async () => ({ unexpected: "format" }),
@@ -234,7 +234,7 @@ describe("checkForUpdate", () => {
   });
 
   it("returns null on network failure", async () => {
-    const mockFetch = mock((url: string) => {
+    const mockFetch = mock((_url: string) => {
       return Promise.reject(new Error("ECONNREFUSED"));
     });
     const origFetch = globalThis.fetch;
@@ -244,5 +244,78 @@ describe("checkForUpdate", () => {
     expect(await checkForUpdate("0.8.2")).toBeNull();
 
     globalThis.fetch = origFetch;
+  });
+});
+
+describe("update install targeting", () => {
+  const PKG = "github-search-cli";
+
+  it("detects an npm Windows install and targets its prefix", async () => {
+    const { detectInstallLocation, buildUpdateCommand } =
+      await import("../src/update-check.ts");
+    const loc = detectInstallLocation(
+      "C:/Users/frank/AppData/Roaming/npm/node_modules/github-search-cli",
+    );
+    expect(loc).toEqual({
+      channel: "npm",
+      prefix: "C:/Users/frank/AppData/Roaming/npm",
+    });
+    expect(buildUpdateCommand(loc!)).toEqual([
+      "npm",
+      "install",
+      "-g",
+      "--prefix",
+      "C:/Users/frank/AppData/Roaming/npm",
+      PKG,
+    ]);
+  });
+
+  it("detects an npm Unix install (<prefix>/lib/node_modules) and targets its prefix", async () => {
+    const { detectInstallLocation, buildUpdateCommand } =
+      await import("../src/update-check.ts");
+    const loc = detectInstallLocation(
+      "/usr/local/lib/node_modules/github-search-cli",
+    );
+    expect(loc).toEqual({ channel: "npm", prefix: "/usr/local" });
+    expect(buildUpdateCommand(loc!)).toEqual([
+      "npm",
+      "install",
+      "-g",
+      "--prefix",
+      "/usr/local",
+      PKG,
+    ]);
+  });
+
+  it("detects a bun global install and uses bun, not npm", async () => {
+    const { detectInstallLocation, buildUpdateCommand } =
+      await import("../src/update-check.ts");
+    const loc = detectInstallLocation(
+      "/home/frank/.bun/install/global/node_modules/github-search-cli",
+    );
+    expect(loc).toEqual({ channel: "bun" });
+    expect(buildUpdateCommand(loc!)).toEqual(["bun", "install", "-g", PKG]);
+  });
+
+  it("returns null for a compiled binary (no node_modules ancestor)", async () => {
+    const { detectInstallLocation } = await import("../src/update-check.ts");
+    expect(detectInstallLocation("/$bunfs/root/github-search-cli")).toBeNull();
+  });
+
+  it("npm command without a detected prefix falls back to npm's configured prefix", async () => {
+    const { buildUpdateCommand } = await import("../src/update-check.ts");
+    expect(buildUpdateCommand({ channel: "npm" })).toEqual([
+      "npm",
+      "install",
+      "-g",
+      PKG,
+    ]);
+  });
+
+  it("performUpdate refuses to spawn when the install channel is unknown", async () => {
+    const { performUpdate } = await import("../src/update-check.ts");
+    // A compiled binary / dev checkout must not npm-install a copy the user
+    // isn't running — it should fail honestly instead.
+    expect(await performUpdate(null)).toBe(false);
   });
 });

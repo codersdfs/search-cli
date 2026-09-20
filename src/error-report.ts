@@ -10,8 +10,8 @@ import {
   arch as osArch,
   version as nodeVersion,
   versions as nodeVersions,
-} from "process";
-import { spawn } from "child_process";
+} from "node:process";
+import { spawn } from "node:child_process";
 import { getVersion } from "./version";
 
 // ponytail: in bun, process.platform is a string property; in node, same.
@@ -43,6 +43,7 @@ export function formatErrorBody(
   context: { command: string; argv: string[] },
 ): string {
   const e = err instanceof Error ? err : new Error(String(err));
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI color escapes from stack traces
   const stack = (e.stack ?? "(no stack)").replace(/\u001b\[[0-9;]*m/g, "");
   const message = (e.message || "(no message)").slice(0, 500);
   const cmd = `${context.command} ${context.argv.join(" ")}`.trim();
@@ -105,14 +106,19 @@ function tryOpenUrl(url: string): boolean {
   try {
     const p = osPlatform;
     if (typeof Bun !== "undefined") {
-      if (p === "win32") Bun.spawn(["cmd", "/c", "start", "", url]);
-      else if (p === "darwin") Bun.spawn(["open", url]);
+      if (p === "win32") {
+        // explorer.exe, not `cmd /c start` — cmd splits the URL at the first
+        // unquoted `&` (query separator) and runs the rest as a command,
+        // truncating every pre-filled issue URL. See src/open-url.ts.
+        Bun.spawn(["explorer", url]);
+      } else if (p === "darwin") Bun.spawn(["open", url]);
       else Bun.spawn(["xdg-open", url]);
       return true;
     }
     // Node fallback — use child_process.spawn detached so it survives exit
-    const cmd = p === "win32" ? "cmd" : p === "darwin" ? "open" : "xdg-open";
-    const args = p === "win32" ? ["/c", "start", "", url] : [url];
+    const cmd =
+      p === "win32" ? "explorer" : p === "darwin" ? "open" : "xdg-open";
+    const args = [url];
     const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
     child.unref();
     return true;
@@ -142,11 +148,11 @@ export function reportError(
   console.error("");
   const opened = tryOpenUrl(url);
   if (opened) {
-    console.error("  → Opened: " + url);
+    console.error(`  → Opened: ${url}`);
   } else {
     console.error("  Copy this URL to file a bug report:");
     console.error("");
-    console.error("    " + url);
+    console.error(`    ${url}`);
   }
   console.error("");
   return url;

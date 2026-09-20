@@ -30,9 +30,9 @@ config, install flow, rate limits) or when cutting a release.
    - Do NOT touch the `Why ghfind?` table unless the comparison actually changed.
    - Do NOT add a version entry to the README `Changelog` section for unreleased work.
 3. **Help text**: update `src/help.ts` alongside README.
-4. **Verify**: `bun run check` (Prettier + tests) and `bun run build`.
-   Never gate on `typecheck`/`lint` — both are known-broken (CONTRIBUTING.md
-   "Known gaps", `@opentui/core` type drift).
+4. **Verify**: `bun run check` (Prettier + tests), `bun run lint`
+   (Biome), `bun run typecheck` (tsc), and `bun run build` — all four are
+   gates in CI (`.github/workflows/ci.yml`).
 
 ## 3. Release checklist (version bump)
 
@@ -55,6 +55,8 @@ config, install flow, rate limits) or when cutting a release.
 - Do not edit published CHANGELOG sections or rewrite git tags.
 - Do not duplicate the full changelog into README — link to `CHANGELOG.md`.
 - Do not invent test counts, versions, or dates — read them from the repo/npm.
-- Do not add `typecheck`/`lint` to CI gates or release steps.
+- Do not remove `typecheck`/`lint` from the CI gates or the Release verify
+  job — both are green (Biome 2.5.14 baseline, tsc clean; see the closed
+  typecheck-opentui-drift ticket).
 - Do not commit `*.tgz`, `vendor/` binaries, `.bak`, or scratch scripts
   (see CONTRIBUTING.md "No stray repo-junk").
