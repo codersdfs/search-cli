@@ -311,12 +311,13 @@ function checkInstallShadowing(): void {
     add("WARN", "Global installs", `${BIN_NAME} not found on PATH.`);
     return;
   }
-
   const running = runningVersion();
   const norm = (p: string) => (isWin ? p.replace(/\\/g, "/").toLowerCase() : p);
   const seenDirs = new Set<string>();
   const stale: string[] = [];
   let knownCount = 0;
+  let staleVersion = "";
+  let staleDir = "";
 
   for (const shim of shims) {
     const info = installVersionAt(shim);
@@ -333,14 +334,27 @@ function checkInstallShadowing(): void {
       info.version !== running
     ) {
       stale.push(`${dirname(shim)} (v${info.version} ≠ running v${running})`);
+      staleVersion = info.version;
+      staleDir = dirname(shim);
     }
   }
 
-  if (stale.length > 0) {
+  if (stale.length > 0 && knownCount > 1) {
+    // Shadowing needs ≥2 installs: the shell can keep launching an old copy
+    // while updates land in another prefix.
     add(
       "WARN",
       "Global installs",
       `${knownCount} install(s) on PATH; stale copies shadowing updates → ${stale.join("; ")}. Remove with: npm uninstall -g ${PKG_NAME} --prefix <dir>`,
+    );
+  } else if (stale.length > 0) {
+    // Single install whose version differs from the running copy — normal
+    // when developing from source (running vNEWER than the published one).
+    // Uninstalling it would be harmful advice.
+    add(
+      "PASS",
+      "Global installs",
+      `v${staleVersion} at ${staleDir} (running v${running || "?"} from source/build) — single install, nothing shadowed.`,
     );
   } else if (knownCount > 1) {
     add(
