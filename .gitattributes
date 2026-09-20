@@ -1,0 +1,4 @@
+# Normalize line endings: Prettier (endOfLine: lf, its default) fails any
+# CRLF working tree, and Windows runners/git checkouts produce CRLF without
+# this file. Repo was previously red on windows-latest for exactly that.
+* text=auto eol=lf
