@@ -77,6 +77,11 @@ describe("release tracker", () => {
     fakeApi = {};
     fetchCalls.length = 0;
     writeJSON("release-cache.json", {}); // isolate etag state between tests
+    // Isolate bookmarks too: checkReleases() iterates every bookmark, and
+    // getBookmarks() sorts by savedAt — same-millisecond savedAt values (fast
+    // CI runners) make the order insertion-dependent, so results[0] must not
+    // be assumed to be the repo this test just toggled.
+    writeJSON("bookmarks.json", []);
     globalThis.fetch = fakeFetch as typeof globalThis.fetch;
   });
 
@@ -119,11 +124,15 @@ describe("release tracker", () => {
         ?.ifNoneMatch,
     ).toBe('W/"etag-owner/c"');
     // Never seen yet → still reported as new even on 304.
-    expect(results[0].newReleases).toHaveLength(1);
+    expect(
+      results.find((r) => r.fullName === "owner/c")?.newReleases,
+    ).toHaveLength(1);
     // Viewing the feed marks seen → next 304 reports nothing.
     markSeen("owner/c");
     const results3 = await checkReleases();
-    expect(results3[0].newReleases).toHaveLength(0);
+    expect(
+      results3.find((r) => r.fullName === "owner/c")?.newReleases,
+    ).toHaveLength(0);
   });
 
   it("markSeen moves lastSeenAt so old releases stop being new", async () => {
