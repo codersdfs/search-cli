@@ -75,6 +75,8 @@ import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { renderMarkdown } from "./markdown-render";
+import { createMarkdownView } from "./markdown-view";
+import { fetchImageBytes, readmeBaseUrl } from "./image-loader";
 import { fetchTopics } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
 import {
@@ -1852,15 +1854,22 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       },
     },
   });
-  const readmeText = new TextRenderable(renderer, {
-    content: "",
-    fg: colors.text,
-    bg: colors.bg,
+  // Full markdown rendering (headings, tables, code, inline images).
+  const readmeView = createMarkdownView({
+    renderer,
+    colors,
+    loadImage: (url) => fetchImageBytes(url, { token: githubToken }),
+    getImageWidth: () => Math.max(24, (process.stdout.columns || 80) - 12),
   });
-  readmeScroll.add(readmeText);
+  readmeScroll.add(readmeView.renderable);
   readmeBox.add(readmeScroll);
+
+  const readmeFooterText = () =>
+    `  ↑↓/jk scroll  PgUp/PgDn page  i images: ${
+      readmeView.imagesEnabled ? "on" : "off"
+    }  Esc/q close`;
   const readmeFooter = new TextRenderable(renderer, {
-    content: "  ↑↓/jk scroll  Esc/q close",
+    content: readmeFooterText(),
     fg: colors.muted,
     bg: colors.bg,
     height: 1,
@@ -1876,33 +1885,36 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       setStatus("No repo selected");
       return;
     }
-    readmeText.content = `  Loading README for ${repo.fullName}...`;
+    readmeView.setContent(`Loading README for ${repo.fullName}…`);
+    readmeFooter.content = readmeFooterText();
+    readmeScroll.scrollTop = 0;
     showOverlay("readme");
     try {
       const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
       if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
       let text = "";
-      for (const path of [
-        `${repo.owner}/${repo.name}/main/README.md`,
-        `${repo.owner}/${repo.name}/master/README.md`,
-        `${repo.owner}/${repo.name}/main/README.rst`,
-      ]) {
-        const r = await fetch(`https://raw.githubusercontent.com/${path}`, {
-          headers,
-        });
+      let sourceUrl = "";
+      for (const [branch, file] of [
+        ["main", "README.md"],
+        ["master", "README.md"],
+        ["main", "README.rst"],
+      ] as const) {
+        // The README's own URL doubles as the base for relative image paths.
+        const url = readmeBaseUrl(repo.owner, repo.name, branch, file);
+        const r = await fetch(url, { headers });
         if (r.ok) {
           text = await r.text();
+          sourceUrl = url;
           break;
         }
       }
       if (!text) {
-        readmeText.content = `  (no README found for ${repo.fullName})`;
+        readmeView.setContent(`_(no README found for ${repo.fullName})_`);
       } else {
-        const termW = Math.max(40, (process.stdout.columns || 80) - 4);
-        readmeText.content = renderMarkdown(text, { width: termW });
+        readmeView.setContent(text, sourceUrl);
       }
     } catch {
-      readmeText.content = "  Failed to load README";
+      readmeView.setContent("_Failed to load README._");
     }
     renderer.requestRender();
   }
@@ -2606,6 +2618,14 @@ ${pack.description ?? ""}`;
 
       // README viewer: scrollable, Esc/q already handled above
       if (currentOverlay === "readme") {
+        if (key.name === "i") {
+          readmeView.setImagesEnabled(!readmeView.imagesEnabled);
+          readmeFooter.content = readmeFooterText();
+          setStatus(
+            readmeView.imagesEnabled ? "README images on" : "README images off",
+          );
+          renderer.requestRender();
+        }
         return;
       }
 

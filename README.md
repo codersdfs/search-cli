@@ -207,7 +207,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 | Refresh         | Re-run current search (or reload trending)              |
 | Toggle trending | Switch between search and trending views                |
 | Deep-dive       | Show languages, contributors, README excerpt            |
-| Readme          | Full README viewer                                      |
+| Readme          | Full markdown README viewer (inline images included)    |
 | Activity graph  | Toggle commit chart fullscreen                          |
 | Bookmark        | Save / unsave selected repo                             |
 | Compare         | Add/remove repo to comparison set                       |
@@ -233,6 +233,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 | `d`                              | History / Bookmarks / Saved searches / Notifications | Delete current entry                        |
 | `Ctrl+X`                         | History                                              | Clear all history                           |
 | `Ctrl+C`                         | Notifications                                        | Dismiss all notifications                   |
+| `i`                              | README viewer                                        | Toggle inline images on/off                 |
 | `Y` / `N` / `L`                  | Update modal                                         | Yes (install) / No (skip) / Later (dismiss) |
 | `↑` / `↓` — `j` / `k`            | Update modal                                         | Scroll release notes                        |
 | `PgUp` / `PgDn` / `Home` / `End` | Update modal                                         | Jump through release notes                  |
@@ -284,14 +285,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 355 tests
+bun test         # 414 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 355 tests
+npm test         # 414 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -303,6 +304,12 @@ npm run build    # build dist/
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+### v9.8.0
+
+- **README viewer renders real markdown** — headings, emphasis, links, lists, blockquotes, boxed tables, and fenced code now come from OpenTUI's markdown renderable with a theme-derived syntax style instead of a box-drawing text approximation
+- **Images render inline** — relative and `/`-rooted paths resolve against the README's branch, `github.com/.../blob/...` links are rewritten to raw content, downloads are cached and size-capped, SVG and badge-service images are skipped, and anything unloadable falls back to an `🖼 alt` caption; press `i` in the viewer to toggle images
+- **No new dependencies** — the PNG decoder, image-to-cells rasteriser, and fetch cache are plain TypeScript, and images draw with truecolor half blocks, so they work on any truecolor terminal without image-protocol support
 
 ### v9.7.1
 
@@ -317,14 +324,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **Deep-dive metadata fix** — real stars, description, and topics are fetched first instead of a zeroed stub; a 404 exits with `Repo not found`
 - Fixed `ghfind mcp` failing to typecheck (JSON-RPC id narrowing; runtime behavior unchanged)
 - The MCP server and CLI now share repo-ref parsing, language validation, and the deep-dive pipeline
-
-### v9.6.0
-
-- **MCP server (beta)** — `ghfind mcp` turns ghfind into a tool server: Claude Code, Cursor, Codex, and any MCP client can call GitHub search over stdio (nine tools, no new dependencies)
-- **Agent skill (beta)** — `ghfind skill` gives coding agents a token-efficient usage guide; `ghfind trending` accepts a language filter (`ghfind trending rust`)
-- **curl installer** — `curl -fsSL https://raw.githubusercontent.com/codersdfs/search-cli/main/scripts/install.sh | sh` downloads the standalone binary and verifies it against the release's `SHA256SUMS.txt`
-- **`NO_COLOR` support** — `ghfind --doctor` drops ANSI colors when `NO_COLOR` is set or stdout isn't a TTY
-- Fixed the stale `scripts/brew.rb` formula (wrong repo, version, and asset names)
 
 ---
 

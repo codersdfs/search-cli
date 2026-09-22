@@ -74,7 +74,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Limit", action: "Cycle limit: 10 → 25 → 50 → 100" },
         { keys: "Refresh", action: "Re-run current search" },
         { keys: "Graph", action: "Toggle commit activity chart" },
-        { keys: "Readme", action: "Full README viewer" },
+        { keys: "Readme", action: "Full markdown README viewer" },
         { keys: "Deep-dive", action: "Languages + contributors + excerpt" },
         { keys: "Bookmark", action: "Save / unsave selected repo" },
         { keys: "Compare", action: "Add to / remove from comparison" },
@@ -114,6 +114,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "d", action: "Delete entry (history, saved)" },
         { keys: "↑ ↓ / j k", action: "Navigate overlay list" },
         { keys: "← → / h l", action: "Navigate tabs / panels" },
+        { keys: "i", action: "Toggle inline images (README viewer)" },
         {
           keys: "PgUp/PgDn",
           action: "Scroll update notes; Home/End jump to ends",

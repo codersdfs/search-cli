@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.8.0] — 2026-09-22 (released)
+
+### Added
+
+- **README viewer now renders full markdown, including inline images.** The
+  viewer used to approximate markdown with box-drawing text; it now drives
+  OpenTUI's `MarkdownRenderable` with a theme-derived syntax style, so
+  headings, emphasis, links, lists, blockquotes, boxed tables, and fenced
+  code blocks render as markdown rather than as decorated plain text.
+- **Images in READMEs render in the terminal.** Relative and root-relative
+  paths resolve against the branch the README was loaded from,
+  `github.com/.../blob/...` links are rewritten to raw content, and downloads
+  are cached and capped by size. SVG and badge-service images are skipped
+  (they carry text that survives rasterising poorly), and anything that fails
+  to load falls back to an `🖼 alt text` caption. Images are drawn with
+  truecolor half blocks, so they work on any truecolor terminal with no image
+  protocol support; press `i` in the viewer to toggle them off. The pipeline
+  lives in `src/png.ts` (PNG decoder), `src/image-render.ts`
+  (image → cells), `src/image-loader.ts` (URL resolution + fetch cache),
+  `src/markdown-images.ts` (token helpers) and `src/markdown-view.ts` (the
+  renderable), and degrades to captions on runtimes without `Bun.Image`.
+
+---
+
 ## [9.7.1] — 2026-09-20 (released)
 
 ### Fixed
