@@ -141,14 +141,16 @@ export function isRenderableImageUrl(url: string): boolean {
 
   const path = parsed.pathname.toLowerCase();
   if (path.endsWith(".svg") || path.endsWith(".svgz")) return false;
+  // GitHub's drag-and-drop uploads live under /user-attachments/ with opaque
+  // UUID paths and no file extension — the fetch decides what they are.
+  if (parsed.hostname.toLowerCase().endsWith("github.com")) {
+    if (/^\/user-attachments\//.test(path)) return true;
+    if (!RAW_HOSTS.has(parsed.hostname)) {
+      return /\.(png|jpe?g|webp|gif|bmp|avif|heic|tiff?)$/i.test(path);
+    }
+  }
   // Unknown extension on a host we don't know: the fetch decides.
   if (/\.[a-z0-9]{1,5}$/.test(path) && !RASTER_EXT.test(path)) return false;
-  if (
-    parsed.hostname.endsWith("github.com") &&
-    !RAW_HOSTS.has(parsed.hostname)
-  ) {
-    return /\.(png|jpe?g|webp|gif|bmp|avif|heic|tiff?)$/i.test(path);
-  }
   return true;
 }
 
@@ -207,7 +209,14 @@ async function loadImageBytes(
     if (!res.ok) return null;
 
     const contentType = res.headers.get("content-type") ?? "";
-    if (contentType && !/^image\//i.test(contentType)) return null;
+    if (contentType && !/^image\//i.test(contentType)) {
+      // GitHub's attachment endpoints (user-uploads proxied via camo) serve
+      // real images as binary/octet-stream; the rasteriser rejects anything
+      // that isn't actually an image, so accept it there and let decoding
+      // decide.
+      const githubHost = isGitHubHost(host);
+      if (!githubHost || !/octet-stream/i.test(contentType)) return null;
+    }
     if (/svg/i.test(contentType)) return null;
 
     const declared = Number(res.headers.get("content-length") ?? "0");

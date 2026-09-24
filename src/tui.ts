@@ -74,7 +74,6 @@ import {
 import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
-import { renderMarkdown } from "./markdown-render";
 import { createMarkdownView } from "./markdown-view";
 import { fetchImageBytes, readmeBaseUrl } from "./image-loader";
 import { fetchTopics } from "./explore";
@@ -1081,12 +1080,22 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     paddingLeft: 2,
     paddingRight: 2,
   });
-  const updateText = new TextRenderable(renderer, {
+  // Version header only — the release notes below it are rendered markdown.
+  const updateHeader = new TextRenderable(renderer, {
     content: "",
     fg: colors.accent,
     bg: colors.surfaceDim,
   });
-  // ponytail: notes render as plain text with \n; keep it a column so lines stack
+  const updateNotes = createMarkdownView({
+    renderer,
+    colors,
+    // Notes ship with the release and are mostly prose/lists; skip the
+    // image pipeline in this narrow panel.
+    images: false,
+    background: colors.surfaceDim,
+  });
+  // ponytail: the notes are markdown now; keep the content a column so
+  // blocks stack and the scroll box can measure them.
   const updateScroll = new ScrollBoxRenderable(renderer, {
     flexGrow: 1,
     backgroundColor: colors.surfaceDim,
@@ -1189,7 +1198,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     paddingX: 1,
   });
   updateBox.add(updateScroll);
-  updateScroll.add(updateText);
+  updateScroll.add(updateHeader);
+  updateScroll.add(updateNotes.renderable);
   updateBox.add(updateOptionsRow);
   updateBox.add(updateFooter);
   root.add(updateDim);
@@ -1599,17 +1609,11 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (state.lastInstalledVersion === currentVersion) return;
     // We just upgraded — show notes for the new version
     const notes = fetchReleaseNotes(currentVersion);
-    // Box is 55% of the terminal; subtract border + padding so wrapped
-    // lines never clip horizontally.
-    const notesWidth = Math.max(
-      30,
-      Math.floor((process.stdout.columns || 80) * 0.55) - 8,
-    );
-    const notesBlock = notes
-      ? renderMarkdown(notes, { width: notesWidth })
-      : "  No release notes found for this version.";
     updateSelectedOption = 0;
-    updateText.content = `  Updated ghfind ${state.lastInstalledVersion} → ${currentVersion}\n\n${notesBlock}`;
+    updateHeader.content = `  Updated ghfind ${state.lastInstalledVersion} → ${currentVersion}\n`;
+    updateNotes.setContent(
+      notes ?? "_No release notes found for this version._",
+    );
     renderUpdateOptions();
     showOverlay("update");
   }
@@ -1627,14 +1631,8 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (latest) {
       updateSelectedOption = 0;
       const notes = fetchReleaseNotes(latest);
-      const notesWidth = Math.max(
-        30,
-        Math.floor((process.stdout.columns || 80) * 0.55) - 8,
-      );
-      const notesBlock = notes
-        ? renderMarkdown(notes, { width: notesWidth })
-        : `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n  Run "npm install -g ghfind"`;
-      updateText.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n\n${notesBlock}`;
+      updateHeader.content = `  A new version is available\n\n  Current: ${currentVersion}\n  Latest:   ${latest}\n`;
+      updateNotes.setContent(notes ?? "Run `npm install -g ghfind` to update.");
       renderUpdateOptions();
       showOverlay("update");
     } else {
@@ -2514,6 +2512,24 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       doPackageSearch(searchInput.value);
     } else {
       doSearch(searchInput.value);
+    }
+  });
+
+  // Pasted content flows through "input"; purge JSON-shaped blobs that
+  // slipped into the query (a search line is never raw JSON: objects/arrays
+  // always arrive as paste payloads from API responses / deep-dive output).
+  searchInput.on("input", () => {
+    const v = searchInput.value;
+    if (v.length > 0) {
+      const t = v.trim();
+      if (
+        (t.startsWith("{") && t.endsWith("}")) ||
+        (t.startsWith("[") && t.endsWith("]"))
+      ) {
+        searchInput.value = "";
+        setStatus("Ignored JSON paste — search queries accept plain text");
+        renderer.requestRender();
+      }
     }
   });
 

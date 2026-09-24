@@ -78,6 +78,19 @@ describe("resolveReadmeImageUrl", () => {
     expect(resolveReadmeImageUrl("mailto:x@y.z", BASE)).toBeNull();
     expect(resolveReadmeImageUrl("   ", BASE)).toBeNull();
   });
+
+  test("accepts GitHub drag-and-drop attachment URLs", () => {
+    const url =
+      "https://github.com/user-attachments/assets/0d1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f";
+    expect(resolveReadmeImageUrl(url, BASE)).toBe(url);
+    // private-user-images is a raw host already; passed through unchanged.
+    expect(
+      resolveReadmeImageUrl(
+        "https://private-user-images.githubusercontent.com/x/y?jwt=z",
+        BASE,
+      ),
+    ).toBe("https://private-user-images.githubusercontent.com/x/y?jwt=z");
+  });
 });
 
 describe("isRenderableImageUrl", () => {
@@ -105,6 +118,14 @@ describe("isRenderableImageUrl", () => {
     ]) {
       expect(isRenderableImageUrl(url)).toBe(false);
     }
+  });
+
+  test("accepts extension-less GitHub attachment URLs", () => {
+    expect(
+      isRenderableImageUrl(
+        "https://github.com/user-attachments/assets/0d1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -209,6 +230,32 @@ describe("fetchImageBytes", () => {
     );
     expect(
       await fetchImageBytes("https://example.com/big.png", { fetchImpl: big }),
+    ).toBeNull();
+  });
+
+  test("accepts GitHub binary/octet-stream image responses", async () => {
+    const fetchImpl = asFetch(
+      async () =>
+        new Response(new Uint8Array([0x89, 0x50]), {
+          headers: { "content-type": "binary/octet-stream" },
+        }),
+    );
+    const bytes = await fetchImageBytes(
+      "https://github.com/user-attachments/assets/abc",
+      { fetchImpl },
+    );
+    expect(Array.from(bytes ?? [])).toEqual([0x89, 0x50]);
+  });
+
+  test("still rejects octet-stream from non-GitHub hosts", async () => {
+    const fetchImpl = asFetch(
+      async () =>
+        new Response(new Uint8Array([1]), {
+          headers: { "content-type": "binary/octet-stream" },
+        }),
+    );
+    expect(
+      await fetchImageBytes("https://example.com/a", { fetchImpl }),
     ).toBeNull();
   });
 

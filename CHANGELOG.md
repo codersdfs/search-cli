@@ -28,6 +28,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   `src/markdown-images.ts` (token helpers) and `src/markdown-view.ts` (the
   renderable), and degrades to captions on runtimes without `Bun.Image`.
 
+### Changed
+
+- **The update modal's release notes render as markdown too.** The in-app
+  update panel reused the same text approximation as the README viewer; it
+  now shares `MarkdownRenderable` via the new view, so release notes show
+  real headings, lists, inline code, and boxed tables. Inline images stay
+  off there (the panel is narrow and notes are prose).
+- With both surfaces migrated, the plain-text markdown renderer
+  (`src/markdown-render.ts`) is no longer used and has been removed.
+
 ---
 
 ## [9.7.1] — 2026-09-20 (released)

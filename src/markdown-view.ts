@@ -1,10 +1,9 @@
 /**
  * Full markdown view for OpenTUI.
  *
- * `renderMarkdown()` (src/markdown-render.ts) produces plain text for places
- * that need a string. This module is the interactive counterpart: a real
- * `MarkdownRenderable` with a theme-derived syntax style, themed headings,
- * and inline images drawn as half blocks.
+ * A real `MarkdownRenderable` with a theme-derived syntax style, themed
+ * headings, and inline images drawn as half blocks. Used by the README
+ * viewer and by the update modal's release notes.
  */
 import {
   BoxRenderable,
@@ -42,6 +41,8 @@ export interface MarkdownViewOptions {
   colors: Record<string, string>;
   /** URL of the markdown document, used to resolve relative image paths. */
   imageBase?: string;
+  /** Panel background, painted behind text, captions and images. Default: colors.bg. */
+  background?: string;
   /** Render inline images. Default: true. */
   images?: boolean;
   /** Fetches bytes for a resolved image URL. */
@@ -136,7 +137,7 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
   let imageBase = opts.imageBase;
 
   const text = () => colors.text ?? "#ffffff";
-  const bg = () => colors.bg ?? "#000000";
+  const bg = () => opts.background ?? colors.bg ?? "#000000";
   const muted = () => colors.muted ?? "#888888";
 
   const renderable = new MarkdownRenderable(renderer, {
@@ -177,7 +178,7 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
       return rasterizeImage(bytes, {
         maxCols,
         maxRows: maxImageRows,
-        background: hexToRgb(colors.bg),
+        background: hexToRgb(bg()),
       });
     })();
     rasterCache.set(key, pending);
@@ -197,26 +198,34 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
     const placeholder = caption(`${label}  (loading…)`);
     container.add(placeholder);
 
-    void rasterize(url).then((cells) => {
-      // The document may have been replaced (or the overlay closed) while
-      // the image was downloading.
-      if (container.isDestroyed || !container.parent) return;
-      container.remove(placeholder);
-      placeholder.destroy();
-      container.add(caption(label));
-      if (cells) {
-        container.add(
-          new TextRenderable(renderer, {
-            content: imageStyledText(cells),
-            bg: bg(),
-            wrapMode: "none",
-            selectable: false,
-            flexShrink: 0,
-          }),
+    void rasterize(url).then(
+      (cells) => {
+        console.error(
+          `[dbg] image resolved: cells=${cells ? `${cells.cols}x${cells.rows}` : "null"} destroyed=${container.isDestroyed} parent=${!!container.parent} enabled=${imagesEnabled}`,
         );
-      }
-      renderable.requestRender();
-    });
+        // The document may have been replaced (or the overlay closed) while
+        // the image was downloading.
+        if (container.isDestroyed || !container.parent) return;
+        container.remove(placeholder);
+        placeholder.destroy();
+        container.add(caption(label));
+        if (cells) {
+          container.add(
+            new TextRenderable(renderer, {
+              content: imageStyledText(cells),
+              bg: bg(),
+              wrapMode: "none",
+              selectable: false,
+              flexShrink: 0,
+            }),
+          );
+        }
+        renderable.requestRender();
+      },
+      (err) => {
+        console.error("[dbg] image promise rejected:", err);
+      },
+    );
     return container;
   };
 
