@@ -35,6 +35,10 @@ import {
 /** Tallest inline image, in terminal cells. */
 export const MAX_IMAGE_ROWS = 24;
 
+/** Cap on memoised rasters — a resize session re-keys on width, so this
+ *  would otherwise grow without bound. */
+const RASTER_CACHE_LIMIT = 32;
+
 export interface MarkdownViewOptions {
   renderer: CliRenderer;
   /** Theme palette (see src/themes.ts). */
@@ -182,6 +186,13 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
       });
     })();
     rasterCache.set(key, pending);
+    // Map iteration order is insertion order, so the first key is the oldest.
+    // Unbounded growth would re-rasterize every image on every resize.
+    while (rasterCache.size > RASTER_CACHE_LIMIT) {
+      const oldest = rasterCache.keys().next().value;
+      if (oldest === undefined) break;
+      rasterCache.delete(oldest);
+    }
     return pending;
   };
 
@@ -200,9 +211,6 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
 
     void rasterize(url).then(
       (cells) => {
-        console.error(
-          `[dbg] image resolved: cells=${cells ? `${cells.cols}x${cells.rows}` : "null"} destroyed=${container.isDestroyed} parent=${!!container.parent} enabled=${imagesEnabled}`,
-        );
         // The document may have been replaced (or the overlay closed) while
         // the image was downloading.
         if (container.isDestroyed || !container.parent) return;
@@ -223,7 +231,8 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
         renderable.requestRender();
       },
       (err) => {
-        console.error("[dbg] image promise rejected:", err);
+        // Swallow: a failed image should not crash the view.
+        void err;
       },
     );
     return container;
@@ -288,6 +297,13 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
       renderable.fg = text();
       renderable.bg = bg();
       renderable.content = markdown;
+      // Finalize streaming so the last tokens are no longer marked unstable.
+      // Without this, OpenTUI keeps the trailing 2 blocks perpetually
+      // unstable in streaming mode, which recreates image render nodes (and
+      // their pending fetch promises) on every render cycle — the promise
+      // resolves after the loop idles and never settles.
+      renderable.streaming = false;
+      renderable.requestRender();
     },
     setImagesEnabled(enabled: boolean) {
       if (imagesEnabled === enabled) return;

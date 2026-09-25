@@ -75,7 +75,8 @@ import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
 import { buildComparisonTable } from "./compare";
 import { createMarkdownView } from "./markdown-view";
-import { fetchImageBytes, readmeBaseUrl } from "./image-loader";
+import { fetchImageBytes } from "./image-loader";
+import { fetchReadme } from "./readme";
 import { fetchTopics } from "./explore";
 import { exportToFile, type ExportFormat } from "./output";
 import {
@@ -1888,28 +1889,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     readmeScroll.scrollTop = 0;
     showOverlay("readme");
     try {
-      const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
-      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
-      let text = "";
-      let sourceUrl = "";
-      for (const [branch, file] of [
-        ["main", "README.md"],
-        ["master", "README.md"],
-        ["main", "README.rst"],
-      ] as const) {
-        // The README's own URL doubles as the base for relative image paths.
-        const url = readmeBaseUrl(repo.owner, repo.name, branch, file);
-        const r = await fetch(url, { headers });
-        if (r.ok) {
-          text = await r.text();
-          sourceUrl = url;
-          break;
-        }
-      }
-      if (!text) {
-        readmeView.setContent(`_(no README found for ${repo.fullName})_`);
+      const readme = await fetchReadme(repo.owner, repo.name, {
+        token: githubToken,
+      });
+      if (readme) {
+        readmeView.setContent(readme.text, readme.sourceUrl);
       } else {
-        readmeView.setContent(text, sourceUrl);
+        readmeView.setContent(`_(no README found for ${repo.fullName})_`);
       }
     } catch {
       readmeView.setContent("_Failed to load README._");

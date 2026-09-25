@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+  MAX_CONCURRENT_IMAGE_FETCHES,
   MAX_IMAGE_BYTES,
   clearImageByteCache,
   fetchImageBytes,
@@ -126,6 +127,45 @@ describe("isRenderableImageUrl", () => {
         "https://github.com/user-attachments/assets/0d1e2f3a-4b5c-6d7e-8f90-1a2b3c4d5e6f",
       ),
     ).toBe(true);
+  });
+});
+
+describe("fetchImageBytes concurrency", () => {
+  test("never runs more than the cap in flight at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const fetchImpl = asFetch(async () => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      // Hold the request open so overlap is observable.
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return new Response(new Uint8Array([1]), {
+        headers: { "content-type": "image/png" },
+      });
+    });
+
+    const urls = Array.from({ length: 12 }, (_, i) => `https://example.com/${i}.png`);
+    await Promise.all(urls.map((u) => fetchImageBytes(u, { fetchImpl })));
+
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(MAX_CONCURRENT_IMAGE_FETCHES);
+  });
+
+  test("still resolves every url, queued ones included", async () => {
+    const fetchImpl = asFetch(async (input) => {
+      await new Promise((r) => setTimeout(r, 1));
+      const n = Number(String(input).match(/(\d+)/)?.[1] ?? 0);
+      return new Response(new Uint8Array([n]), {
+        headers: { "content-type": "image/png" },
+      });
+    });
+
+    const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}.png`);
+    const results = await Promise.all(
+      urls.map((u) => fetchImageBytes(u, { fetchImpl })),
+    );
+    expect(results.map((b) => Array.from(b ?? [])[0])).toEqual([0,1,2,3,4,5,6,7,8,9]);
   });
 });
 

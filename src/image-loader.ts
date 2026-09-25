@@ -33,7 +33,36 @@ const RASTER_EXT = /\.(png|jpe?g|webp|gif|bmp|avif|heic|tiff?)(?:[?#]|$)/i;
 /** Cap on memoised downloads — a long session can open many READMEs. */
 const CACHE_LIMIT = 24;
 
+/**
+ * How many image downloads may be in flight at once. A README can reference
+ * dozens of images; firing them all at the same time makes them compete for
+ * bandwidth so the first one lands later, not sooner.
+ */
+export const MAX_CONCURRENT_IMAGE_FETCHES = 4;
+
 const cache = new Map<string, Promise<Uint8Array | null>>();
+
+let activeFetches = 0;
+const waiting: Array<() => void> = [];
+
+/** Hand the next queued caller its turn, if the cap allows it. */
+function releaseSlot(): void {
+  activeFetches--;
+  waiting.shift()?.();
+}
+
+/** Run `job` as soon as fewer than the cap are already running. */
+async function withSlot<T>(job: () => Promise<T>): Promise<T> {
+  if (activeFetches >= MAX_CONCURRENT_IMAGE_FETCHES) {
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  activeFetches++;
+  try {
+    return await job();
+  } finally {
+    releaseSlot();
+  }
+}
 
 /** Drop memoised image downloads (used by tests). */
 export function clearImageByteCache(): void {
@@ -169,7 +198,7 @@ export async function fetchImageBytes(
 ): Promise<Uint8Array | null> {
   const cached = cache.get(url);
   if (cached) return cached;
-  const pending = loadImageBytes(url, opts);
+  const pending = withSlot(() => loadImageBytes(url, opts));
   cache.set(url, pending);
   // Map iteration order is insertion order, so the first key is the oldest.
   while (cache.size > CACHE_LIMIT) {
