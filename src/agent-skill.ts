@@ -77,6 +77,12 @@ reported in text output and via the error message.
     ghfind deep-dive owner/repo --json
 Text output (no flag) prints the same sections formatted for the terminal.
 
+## Finding skills
+    ghfind skill search QUERY            # skills installed on this machine
+    ghfind skill search QUERY --remote   # the public skills.sh ecosystem
+Results carry path+description (local) or install command (registry, read-only --
+nothing is installed). The MCP server exposes the same search as
+ghfind_skill_search.
 ## Rate limits
 
 60 req/hr unauthenticated, 5,000 with GITHUB_TOKEN (env var or \`ghfind login\`).
@@ -88,6 +94,14 @@ Bookmarks live in ghfind's local state, not GitHub. An agent can read the
 release feed with:
     ghfind --releases --json
 Marking releases seen and editing bookmarks is a TUI action; skip it.
+## Local state (read-only)
+    ghfind bookmarks [QUERY] --json    # saved repos, newest first
+    ghfind history [QUERY] --json      # past searches
+    ghfind saved --json                # named searches
+    ghfind topics --json               # popular GitHub topics
+    ghfind readme owner/repo           # print a repo README
+    ghfind share owner/repo --as gh-cli|markdown|plain|short
+These never write local state; skip them when nothing needs reading.
 
 ## Token efficiency
 

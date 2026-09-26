@@ -95,7 +95,20 @@ ghfind --compare a/b c/d     # side-by-side comparison
 ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
 ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
 ghfind pkg "query" --json    # npm package search as JSON
+# Read-only local state
+ghfind bookmarks             # saved repos, newest first
+ghfind history --limit 20    # past searches
+ghfind saved                 # named searches saved in the TUI
+ghfind topics                # popular GitHub topics
+ghfind readme a/b            # print a repo README (--raw for no header)
+ghfind share a/b --as gh-cli # share snippet (--copy also copies it)
+# Agent skills
+ghfind skill search testing      # skills installed on this machine
+ghfind skill search testing --remote --json  # the skills.sh ecosystem
 ```
+
+`bookmarks`, `history`, `saved`, `topics`, `readme` and `share` are read-only:
+they print what the TUI has stored but never modify local state.
 
 ## Use with AI agents
 
@@ -120,16 +133,28 @@ or in your MCP client config:
 Exposed tools: `ghfind_search_repos`, `ghfind_trending`,
 `ghfind_npm_packages`, `ghfind_org_profile`, `ghfind_user_profile`,
 `ghfind_compare_repos`, `ghfind_deep_dive`, `ghfind_bookmarked_releases`,
-and `ghfind_skill` (a token-efficient CLI usage guide for agents).
+`ghfind_skill` (a token-efficient CLI usage guide for agents), and
+`ghfind_skill_search` (find agent skills, either installed on this machine or
+in the public skills.sh ecosystem ? read-only, it never installs anything).
 Unauthenticated requests are rate-limited to 60/hr — set `GITHUB_TOKEN`
 in the environment for 5,000/hr.
 
 CLI-first agents can skip MCP entirely:
 
 ```bash
-ghfind skill            # list agent skills
-ghfind skill ghfind-cli # print the token-efficient CLI guide
+ghfind skill                      # list agent skills
+ghfind skill ghfind-cli           # print the token-efficient CLI guide
+ghfind skill search testing       # search installed skills (local scan)
+ghfind skill search testing --remote --limit 10 --json  # search skills.sh
 ```
+
+`ghfind skill search` matches skill names first, then descriptions, and reads
+the `SKILL.md` files under `~/.codex/skills`, `~/.agents/skills`,
+`<project>/.codex/skills` and `<project>/.github/skills` (in that priority
+order, de-duplicated by name). `--remote` queries the public
+[skills.sh](https://skills.sh) ecosystem instead and returns the
+`npx skills add` command for each hit, without installing anything. Set
+`GHFIND_SKILL_ROOTS` to override which directories are scanned.
 
 ### Completions
 
@@ -164,6 +189,9 @@ ghfind --completion fish | source
 <tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
 <tr><td><b>MCP server</b></td><td><code>ghfind mcp</code> — GitHub search as tools for AI agents (Claude Code, Cursor, …)</td></tr>
 <tr><td><b>Agent skill</b></td><td><code>ghfind skill</code> — token-efficient CLI usage guide for coding agents</td></tr>
+<tr><td><b>Skill search</b></td><td><code>ghfind skill search &lt;query&gt;</code> — find installed skills, or <code>--remote</code> for the skills.sh ecosystem (also <code>ghfind_skill_search</code> over MCP)</td></tr>
+<tr><td><b>Read-only state</b></td><td><code>ghfind bookmarks|history|saved|topics</code> — print local state and popular topics without modifying anything</td></tr>
+<tr><td><b>README &amp; share</b></td><td><code>ghfind readme a/b</code> and <code>ghfind share a/b --as gh-cli</code> — the TUI's <code>r</code> / <code>y</code> actions from the shell</td></tr>
 </table>
 
 <details>
@@ -272,7 +300,7 @@ Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, 
 }
 ```
 
-Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
+Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `GHFIND_SKILL_ROOTS` (path-separator separated skill directories for `ghfind skill search`), `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
 
 ---
 
@@ -301,6 +329,28 @@ npm run build    # build dist/
 
 ---
 
+## Known limitations
+
+**README image rendering is currently incomplete.** Images that do render look
+right, but several common cases silently show nothing:
+
+- **An image wrapped in a link does not render at all.** This is the common
+  badge-and-screenshot style: `[![alt](shot.png)](https://example.com)`.
+  The whole block is treated as prose and the image is dropped.
+- **An image smaller than 100px is skipped**, judged by the `width`/`height`
+  the README declares in its `<img>` tag. A README that understates an
+  image's size hides that image.
+- **SVG is not rendered** — the rasteriser cannot draw it.
+- Markdown `![](url)` images have no declared size, so they are downloaded
+  before the size check can reject them. A README full of them is slow to open.
+
+A README using none of the above — plain `![]()` images and a few large
+banners — renders fine and fast. See
+[.issues/tickets/readme-image-rendering.md](.issues/tickets/readme-image-rendering.md)
+for the measurements and the remaining work.
+
+---
+
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
@@ -308,7 +358,7 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 ### v9.8.0
 
 - **README viewer renders real markdown** — headings, emphasis, links, lists, blockquotes, boxed tables, and fenced code now come from OpenTUI's markdown renderable with a theme-derived syntax style instead of a box-drawing text approximation
-- **Images render inline** — relative and `/`-rooted paths resolve against the README's branch, `github.com/.../blob/...` links are rewritten to raw content, downloads are cached and size-capped, SVG and badge-service images are skipped, and anything unloadable falls back to an `🖼 alt` caption; press `i` in the viewer to toggle images
+- **Images render inline — see [Known limitations](#known-limitations)** — relative and `/`-rooted paths resolve against the README's branch, `github.com/.../blob/...` links are rewritten to raw content, downloads are cached and size-capped, SVG and badge-service images are skipped, and anything unloadable falls back to an `🖼 alt` caption; press `i` in the viewer to toggle images
 - **No new dependencies** — the PNG decoder, image-to-cells rasteriser, and fetch cache are plain TypeScript, and images draw with truecolor half blocks, so they work on any truecolor terminal without image-protocol support
 
 ### v9.7.1

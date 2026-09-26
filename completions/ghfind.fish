@@ -20,5 +20,10 @@ complete -c ghfind -l interval -d "Watch interval seconds" -r
 complete -c ghfind -l version -d "Print version"
 complete -c ghfind -l help -d "Print help"
 complete -c ghfind -l completion -d "Shell" -r -f -a "bash zsh fish"
+complete -c ghfind -l as -d "Share format" -r -f -a "markdown plain gh-cli short"
+complete -c ghfind -l remote -d "Skill search: query skills.sh instead of this machine"
+complete -c ghfind -l local -d "Skill search: force the local scan (default)"
+complete -c ghfind -l copy -d "Share: also copy the snippet to the clipboard"
+complete -c ghfind -l raw -d "Readme: print the raw markdown with no header"
 
-complete -c ghfind -f -a "login init doctor org pkg mcp skill trending deep-dive"
+complete -c ghfind -f -a "login init doctor org user bookmarks history topics saved readme share pkg mcp skill trending deep-dive compare"

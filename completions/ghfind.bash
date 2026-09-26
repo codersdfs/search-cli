@@ -7,7 +7,7 @@ _ghfind() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  opts="--json --csv --markdown --count --limit --sort --token --trending --language --since --pipe --format --registry --watch --interval --version --help --completion pkg login init doctor org mcp skill trending deep-dive"
+  opts="--json --csv --markdown --count --limit --sort --token --trending --language --since --pipe --format --registry --watch --interval --version --help --completion --remote --local --copy --raw --as pkg login init doctor org user mcp skill bookmarks history topics saved readme share trending deep-dive compare"
 
   case "${prev}" in
     --sort)
@@ -28,6 +28,10 @@ _ghfind() {
       ;;
     --completion)
       COMPREPLY=( $(compgen -W "bash zsh fish" -- "${cur}") )
+      return 0
+      ;;
+    --as)
+      COMPREPLY=( $(compgen -W "markdown plain gh-cli short" -- "${cur}") )
       return 0
       ;;
     --registry)

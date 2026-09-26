@@ -6,6 +6,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.8.1] — unreleased
+
+### Added
+
+- **`ghfind skill search <query>`** finds agent skills by keyword and prints
+  why each one matched. The default scan reads `SKILL.md` files under
+  `~/.codex/skills`, `~/.agents/skills`, `<project>/.codex/skills` and
+  `<project>/.github/skills`, in that priority order and de-duplicated by name
+  (the user-level roots overlap heavily on real machines). `--remote` queries
+  the public [skills.sh](https://skills.sh) ecosystem instead and returns each
+  hit's install count and `npx skills add` command. `GHFIND_SKILL_ROOTS`
+  overrides which directories are scanned.
+- **MCP tool `ghfind_skill_search`.** Agents can search skills the moment they
+  connect: `source: "local"` (the default) searches installed skills,
+  `source: "registry"` searches skills.sh. Read-only — it returns install
+  commands rather than running them, and never writes to disk.
+- **Read-only CLI views of local state:** `ghfind bookmarks [query]`,
+  `ghfind history [query]`, `ghfind saved` and `ghfind topics`, each with
+  `--json` for agents. They print what the TUI has stored and never modify it.
+- **`ghfind readme <owner/repo>`** prints a repository's README (`--raw` skips
+  the header, `--json` returns `{ owner, name, sourceUrl, text }`), bringing the
+  TUI's README viewer to scripts and agents.
+- **`ghfind share <owner/repo>`** prints a share snippet
+  (`--as markdown|plain|gh-cli|short`), with `--copy` to also put it on the
+  clipboard.
+- Shell completions (bash, zsh, fish) cover every new subcommand and flag.
+
+### Changed
+
+- The bundled `ghfind-cli` agent skill documents the skill search and the new
+  read-only commands, so CLI-first agents discover them without reading
+  `--help`.
+
+### Fixed
+
+- **README image rendering does not work on real repositories.** The v9.8.0
+  notes described inline images as working; that was wrong. An image wrapped
+  in a link (`[![alt](shot.png)](url)`) renders nothing, and a README with
+  many small images — `openclaw/openclaw` has 648 48x48 avatars — becomes
+  15,552 rows tall. Images declaring an edge under 100px are skipped, and
+  SVG is not rendered at all. Plain `![]()` images and large banners do
+  render correctly. Root causes and remaining work:
+  `.issues/tickets/readme-image-rendering.md`.
+
+---
+
 ## [9.8.0] — 2026-09-22 (released)
 
 ### Added

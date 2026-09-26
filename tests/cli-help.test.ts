@@ -35,6 +35,42 @@ describe("cli --help usage block", () => {
     expect(dupes, `duplicated usage rows: ${dupes.join(" | ")}`).toEqual([]);
   });
 
+  test("documents the read-only and skill-search subcommands", () => {
+    const rows = usageRows(readCli()).join("\n");
+    for (const invocation of [
+      "ghfind bookmarks",
+      "ghfind history",
+      "ghfind topics",
+      "ghfind saved",
+      "ghfind readme",
+      "ghfind share",
+      "ghfind skill search",
+    ]) {
+      expect(rows, `missing usage row for: ${invocation}`).toContain(
+        invocation,
+      );
+    }
+  });
+
+  test("the read-only subcommands accept every documented output flag", () => {
+    const src = readCli();
+    // Each list command branches on json first, then csv/markdown, then text.
+    for (const command of ["--json", "--csv", "--markdown"]) {
+      const occurrences = src.split(command).length - 1;
+      expect(
+        occurrences,
+        `${command} should be handled broadly`,
+      ).toBeGreaterThan(1);
+    }
+  });
+
+  test("documents the flags those subcommands take", () => {
+    const src = readCli();
+    for (const flag of ["--remote", "--local", "--copy", "--raw", "--as"]) {
+      expect(src, `missing option row for: ${flag}`).toContain(`${flag} `);
+    }
+  });
+
   test("every row puts its description in the same column", () => {
     const columns = new Set<number>();
     for (const row of usageRows(readCli())) {

@@ -73,6 +73,20 @@ import {
 } from "./agent-skill";
 import type { SearchOptions } from "./types";
 import { SearchCliError } from "./errors";
+import { getBookmarks, searchBookmarks } from "./bookmarks";
+import { readHistory } from "./history";
+import { getSavedSearches } from "./saved-searches";
+import { fetchTopics } from "./explore";
+import { fetchReadme } from "./readme";
+import { copyToClipboard, formatShare, type ShareFormat } from "./share";
+import { repoFromRef } from "./deepdive";
+import {
+  formatSkillSearchJson,
+  formatSkillSearchNames,
+  formatSkillSearchText,
+  searchSkills,
+  type SkillSource,
+} from "./skill-finder";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
@@ -109,6 +123,21 @@ interface CLIFlags {
   skill?: string; // agent skill guide (ghfind skill [name])
   deepDive?: string; // repo deep-dive (ghfind deep-dive <owner/repo>)
   language?: string; // trending language filter (--trending rust / ghfind trending rust)
+  // ?? Read-only local/skill surface (see README "Non-interactive") ??
+  bookmarks: boolean; // list bookmarks (ghfind bookmarks)
+  history: boolean; // list past searches (ghfind history)
+  topics: boolean; // browse popular GitHub topics (ghfind topics)
+  saved: boolean; // list saved searches (ghfind saved)
+  readme?: string; // print a repo README (ghfind readme <owner/repo>)
+  share?: string; // print a share snippet (ghfind share <owner/repo>)
+  skillSearch?: string; // skill search query (ghfind skill search <query>)
+  sharedAs?: string; // --as <format> for share
+  remote: boolean; // skill search: hit skills.sh instead of this machine
+  local: boolean; // skill search: force the local scan (the default)
+  copy: boolean; // share: also write the snippet to the clipboard
+  raw: boolean; // readme: print the raw markdown with no header
+  /** True when --limit was passed (history uses a smaller default than search). */
+  limitExplicit: boolean;
 }
 
 function parseArgs(args: string[]): CLIFlags {
@@ -135,6 +164,15 @@ function parseArgs(args: string[]): CLIFlags {
     compare: [],
     doctor: false,
     mcp: false,
+    bookmarks: false,
+    history: false,
+    topics: false,
+    saved: false,
+    remote: false,
+    local: false,
+    copy: false,
+    raw: false,
+    limitExplicit: false,
   };
 
   const queryParts: string[] = [];
@@ -199,6 +237,7 @@ function parseArgs(args: string[]): CLIFlags {
         break;
       case "--limit": {
         const parsed = parseInt(args[++i], 10);
+        flags.limitExplicit = true;
         if (Number.isNaN(parsed) || parsed < 1 || parsed > 100) {
           console.error(`Invalid limit: must be 1-100. Using default 50.`);
           flags.limit = 50;
@@ -231,9 +270,58 @@ function parseArgs(args: string[]): CLIFlags {
       case "--completion":
         flags.completion = args[++i];
         break;
+      case "--remote":
+        flags.remote = true;
+        break;
+      case "--local":
+        flags.local = true;
+        break;
+      case "--copy":
+        flags.copy = true;
+        break;
+      case "--raw":
+        flags.raw = true;
+        break;
+      case "--as":
+        flags.sharedAs = args[++i];
+        break;
       case "mcp":
         flags.mcp = true;
         break;
+      case "bookmarks":
+        flags.bookmarks = true;
+        break;
+      case "history":
+        flags.history = true;
+        break;
+      case "topics":
+        flags.topics = true;
+        break;
+      case "saved":
+        flags.saved = true;
+        break;
+      case "readme": {
+        // Single repo ref; a following flag means none was given.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.readme = next;
+          i++;
+        } else {
+          flags.readme = "";
+        }
+        break;
+      }
+      case "share": {
+        // Single repo ref; a following flag means none was given.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.share = next;
+          i++;
+        } else {
+          flags.share = "";
+        }
+        break;
+      }
       case "deep-dive": {
         // Single repo ref (owner/name); a following flag means none.
         const next = args[i + 1];
@@ -244,8 +332,20 @@ function parseArgs(args: string[]): CLIFlags {
         break;
       }
       case "skill": {
-        // Optional skill id (ids contain no spaces); a following flag means none.
+        // `skill search <query>` searches the skill registry; plain `skill`
+        // lists the catalog and `skill <name>` prints one skill's guide.
         const next = args[i + 1];
+        if (next === "search") {
+          i++;
+          const query = args[i + 1];
+          if (query && !query.startsWith("-")) {
+            flags.skillSearch = query;
+            i++;
+          } else {
+            flags.skillSearch = "";
+          }
+          break;
+        }
         if (next && !next.startsWith("-")) {
           flags.skill = next;
           i++;
@@ -335,6 +435,13 @@ Usage:
   ghfind pkg <query>               Search npm packages, text list
   ghfind mcp                       Run the MCP server for AI agents (stdio)
   ghfind skill [name]              Print the agent skill guide (or catalog)
+  ghfind bookmarks [query]         Saved repos, newest first
+  ghfind history [query]           Past searches, newest first
+  ghfind topics                    Browse popular GitHub topics
+  ghfind saved                     Named searches saved in the TUI
+  ghfind readme <owner/repo>       Print a repository README
+  ghfind share a/b --as gh-cli     Share snippet (--copy to clipboard)
+  ghfind skill search <query>      Find skills locally, or --remote
   ghfind --watch <query>           Watch mode (poll every Ns)
   ghfind init                      Run setup wizard
   ghfind login                     Import the gh CLI token or paste one
@@ -359,6 +466,11 @@ Options:
   --releases                           New-release feed for bookmarks
   --interval <s>                       Watch interval in seconds (default: 300)
   --completion <shell>                 Generate completions
+  --remote                             skill search: query skills.sh instead of this machine
+  --local                              skill search: force the local scan (default)
+  --as <fmt>                           share format: markdown|plain|gh-cli|short
+  --copy                               share: also copy the snippet to the clipboard
+  --raw                                readme: print the raw markdown with no header
 `);
     return;
   }
@@ -397,9 +509,41 @@ Options:
     return;
   }
 
+  // Skill search — find skills on this machine or in the skills.sh ecosystem
+  if (flags.skillSearch !== undefined) {
+    await runSkillSearch(flags);
+    return;
+  }
   // Agent skill guide — token-efficient usage doc for coding agents
   if (flags.skill !== undefined) {
     printAgentSkill(flags.skill);
+    return;
+  }
+  // Read-only local state: bookmarks / history / saved searches
+  if (flags.bookmarks) {
+    runBookmarks(flags);
+    return;
+  }
+  if (flags.history) {
+    runHistory(flags);
+    return;
+  }
+  if (flags.saved) {
+    runSavedSearches(flags);
+    return;
+  }
+  // Popular GitHub topics
+  if (flags.topics) {
+    await runTopics(flags);
+    return;
+  }
+  // README and share-snippet views (parity with the TUI `r` / `y` actions)
+  if (flags.readme !== undefined) {
+    await runReadme(flags);
+    return;
+  }
+  if (flags.share !== undefined) {
+    await runShare(flags);
     return;
   }
   // Package search (prototype, ticket 002-008)
@@ -588,6 +732,274 @@ async function runDeepDive(
       console.log(buildDeepDiveJson(raw));
     } else {
       console.log(buildDeepDiveText(buildDeepDiveData(repo, raw)));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind skill search <query>` — find skills locally, or in skills.sh with --remote. */
+async function runSkillSearch(flags: CLIFlags): Promise<void> {
+  const query = flags.skillSearch ?? "";
+  if (!query.trim()) {
+    console.error(
+      "Usage: ghfind skill search <query> [--remote] [--limit <n>] [--json]",
+    );
+    process.exit(1);
+  }
+  if (flags.remote && flags.local) {
+    console.error(
+      "Contradictory flags: pass either --remote or --local, not both.",
+    );
+    process.exit(1);
+  }
+  const source: SkillSource = flags.remote ? "registry" : "local";
+  try {
+    const result = await searchSkills(query, {
+      source,
+      limit: flags.limit,
+    });
+    if (flags.json) {
+      console.log(formatSkillSearchJson(result));
+    } else if (flags.format === "names") {
+      console.log(formatSkillSearchNames(result));
+    } else {
+      console.log(formatSkillSearchText(result));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind bookmarks [query]` — the saved repos, newest first. */
+function runBookmarks(flags: CLIFlags): void {
+  const query = flags.query.trim();
+  const bookmarks = query ? searchBookmarks(query) : getBookmarks();
+  if (flags.json) {
+    console.log(JSON.stringify(bookmarks, null, 2));
+    return;
+  }
+  if (bookmarks.length === 0) {
+    console.log(
+      query
+        ? `No bookmarks match "${query}".`
+        : "No bookmarks yet. Press Space → Bookmark in the TUI to save one.",
+    );
+    return;
+  }
+  if (flags.csv || flags.markdown) {
+    const header = ["full_name", "stars", "language", "tags", "saved_at"];
+    const rows = bookmarks.map((b) => [
+      b.repo.fullName,
+      String(b.repo.stars),
+      b.repo.language ?? "",
+      b.tags.join(" "),
+      new Date(b.savedAt).toISOString().slice(0, 10),
+    ]);
+    console.log(
+      flags.csv ? rowsToCsv(header, rows) : rowsToMarkdown(header, rows),
+    );
+    return;
+  }
+  for (const b of bookmarks) {
+    const tags = b.tags.length > 0 ? `  [${b.tags.join(", ")}]` : "";
+    console.log(
+      `${b.repo.fullName}  — ${b.repo.stars.toLocaleString()}  ${b.repo.language ?? "n/a"}${tags}`,
+    );
+  }
+}
+
+/** `ghfind history [query]` — past searches, newest first. */
+function runHistory(flags: CLIFlags): void {
+  // History entries are short; 20 is plenty unless the caller says otherwise.
+  const limit = flags.limitExplicit ? flags.limit : 20;
+  const query = flags.query.trim().toLowerCase();
+  const entries = readHistory()
+    .filter((e) => !query || e.query.toLowerCase().includes(query))
+    .slice(0, limit);
+  if (flags.json) {
+    console.log(JSON.stringify(entries, null, 2));
+    return;
+  }
+  if (entries.length === 0) {
+    console.log(
+      query ? `No history matches "${query}".` : "No search history yet.",
+    );
+    return;
+  }
+  if (flags.csv || flags.markdown) {
+    const header = ["query", "mode", "results", "when"];
+    const rows = entries.map((e) => [
+      e.query,
+      e.mode,
+      String(e.resultCount),
+      new Date(e.timestamp).toISOString(),
+    ]);
+    console.log(
+      flags.csv ? rowsToCsv(header, rows) : rowsToMarkdown(header, rows),
+    );
+    return;
+  }
+  for (const e of entries) {
+    const when = new Date(e.timestamp).toISOString().slice(0, 10);
+    console.log(
+      `${e.query}  — ${e.mode}  — ${e.resultCount} results  — ${when}`,
+    );
+  }
+}
+
+/** `ghfind saved` — named searches saved in the TUI. */
+function runSavedSearches(flags: CLIFlags): void {
+  const saved = getSavedSearches();
+  if (flags.json) {
+    console.log(JSON.stringify(saved, null, 2));
+    return;
+  }
+  if (saved.length === 0) {
+    console.log("No saved searches yet. Save one from the TUI command menu.");
+    return;
+  }
+  if (flags.csv || flags.markdown) {
+    const header = ["name", "query", "mode", "limit"];
+    const rows = saved.map((s) => [s.name, s.query, s.mode, String(s.limit)]);
+    console.log(
+      flags.csv ? rowsToCsv(header, rows) : rowsToMarkdown(header, rows),
+    );
+    return;
+  }
+  for (const s of saved) {
+    console.log(`${s.name}  — ${s.query}  — ${s.mode}  — limit ${s.limit}`);
+  }
+}
+
+/** CSV for the small local-state tables (repos use output.ts's richer schema). */
+function rowsToCsv(header: string[], rows: string[][]): string {
+  const quote = (value: string) =>
+    /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  return [header, ...rows].map((row) => row.map(quote).join(",")).join("\n");
+}
+
+/** Markdown table for the same small local-state tables. */
+function rowsToMarkdown(header: string[], rows: string[][]): string {
+  return [
+    `| ${header.join(" | ")} |`,
+    `|${header.map(() => "---").join("|")}|`,
+    ...rows.map((row) => `| ${row.join(" | ")} |`),
+  ].join("\n");
+}
+
+/** Clip a string to `width` characters, ending on an ellipsis when cut. */
+function truncate(text: string, width: number): string {
+  if (text.length <= width) return text;
+  return `${text.slice(0, width - 1).trimEnd()}\u2026`;
+}
+
+/** GitHub topic blurbs are HTML; flatten them to one plain text line. */
+function plainText(html: string): string {
+  return html
+    .replace(/<\/p>|<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** `ghfind topics` — popular GitHub topics. */
+async function runTopics(flags: CLIFlags): Promise<void> {
+  try {
+    const topics = (await fetchTopics()).slice(0, flags.limit);
+    if (flags.json) {
+      console.log(JSON.stringify(topics, null, 2));
+      return;
+    }
+    if (topics.length === 0) {
+      console.log("No topics returned.");
+      return;
+    }
+    for (const t of topics) {
+      // Blurbs run to paragraphs; text output stays readable by clipping.
+      const description = truncate(plainText(t.description), 140);
+      console.log(description ? `${t.name}  ${description}` : t.name);
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind readme <owner/repo>` — print a repository README. */
+async function runReadme(flags: CLIFlags): Promise<void> {
+  const ref = flags.readme ?? "";
+  if (!ref) {
+    console.error(
+      "Usage: ghfind readme <owner/repo> [--json] [--raw] [--token <t>]",
+    );
+    process.exit(1);
+  }
+  try {
+    const { owner, name } = repoFromRef(ref); // validates the ref
+    const readme = await fetchReadme(owner, name, { token: flags.token });
+    if (!readme) {
+      console.error(`No README found for ${owner}/${name}.`);
+      process.exit(1);
+    }
+    if (flags.json) {
+      console.log(
+        JSON.stringify(
+          { owner, name, sourceUrl: readme.sourceUrl, text: readme.text },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (!flags.raw) {
+      console.log(`# ${owner}/${name} README (${readme.sourceUrl})`);
+      console.log("");
+    }
+    console.log(readme.text);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind share <owner/repo> [--as markdown|plain|gh-cli|short] [--copy]` */
+async function runShare(flags: CLIFlags): Promise<void> {
+  const ref = flags.share ?? "";
+  if (!ref) {
+    console.error(
+      "Usage: ghfind share <owner/repo> [--as markdown|plain|gh-cli|short] [--copy]",
+    );
+    process.exit(1);
+  }
+  const SHARE_FORMATS: ShareFormat[] = ["markdown", "plain", "gh-cli", "short"];
+  const as = (flags.sharedAs ?? "markdown") as ShareFormat;
+  if (!SHARE_FORMATS.includes(as)) {
+    console.error(
+      `Invalid --as value: "${flags.sharedAs}" (use markdown|plain|gh-cli|short).`,
+    );
+    process.exit(1);
+  }
+  try {
+    repoFromRef(ref); // validate before the network round-trip
+    const repo = await resolveRepoFromRef(ref, flags.token);
+    const text = formatShare(repo, as);
+    console.log(text);
+    if (flags.copy) {
+      const copied = await copyToClipboard(text);
+      console.error(
+        copied
+          ? "Copied to clipboard."
+          : "Could not copy to the clipboard on this platform.",
+      );
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

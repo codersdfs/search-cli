@@ -2,9 +2,9 @@
 // Network-touching tools run against a mocked globalThis.fetch, following
 // the precedent in tests/org.test.ts. State files go to a temp state dir.
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import {
   processServerLine,
   callTool,
@@ -592,6 +592,115 @@ describe("callTool: ghfind_bookmarked_releases + ghfind_skill", () => {
     expect(outcome.text).toContain("ghfind");
     expect(outcome.text).toContain("--json");
     expect(outcome.data).toMatchObject({ name: "ghfind-cli" });
+  });
+});
+
+describe("callTool: ghfind_skill_search", () => {
+  let tmp: string;
+  let skillsRoot: string;
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "ghfind-mcp-"));
+    process.env.XDG_STATE_HOME = tmp;
+    skillsRoot = join(tmp, "skills");
+    mkdirSync(join(skillsRoot, "changelog"), { recursive: true });
+    writeFileSync(
+      join(skillsRoot, "changelog", "SKILL.md"),
+      "---\nname: changelog\ndescription: write changelogs\n---\n# changelog\n",
+    );
+    mkdirSync(join(skillsRoot, "testing"), { recursive: true });
+    writeFileSync(
+      join(skillsRoot, "testing", "SKILL.md"),
+      "---\nname: testing\ndescription: write tests\n---\n# testing\n",
+    );
+    process.env.GHFIND_SKILL_ROOTS = skillsRoot;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.GHFIND_SKILL_ROOTS;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("searches installed skills by default (source=local)", async () => {
+    const outcome = await callTool(
+      "ghfind_skill_search",
+      { query: "changelog" },
+      freshState(),
+    );
+    expect(outcome.text).toContain("installed skills on this machine");
+    expect(outcome.text).toContain("changelog");
+    expect(outcome.data?.source).toBe("local");
+    expect(outcome.data?.count).toBe(1);
+  });
+
+  it("returns the structured result agents parse", async () => {
+    const outcome = await callTool(
+      "ghfind_skill_search",
+      { query: "test", limit: 5 },
+      freshState(),
+    );
+    const skills = outcome.data?.skills as Array<Record<string, unknown>>;
+    expect(skills[0].name).toBe("testing");
+    // Origins are display paths: separators normalized, home abbreviated.
+    const displayRoot = skillsRoot
+      .replace(/\\/g, "/")
+      .replace(homedir().replace(/\\/g, "/"), "~");
+    expect(skills[0].origin).toBe(displayRoot);
+    expect(outcome.data).toMatchObject({ query: "test", source: "local" });
+  });
+
+  it("searches the skills.sh registry when asked", async () => {
+    let calledUrl = "";
+    globalThis.fetch = (async (url: string | URL) => {
+      calledUrl = String(url);
+      return jsonResponse({
+        query: "react",
+        skills: [
+          {
+            id: "vercel-labs/agent-skills/react",
+            source: "vercel-labs/agent-skills",
+            skillId: "react",
+            name: "react",
+            installs: 743406,
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const outcome = await callTool(
+      "ghfind_skill_search",
+      { query: "react", source: "registry" },
+      freshState(),
+    );
+    expect(calledUrl).toContain("skills.sh/api/search");
+    expect(outcome.data?.source).toBe("registry");
+    expect(outcome.text).toContain(
+      "npx skills add vercel-labs/agent-skills@react",
+    );
+  });
+
+  it("falls back to the local source for an unknown source value", async () => {
+    const outcome = await callTool(
+      "ghfind_skill_search",
+      { query: "changelog", source: "nonsense" },
+      freshState(),
+    );
+    expect(outcome.data?.source).toBe("local");
+  });
+
+  it("reports a too-short query as a tool error", async () => {
+    await expect(
+      callTool("ghfind_skill_search", { query: "x" }, freshState()),
+    ).rejects.toThrow(McpToolError);
+  });
+
+  it("reports an empty result without failing", async () => {
+    const outcome = await callTool(
+      "ghfind_skill_search",
+      { query: "nothing-matches-this" },
+      freshState(),
+    );
+    expect(outcome.data?.count).toBe(0);
+    expect(outcome.text).toContain("0 match(es)");
   });
 });
 

@@ -17,6 +17,7 @@
  *   ghfind_deep_dive            deepdive.ts
  *   ghfind_bookmarked_releases  releases.ts + bookmarks.ts (read-only)
  *   ghfind_skill                agent-skill.ts
+ *   ghfind_skill_search         skill-finder.ts (local scan | skills.sh HTTP)
  *
  * Only the tools capability is declared (no prompts/resources yet), so those
  * methods fall through to "Method not found".
@@ -47,6 +48,12 @@ import { getBookmarks } from "./bookmarks";
 import { appendHistory } from "./history";
 import { loadConfig } from "./config";
 import { ensureBuiltinSkill, getSkill } from "./agent-skill";
+import {
+  formatSkillSearchText,
+  searchSkills,
+  type SkillSearchResult,
+  type SkillSource,
+} from "./skill-finder";
 import { getVersion } from "./version";
 
 // ─── Protocol constants ────────────────────────────────────────────────
@@ -212,6 +219,8 @@ const TRENDING_QUERY = { keywords: [], qualifiers: [], raw: "trending" };
 // ─── Tool registry ─────────────────────────────────────────────────────
 
 const REPO_SORTS = ["best-match", "stars", "updated", "forks"] as const;
+/** Skill search sources: this machine, or the public skills.sh ecosystem. */
+const SKILL_SOURCES = ["local", "registry"] as const;
 const TRENDING_SINCE = ["daily", "weekly", "monthly"] as const;
 const PKG_SORTS = ["best-match", "score", "downloads", "name"] as const;
 
@@ -599,6 +608,56 @@ const TOOLS: ToolDefinition[] = [
       };
     },
   },
+  {
+    name: "ghfind_skill_search",
+    title: "Search agent skills",
+    description:
+      "Search installed agent skills (SKILL.md files under the user's skill directories) or the public skills.sh ecosystem by keyword, and return matching skills with their descriptions. Read-only: it never installs anything - registry hits include the `npx skills add` command for the user to run deliberately. Use when the user asks to find a skill for a task, or asks what skills are available.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            'Keyword to match against skill names and descriptions, e.g. "changelog" or "testing" (2+ characters).',
+        },
+        source: {
+          type: "string",
+          description:
+            "Where to search: 'local' for skills installed on this machine (default), 'registry' for the public skills.sh ecosystem.",
+          enum: [...SKILL_SOURCES],
+        },
+        limit: {
+          type: "number",
+          description: "Max results, 1-100 (default 20).",
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+      required: ["query"],
+    },
+    async run(args) {
+      const source = coerceEnum<SkillSource>(
+        args.source,
+        SKILL_SOURCES,
+        "local",
+      );
+      const limit = coerceInt(args.limit, 20, 1, 100);
+      const result: SkillSearchResult = await searchSkills(
+        String(args.query ?? ""),
+        { source, limit },
+      );
+      const where =
+        result.source === "local"
+          ? "installed skills on this machine"
+          : "the public skills.sh ecosystem";
+      const header = `${result.count} match(es) for "${result.query}" in ${where}:`;
+      return {
+        text: `${header}\n\n${formatSkillSearchText(result)}`,
+        data: { ...result },
+      };
+    },
+  },
 ];
 
 /** Tools/list payload (name, title, description, inputSchema only). */
@@ -737,6 +796,7 @@ export async function processServerLine(
           },
           instructions:
             "ghfind gives agents GitHub search: repositories, trending, npm packages, org/user profiles, repo comparison and deep-dives. " +
+            "ghfind_skill_search finds agent skills, either installed on this machine or in the public skills.sh ecosystem. " +
             "Call ghfind_skill for the full CLI guide. Unauthenticated requests are rate-limited to 60/hr; pass a token or set GITHUB_TOKEN for 5,000/hr.",
         }),
       );
