@@ -355,6 +355,21 @@ for the measurements and the remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.8.1
+
+- **`ghfind skill search <query>`** finds agent skills by keyword and prints why
+  each one matched; `--remote` searches the public [skills.sh](https://skills.sh)
+  ecosystem instead, and `GHFIND_SKILL_ROOTS` overrides the scanned directories
+- **MCP tool `ghfind_skill_search`** — agents search installed skills or the
+  skills.sh registry as soon as they connect; read-only
+- **Read-only CLI views of local state** — `ghfind bookmarks`, `ghfind history`,
+  `ghfind saved`, `ghfind topics`, plus `ghfind readme <owner/repo>` and
+  `ghfind share <owner/repo>`, each with `--json` for agents
+- **Shell completions** (bash, zsh, fish) cover every new subcommand and flag
+- **README image rendering is incomplete** — see
+  [Known limitations](#known-limitations); the v9.8.0 notes wrongly described it
+  as working
+
 ### v9.8.0
 
 - **README viewer renders real markdown** — headings, emphasis, links, lists, blockquotes, boxed tables, and fenced code now come from OpenTUI's markdown renderable with a theme-derived syntax style instead of a box-drawing text approximation
@@ -367,15 +382,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **New `ghfind --doctor` check** — flags stale/PATH-shadowing global installs (multiple `ghfind` copies with different versions) and prints the exact uninstall command
 - **Windows URL fix** — links with query params were truncated at the first `&` by `cmd /c start`; every pre-filled crash-report/issue link now opens complete
 - Fixed `open-url` crashing under Node; CI now enforces lint + typecheck gates (first green Biome baseline)
-
-### v9.7.0
-
-- **CLI parity with the MCP tools** — `ghfind deep-dive <owner/repo>` (languages, contributors, README excerpt, `--json`), `ghfind --compare` with `--json|--csv|--markdown`, and a trending language filter (`ghfind trending rust`, `--trending <lang>`)
-- **Deep-dive metadata fix** — real stars, description, and topics are fetched first instead of a zeroed stub; a 404 exits with `Repo not found`
-- Fixed `ghfind mcp` failing to typecheck (JSON-RPC id narrowing; runtime behavior unchanged)
-- The MCP server and CLI now share repo-ref parsing, language validation, and the deep-dive pipeline
-
----
 
 ## License
 
