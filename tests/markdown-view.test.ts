@@ -1,4 +1,3 @@
-
 import { describe, expect, test } from "vitest";
 import { createMarkdownView } from "../src/markdown-view";
 import { createTestRenderer } from "./trending.test.util.ts";
@@ -10,7 +9,13 @@ async function setupView() {
   renderer.start();
   const view = createMarkdownView({
     renderer,
-    colors: { bg: "#000000", text: "#ffffff", accent: "#00ff88", surface: "#111111", muted: "#555555" },
+    colors: {
+      bg: "#000000",
+      text: "#ffffff",
+      accent: "#00ff88",
+      surface: "#111111",
+      muted: "#555555",
+    },
     loadImage: async () => new Uint8Array(),
     getImageWidth: () => 28,
   });
@@ -30,8 +35,14 @@ describe("markdown-view setContent", () => {
     const { renderer, view } = await setupView();
     const chunks: string[] = [];
     const orig = process.stderr.write.bind(process.stderr);
-    process.stderr.write = (chunk: unknown) => { chunks.push(String(chunk)); return true; };
-    view.setContent("![alt](https://example.com/img.png)", "https://example.com/0");
+    process.stderr.write = (chunk: unknown) => {
+      chunks.push(String(chunk));
+      return true;
+    };
+    view.setContent(
+      "![alt](https://example.com/img.png)",
+      "https://example.com/0",
+    );
     process.stderr.write = orig;
     renderer.destroy();
     expect(chunks.join("")).not.toContain("[dbg]");
@@ -43,9 +54,13 @@ describe("extractImageRefs", () => {
     const token: BlockTokenLike = {
       type: "paragraph",
       raw: "![logo](https://example.com/logo.png)",
-      tokens: [{ type: "image", text: "logo", href: "https://example.com/logo.png" }],
+      tokens: [
+        { type: "image", text: "logo", href: "https://example.com/logo.png" },
+      ],
     };
-    expect(extractImageRefs(token)).toEqual([{ href: "https://example.com/logo.png", alt: "logo" }]);
+    expect(extractImageRefs(token)).toEqual([
+      { href: "https://example.com/logo.png", alt: "logo" },
+    ]);
   });
 
   test("returns null for prose paragraph", () => {

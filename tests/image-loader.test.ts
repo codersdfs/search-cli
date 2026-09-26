@@ -145,7 +145,10 @@ describe("fetchImageBytes concurrency", () => {
       });
     });
 
-    const urls = Array.from({ length: 12 }, (_, i) => `https://example.com/${i}.png`);
+    const urls = Array.from(
+      { length: 12 },
+      (_, i) => `https://example.com/${i}.png`,
+    );
     await Promise.all(urls.map((u) => fetchImageBytes(u, { fetchImpl })));
 
     expect(peak).toBeGreaterThan(1);
@@ -161,11 +164,16 @@ describe("fetchImageBytes concurrency", () => {
       });
     });
 
-    const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}.png`);
+    const urls = Array.from(
+      { length: 10 },
+      (_, i) => `https://example.com/${i}.png`,
+    );
     const results = await Promise.all(
       urls.map((u) => fetchImageBytes(u, { fetchImpl })),
     );
-    expect(results.map((b) => Array.from(b ?? [])[0])).toEqual([0,1,2,3,4,5,6,7,8,9]);
+    expect(results.map((b) => Array.from(b ?? [])[0])).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ]);
   });
 });
 

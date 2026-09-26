@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { fetchReadme } from "../src/readme";
 
-const asFetch = (shim: (input: string, init?: RequestInit) => Promise<Response>) =>
-  shim as unknown as typeof fetch;
+const asFetch = (
+  shim: (input: string, init?: RequestInit) => Promise<Response>,
+) => shim as unknown as typeof fetch;
 
 const ok = (body: string) =>
-  new Response(body, { status: 200, headers: { "content-type": "text/plain" } });
+  new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/plain" },
+  });
 
 const missing = () => new Response("nope", { status: 404 });
 
