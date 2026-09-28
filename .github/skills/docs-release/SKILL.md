@@ -52,7 +52,7 @@ until all boxes tick.
 
 - [ ] **`NPM_TOKEN` repo secret exists** — this was the 9.7.1 failure and
       is the one pre-flight item that silently ruins a release. Without it,
-      `publish-npm` fails with an empty `NODE_AUTH_TOKEN` (401) *after* the
+      `publish-npm` fails with an empty `NODE_AUTH_TOKEN` (401) _after_ the
       binaries are already attached, so the release lands on GitHub and never
       on npm.
   - **Currently satisfied** — `NPM_TOKEN` was created 2026-09-24T14:32Z and
