@@ -11,6 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, platform, arch } from "node:os";
 import { loadConfig, configPath, stateDir, cacheDir } from "./config";
+import { maskToken } from "./login";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
@@ -212,8 +213,8 @@ function checkGithubToken(): void {
   const config = loadConfig();
   const token = config.githubToken || process.env.GITHUB_TOKEN;
   if (token) {
-    const preview = token.slice(0, 7);
-    add("PASS", "GitHub token", `Configured (${preview}…).`);
+    const preview = maskToken(token);
+    add("PASS", "GitHub token", `Configured (${preview}).`);
   } else {
     add(
       "WARN",

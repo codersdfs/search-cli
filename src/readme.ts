@@ -27,17 +27,33 @@ const CANDIDATES: ReadonlyArray<readonly [string, string]> = [
   ["main", "README.rst"],
 ];
 
+/**
+ * Headers for a README request. raw.githubusercontent.com is not the GitHub
+ * API, so the token is only ever attached to api.github.com — and only for
+ * private repos, which are the sole reason to authenticate a README fetch.
+ */
+export function buildReadmeHeaders(
+  url: string,
+  token: string | undefined,
+  isPrivate = false,
+): Record<string, string> {
+  const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
+  if (token && isPrivate && new URL(url).origin === "https://api.github.com") {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 export async function fetchReadme(
   owner: string,
   repo: string,
-  opts: { token?: string; fetchImpl?: typeof fetch } = {},
+  opts: { token?: string; private?: boolean; fetchImpl?: typeof fetch } = {},
 ): Promise<Readme | null> {
   const fetchImpl = opts.fetchImpl ?? fetch;
-  const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
-  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
 
   const attempts = CANDIDATES.map(async ([branch, file]) => {
     const url = readmeBaseUrl(owner, repo, branch, file);
+    const headers = buildReadmeHeaders(url, opts.token, opts.private);
     const res = await fetchImpl(url, { headers });
     // Reject rather than resolve with null: Promise.any settles on the first
     // *fulfilled* promise, so a 404 that resolved would beat the real README.

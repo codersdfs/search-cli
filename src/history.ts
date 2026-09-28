@@ -31,13 +31,10 @@ export function readHistory(): HistoryEntry[] {
 export function deleteHistoryEntry(index: number): void {
   const entries = readHistory();
   if (index < 0 || index >= entries.length) return;
-  const removed = entries[index];
-  const remaining = entries.filter(
-    (e) => e.timestamp !== removed.timestamp || e.query !== removed.query,
-  );
+  entries.splice(index, 1);
   writeRaw(
     HISTORY_FILE,
-    `${remaining
+    `${entries
       .reverse()
       .map((e) => JSON.stringify(e))
       .join("\n")}\n`,

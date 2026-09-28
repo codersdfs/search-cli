@@ -2,16 +2,15 @@
  * Storage adapter — single point of file I/O for state files.
  *
  * All domain modules (history, bookmarks, saved-searches, notifications,
- * session, config) delegate file I/O here. Swap for an in-memory
- * implementation in tests.
+ * session, config) delegate file I/O here.
  */
 import {
-  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
   appendFileSync,
   unlinkSync,
+  renameSync,
 } from "node:fs";
 import { join } from "node:path";
 import { stateDir } from "./config";
@@ -31,10 +30,27 @@ export function readJSON<T>(filename: string, fallback: T): T {
   }
 }
 
+/** Write a file atomically: temp file in the same dir, then rename. */
+function writeFileAtomic(filename: string, data: string): void {
+  ensureDir();
+  const target = join(stateDir(), filename);
+  const tmp = `${target}.tmp-${process.pid}`;
+  try {
+    writeFileSync(tmp, data, "utf-8");
+    renameSync(tmp, target);
+  } catch (e) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // temp already gone
+    }
+    throw e;
+  }
+}
+
 /** Write data as JSON to a file. */
 export function writeJSON(filename: string, data: unknown): void {
-  ensureDir();
-  writeFileSync(join(stateDir(), filename), JSON.stringify(data, null, 2));
+  writeFileAtomic(filename, JSON.stringify(data, null, 2));
 }
 
 /** Append one JSON object as a line to a JSONL file. */
@@ -68,8 +84,7 @@ export function readJSONL<T>(filename: string): T[] {
 
 /** Write raw text to a file (bypasses JSON encoding). */
 export function writeRaw(filename: string, data: string): void {
-  ensureDir();
-  writeFileSync(join(stateDir(), filename), data);
+  writeFileAtomic(filename, data);
 }
 
 /** Delete a file if it exists. */
@@ -94,43 +109,3 @@ export function debugLog(msg: string): void {
     /* ignore */
   }
 }
-
-/** Check if a file exists in the state dir. */
-export function fileExists(filename: string): boolean {
-  return existsSync(join(stateDir(), filename));
-}
-
-// ─── In-memory implementation for tests ────────────────────────────────
-
-const memStore = new Map<string, string>();
-
-export const memoryStorage = {
-  readJSON<T>(filename: string, fallback: T): T {
-    const raw = memStore.get(filename);
-    if (!raw) return fallback;
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return fallback;
-    }
-  },
-  writeJSON(filename: string, data: unknown): void {
-    memStore.set(filename, JSON.stringify(data, null, 2));
-  },
-  appendJSONL(filename: string, obj: unknown): void {
-    const existing = memStore.get(filename) ?? "";
-    memStore.set(filename, `${existing + JSON.stringify(obj)}\n`);
-  },
-  readJSONL<T>(filename: string): T[] {
-    const raw = memStore.get(filename);
-    if (!raw) return [];
-    return raw
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as T);
-  },
-  clear(): void {
-    memStore.clear();
-  },
-};

@@ -4,7 +4,6 @@ export class SearchCliError extends Error {
   constructor(
     message: string,
     public readonly userMessage: string,
-    public readonly recoverable: boolean = true,
   ) {
     super(message);
     this.name = "SearchCliError";

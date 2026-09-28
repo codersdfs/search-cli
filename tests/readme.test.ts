@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fetchReadme } from "../src/readme";
+import { buildReadmeHeaders, fetchReadme } from "../src/readme";
 
 const asFetch = (
   shim: (input: string, init?: RequestInit) => Promise<Response>,
@@ -70,10 +70,37 @@ describe("fetchReadme", () => {
       return String(input).includes("/main/") ? ok("# x") : missing();
     });
 
-    await fetchReadme("octo", "demo", { token: "secret", fetchImpl });
+    await fetchReadme("octo", "demo", {
+      token: "secret",
+      private: true,
+      fetchImpl,
+    });
+    expect(seen.length).toBeGreaterThan(0);
     for (const [url, auth] of seen) {
       expect(url).toStartWith("https://raw.githubusercontent.com/");
-      expect(auth).toBe("Bearer secret");
+      expect(auth).toBeUndefined();
     }
+  });
+
+  test("sends the token to api.github.com for private repos", () => {
+    expect(
+      buildReadmeHeaders(
+        "https://api.github.com/repos/octo/demo",
+        "secret",
+        true,
+      ).Authorization,
+    ).toBe("Bearer secret");
+    // Not private, or not the API host: no token.
+    expect(
+      buildReadmeHeaders("https://api.github.com/repos/octo/demo", "secret")
+        .Authorization,
+    ).toBeUndefined();
+    expect(
+      buildReadmeHeaders(
+        "https://raw.githubusercontent.com/octo/demo/main/README.md",
+        "secret",
+        true,
+      ).Authorization,
+    ).toBeUndefined();
   });
 });

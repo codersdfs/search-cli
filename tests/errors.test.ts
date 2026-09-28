@@ -9,11 +9,11 @@ import {
 } from "../src/errors.ts";
 
 describe("SearchCliError", () => {
-  it("stores userMessage and recoverable flag", () => {
-    const err = new SearchCliError("internal", "user msg", true);
+  it("stores message and userMessage", () => {
+    const err = new SearchCliError("internal", "user msg");
     expect(err.message).toBe("internal");
     expect(err.userMessage).toBe("user msg");
-    expect(err.recoverable).toBe(true);
+    expect(err instanceof Error).toBe(true);
   });
 });
 

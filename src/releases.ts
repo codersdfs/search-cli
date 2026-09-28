@@ -5,6 +5,8 @@ import { loadConfig } from "./config";
 
 const RELEASES_FILE = "release-cache.json";
 const PER_REPO = 5;
+/** Bookmarks checked in parallel — enough to be fast, few enough to stay polite. */
+const CONCURRENCY = 6;
 
 export interface TrackedRelease {
   id: number;
@@ -87,47 +89,47 @@ export async function checkReleases(
     error?: string;
   }> = [];
 
-  for (const bm of bookmarks) {
+  const checkOne = async (
+    fullName: string,
+  ): Promise<{
+    fullName: string;
+    newReleases: TrackedRelease[];
+    error?: string;
+  }> => {
     try {
-      const prev = cache[bm.repo.fullName];
-      const lastSeen = getLastSeen(bm.repo.fullName);
+      const prev = cache[fullName];
+      const lastSeen = getLastSeen(fullName);
       const isNew = (r: TrackedRelease) =>
         !r.publishedAt || new Date(r.publishedAt).getTime() > lastSeen;
 
       const { status, etag, releases } = await fetchReleases(
-        bm.repo.fullName,
+        fullName,
         prev?.etag,
         token,
       );
 
       if (status === 304 && prev) {
         // Unchanged upstream; recompute against lastSeenAt (it may have moved).
-        results.push({
-          fullName: bm.repo.fullName,
-          newReleases: prev.releases.filter(isNew),
-        });
-        continue;
+        return { fullName, newReleases: prev.releases.filter(isNew) };
       }
       if (status !== 200 || !releases) {
-        results.push({
-          fullName: bm.repo.fullName,
-          newReleases: [],
-          error: `HTTP ${status}`,
-        });
-        continue;
+        return { fullName, newReleases: [], error: `HTTP ${status}` };
       }
-      cache[bm.repo.fullName] = { checkedAt: Date.now(), etag, releases };
-      results.push({
-        fullName: bm.repo.fullName,
-        newReleases: releases.filter(isNew),
-      });
+      cache[fullName] = { checkedAt: Date.now(), etag, releases };
+      return { fullName, newReleases: releases.filter(isNew) };
     } catch (err) {
-      results.push({
-        fullName: bm.repo.fullName,
-        newReleases: [],
-        error: (err as Error).message,
-      });
+      return { fullName, newReleases: [], error: (err as Error).message };
     }
+  };
+
+  // Run in small batches rather than one-at-a-time: a serial loop over every
+  // bookmark spends all its time waiting on the network, and bursts straight
+  // through the unauthenticated rate limit.
+  for (let i = 0; i < bookmarks.length; i += CONCURRENCY) {
+    const batch = bookmarks
+      .slice(i, i + CONCURRENCY)
+      .map((bm) => checkOne(bm.repo.fullName));
+    results.push(...(await Promise.all(batch)));
   }
 
   saveCache(cache);
@@ -158,9 +160,9 @@ export function allCachedReleases(): Array<
   TrackedRelease & { fullName: string }
 > {
   const cache = loadCache();
-  const bookmarks = getBookmarks();
+  const bookmarked = new Set(getBookmarks().map((b) => b.repo.fullName));
   return Object.entries(cache)
-    .filter(([fullName]) => bookmarks.some((b) => b.repo.fullName === fullName))
+    .filter(([fullName]) => bookmarked.has(fullName))
     .flatMap(([fullName, s]) => s.releases.map((r) => ({ ...r, fullName })))
     .sort(
       (a, b) =>

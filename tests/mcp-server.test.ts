@@ -496,13 +496,30 @@ describe("callTool: ghfind_compare_repos", () => {
   });
 
   it("builds a comparison table for found repos", async () => {
-    // Each lookup searches for its own fullName — answer per query.
+    // Each ref is resolved via an exact GET /repos/{owner}/{repo}.
     globalThis.fetch = (async (url: string | URL) => {
       const u = String(url);
-      const items = u.includes("oven-sh")
-        ? [SEARCH_ITEMS[0]]
-        : [SEARCH_ITEMS[1]];
-      return jsonResponse({ total_count: 1, items });
+      const api = u.includes("/repos/oven-sh/bun")
+        ? {
+            full_name: "oven-sh/bun",
+            stargazers_count: 75000,
+            forks_count: 2900,
+            description:
+              "Incredibly fast JavaScript runtime, bundler, transpiler, and JS engine.",
+            language: "Zig",
+            updated_at: "2024-06-01T00:00:00Z",
+            owner: { login: "oven-sh" },
+          }
+        : {
+            full_name: "nodejs/node",
+            stargazers_count: 105000,
+            forks_count: 27000,
+            description: "Node.js JavaScript runtime.",
+            language: "JavaScript",
+            updated_at: "2024-06-01T00:00:00Z",
+            owner: { login: "nodejs" },
+          };
+      return jsonResponse(api);
     }) as unknown as typeof fetch;
     const outcome = await callTool(
       "ghfind_compare_repos",
@@ -520,8 +537,9 @@ describe("callTool: ghfind_compare_repos", () => {
   });
 
   it("throws when fewer than 2 repos resolve", async () => {
+    // Both refs 404 on the exact repo lookup, so neither resolves.
     globalThis.fetch = (async () =>
-      jsonResponse({ total_count: 0, items: [] })) as unknown as typeof fetch;
+      jsonResponse({ message: "Not Found" }, 404)) as unknown as typeof fetch;
     await expect(
       callTool(
         "ghfind_compare_repos",

@@ -80,6 +80,13 @@ export const MIN_QUERY_LENGTH = 2;
 /** Result cap, applied to both sources. */
 export const MAX_SKILL_RESULTS = 100;
 
+/**
+ * The only shape accepted for registry `source` / `skillId`. Both end up
+ * inside a shell command (`npx skills add …`) that an agent is expected to
+ * run, so anything with shell metacharacters is rejected outright.
+ */
+const SAFE_ID_RE = /^[A-Za-z0-9._/-]+$/;
+
 // ─── Local roots ──────────────────────────────────────────────────────────
 
 /** One scan root: where it is, and the label results carry. */
@@ -193,6 +200,9 @@ export function parseSkillFrontmatter(
 
 // ─── Local scan ───────────────────────────────────────────────────────────
 
+/** Memoised scan results, keyed by root path + label. */
+const scanCache = new Map<string, LocalSkillHit[]>();
+
 /**
  * Walk the roots and collect every readable SKILL.md, de-duplicated by name.
  *
@@ -203,6 +213,12 @@ export function parseSkillFrontmatter(
 export function scanLocalSkills(
   roots: SkillRoot[] = resolveSkillRoots(),
 ): LocalSkillHit[] {
+  // The filesystem does not change within a process, so a repeat scan is pure
+  // duplicate blocking I/O. Keyed on the roots so callers passing their own
+  // roots (tests, GHFIND_SKILL_ROOTS) still get a distinct cache entry.
+  const key = roots.map((r) => `${r.path}\u0000${r.label}`).join("\u0001");
+  const cached = scanCache.get(key);
+  if (cached) return cached;
   const byName = new Map<string, LocalSkillHit>();
   for (const root of roots) {
     for (const dir of walkDirs(root.path)) {
@@ -224,7 +240,9 @@ export function scanLocalSkills(
       }
     }
   }
-  return [...byName.values()];
+  const hits = [...byName.values()];
+  scanCache.set(key, hits);
+  return hits;
 }
 
 /** Directory entries, or null when the directory is missing or unreadable. */
@@ -326,7 +344,20 @@ function normalizeRegistrySkill(raw: unknown): RegistrySkillHit | null {
   const obj = raw as Record<string, unknown>;
   const source = typeof obj.source === "string" ? obj.source : "";
   const skillId = typeof obj.skillId === "string" ? obj.skillId : "";
-  if (!source || !skillId) return null;
+  // The registry is untrusted input and these two are interpolated into a
+  // shell command and a URL handed to an agent, so anything but a plain
+  // owner/repo + skill-id shape is dropped rather than escaped.
+  // `SAFE_ID_RE` allows `/` and `.`, so `../` passes it — reject traversal
+  // segments explicitly; they would land in the URL path and the npx command.
+  const hasTraversal = (s: string) => s === ".." || s.includes("..");
+  if (
+    !SAFE_ID_RE.test(source) ||
+    !SAFE_ID_RE.test(skillId) ||
+    hasTraversal(source) ||
+    hasTraversal(skillId)
+  ) {
+    return null;
+  }
   const name =
     typeof obj.name === "string" && obj.name.trim() ? obj.name : skillId;
   const installs = typeof obj.installs === "number" ? obj.installs : 0;

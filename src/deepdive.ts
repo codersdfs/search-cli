@@ -1,5 +1,6 @@
 /** Repo deep-dive — fetch and format rich repo details. */
 import type { Repo } from "./types";
+import { fetchReadme } from "./readme";
 
 const USER_AGENT = "ghfind/1.0";
 
@@ -56,11 +57,29 @@ export function repoFromRef(fullName: string): Repo {
   };
 }
 
+/** Repo payload as returned by GET /repos/{owner}/{repo}. */
+interface GitHubRepoApi {
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  forks_count: number;
+  subscribers_count?: number;
+  language: string | null;
+  topics?: string[];
+  archived: boolean;
+  fork: boolean;
+  private?: boolean;
+  created_at: string;
+  updated_at: string;
+  pushed_at: string;
+}
+
 /**
  * Resolve a repo ref to a real Repo by fetching canonical metadata from the
- * GitHub API. Returns a stub via repoFromRef when the metadata fetch fails
- * (offline, rate limit) — the ref is still validated first. Deep-dive
- * sub-fetches tolerate missing data either way.
+ * GitHub API. The ref is validated first. Only transport-level failures
+ * (offline, unparseable body) degrade to a stub via repoFromRef — an auth
+ * error or a rate limit is surfaced, because a stub with `stars: 0` is
+ * indistinguishable from a real repo with no data.
  */
 export async function resolveRepoFromRef(
   fullName: string,
@@ -68,58 +87,50 @@ export async function resolveRepoFromRef(
 ): Promise<Repo> {
   const ref = parseRepoRef(fullName); // throws for malformed refs
   const canonical = `${ref.owner}/${ref.name}`;
+
+  let res: Response;
   try {
-    const res = await fetch(`https://api.github.com/repos/${canonical}`, {
+    res = await fetch(`https://api.github.com/repos/${canonical}`, {
       headers: buildHeaders(token),
     });
-    if (res.status === 404) {
-      throw new Error(`Repo not found: ${canonical}`);
-    }
-    if (res.ok) {
-      const api = (await res.json()) as {
-        description: string | null;
-        html_url: string;
-        stargazers_count: number;
-        forks_count: number;
-        subscribers_count?: number;
-        language: string | null;
-        topics?: string[];
-        archived: boolean;
-        fork: boolean;
-        created_at: string;
-        updated_at: string;
-        pushed_at: string;
-      };
-      return {
-        id: 0,
-        fullName: canonical,
-        name: ref.name,
-        owner: ref.owner,
-        description: api.description,
-        url: api.html_url,
-        stars: api.stargazers_count ?? 0,
-        forks: api.forks_count ?? 0,
-        watchers: api.subscribers_count ?? 0,
-        language: api.language,
-        topics: api.topics ?? [],
-        archived: api.archived ?? false,
-        isFork: api.fork ?? false,
-        private: false,
-        createdAt: api.created_at ?? "",
-        updatedAt: api.updated_at ?? "",
-        pushedAt: api.pushed_at ?? "",
-        score: 0,
-      };
-    }
-  } catch (err) {
-    // Let the not-found error propagate; only network/parse failures degrade
-    // to the stub below.
-    if (err instanceof Error && err.message.startsWith("Repo not found")) {
-      throw err;
-    }
-    // Fall through to the stub.
+  } catch {
+    return repoFromRef(canonical);
   }
-  return repoFromRef(canonical);
+
+  if (res.status === 404) {
+    throw new Error(`Repo not found: ${canonical}`);
+  }
+  if (!res.ok) {
+    throw new Error(`GitHub API error ${res.status} for ${canonical}`);
+  }
+
+  let api: GitHubRepoApi;
+  try {
+    api = (await res.json()) as GitHubRepoApi;
+  } catch {
+    return repoFromRef(canonical);
+  }
+
+  return {
+    id: 0,
+    fullName: canonical,
+    name: ref.name,
+    owner: ref.owner,
+    description: api.description,
+    url: api.html_url,
+    stars: api.stargazers_count ?? 0,
+    forks: api.forks_count ?? 0,
+    watchers: api.subscribers_count ?? 0,
+    language: api.language,
+    topics: api.topics ?? [],
+    archived: api.archived ?? false,
+    isFork: api.fork ?? false,
+    private: api.private ?? false,
+    createdAt: api.created_at ?? "",
+    updatedAt: api.updated_at ?? "",
+    pushedAt: api.pushed_at ?? "",
+    score: 0,
+  };
 }
 
 /** Language breakdown: { [lang]: bytes } */
@@ -176,21 +187,14 @@ export async function fetchDeepDiveRaw(
     ),
   ]);
 
-  // README with branch fallback: main → master → README.rst
-  let readmeText = "";
-  for (const path of [
-    `${repo.owner}/${repo.name}/main/README.md`,
-    `${repo.owner}/${repo.name}/master/README.md`,
-    `${repo.owner}/${repo.name}/main/README.rst`,
-  ]) {
-    const r = await fetch(`https://raw.githubusercontent.com/${path}`, {
-      headers,
-    });
-    if (r.ok) {
-      readmeText = await r.text();
-      break;
-    }
-  }
+  // README: main → master → README.rst, probed in parallel by fetchReadme.
+  // Public READMEs are served unauthenticated, so the token is only forwarded
+  // to raw.githubusercontent.com when the repo actually needs it.
+  const readme = await fetchReadme(repo.owner, repo.name, {
+    token: repo.private ? token : undefined,
+    private: repo.private,
+  });
+  const readmeText = readme?.text ?? "";
 
   const langEntries: [string, number][] = languagesRes.ok
     ? Object.entries(

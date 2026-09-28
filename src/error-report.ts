@@ -3,7 +3,8 @@
  * error, print it, and offer to open it in the user's browser.
  *
  * Privacy: never auto-posts. The user sees the URL and decides whether to
- * submit. We redact env vars and only include what the diagnostic needs.
+ * submit. Credentials found in argv or the error text are redacted before
+ * they can reach the URL, and a redacted report is never auto-opened.
  */
 import {
   platform as osPlatform,
@@ -24,6 +25,59 @@ void _osArch;
 const REPO = "codersdfs/search-cli";
 const NEW_ISSUE_URL = `https://github.com/${REPO}/issues/new`;
 
+const SECRET_PLACEHOLDER = "***";
+
+/** Flags whose *next* argument is a credential. */
+const SECRET_FLAGS = /^(?:--token|-t)$/;
+
+/** GitHub credential shapes: classic (ghp_/gho_/ghu_/ghs_/ghr_) and fine-grained. */
+const SECRET_PATTERNS: RegExp[] = [
+  /gh[pousr]_[A-Za-z0-9]{16,}/g,
+  /github_pat_[A-Za-z0-9_]{20,}/g,
+];
+
+/** Replace anything that looks like a token inside a free-form string. */
+export function redactSecrets(text: string): string {
+  let out = text;
+  for (const pattern of SECRET_PATTERNS) {
+    out = out.replace(pattern, SECRET_PLACEHOLDER);
+  }
+  return out;
+}
+
+/**
+ * Redact an argv: the value following a credential flag, `--token=…`/`-t=…`
+ * forms, and any bare argument that looks like a token.
+ */
+export function redactArgv(argv: string[]): string[] {
+  const out: string[] = [];
+  let redactNext = false;
+  for (const arg of argv) {
+    if (redactNext) {
+      out.push(SECRET_PLACEHOLDER);
+      redactNext = false;
+      continue;
+    }
+    if (SECRET_FLAGS.test(arg)) {
+      out.push(arg);
+      redactNext = true;
+      continue;
+    }
+    const eq = arg.indexOf("=");
+    if (eq > 0 && SECRET_FLAGS.test(arg.slice(0, eq))) {
+      out.push(`${arg.slice(0, eq)}=${SECRET_PLACEHOLDER}`);
+      continue;
+    }
+    out.push(redactSecrets(arg));
+  }
+  return out;
+}
+
+/** True when `argv` carries a credential that redaction would remove. */
+function argvHasSecret(argv: string[]): boolean {
+  return redactArgv(argv).some((arg, i) => arg !== argv[i]);
+}
+
 function getPackageVersion(): string {
   return getVersion();
 }
@@ -43,10 +97,12 @@ export function formatErrorBody(
   context: { command: string; argv: string[] },
 ): string {
   const e = err instanceof Error ? err : new Error(String(err));
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI color escapes from stack traces
-  const stack = (e.stack ?? "(no stack)").replace(/\u001b\[[0-9;]*m/g, "");
-  const message = (e.message || "(no message)").slice(0, 500);
-  const cmd = `${context.command} ${context.argv.join(" ")}`.trim();
+  const stack = redactSecrets(
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI color escapes from stack traces
+    (e.stack ?? "(no stack)").replace(/\u001b\[[0-9;]*m/g, ""),
+  );
+  const message = redactSecrets(e.message || "(no message)").slice(0, 500);
+  const cmd = `${context.command} ${redactArgv(context.argv).join(" ")}`.trim();
   const ghfindVersion = getPackageVersion();
 
   return [
@@ -88,7 +144,9 @@ export function buildIssueUrl(
   context: { command: string; argv: string[] },
 ): string {
   const e = err instanceof Error ? err : new Error(String(err));
-  const title = e.message.slice(0, 80).replace(/[\r\n]+/g, " ");
+  const title = redactSecrets(e.message)
+    .slice(0, 80)
+    .replace(/[\r\n]+/g, " ");
   const body = formatErrorBody(err, context);
   const params = new URLSearchParams({
     title: `[bug] ${title || "Unhandled error"}`,
@@ -138,15 +196,27 @@ export function reportError(
     argv: process.argv.slice(2),
   },
 ): string {
-  const url = buildIssueUrl(err, context);
+  const hadSecret = argvHasSecret(context.argv);
+  // Build the URL from the scrubbed argv, never the raw one.
+  const url = buildIssueUrl(err, {
+    command: context.command,
+    argv: redactArgv(context.argv),
+  });
   console.error("");
   console.error("  ⚠  ghfind encountered an unexpected error.");
   console.error("");
-  console.error("  Help us fix it by opening a bug report with the");
-  console.error("  details pre-filled. Your browser will open the new-issue");
-  console.error("  page; review and submit (or close the tab to skip).");
+  if (hadSecret) {
+    console.error("  A token was found in the command line and has been");
+    console.error("  redacted. Your browser will NOT be opened — review the");
+    console.error("  scrubbed URL below before sharing it anywhere.");
+  } else {
+    console.error("  Help us fix it by opening a bug report with the");
+    console.error("  details pre-filled. Your browser will open the new-issue");
+    console.error("  page; review and submit (or close the tab to skip).");
+  }
   console.error("");
-  const opened = tryOpenUrl(url);
+  // Never auto-open a report that contained a credential.
+  const opened = hadSecret ? false : tryOpenUrl(url);
   if (opened) {
     console.error(`  → Opened: ${url}`);
   } else {

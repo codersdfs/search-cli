@@ -7,7 +7,7 @@ import { join } from "node:path";
 // profile example printed twice, and two rows had drifted out of column —
 // nothing caught it because the help text is an inline template rather than
 // an exported constant. Source-grep guards follow the precedent in
-// tests/overlay-registry.test.ts.
+// tests/deepdive.test.ts.
 
 const USAGE_ROW = /^ {2}ghfind /;
 const DESCRIPTION_COLUMN = 35;

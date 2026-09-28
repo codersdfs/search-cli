@@ -419,6 +419,19 @@ describe("searchRegistrySkills", () => {
     expect(got.skills.map((s) => s.skillId)).toEqual(["kept"]);
   });
 
+  test("keeps underscores in source and skillId but drops shell metacharacters", async () => {
+    globalThis.fetch = (async () =>
+      registryResponse([
+        { source: "my_org/my_repo", skillId: "tdd_suite" },
+        { source: "ow/ner; rm -rf /", skillId: "tdd_suite" },
+        { source: "my_org/my_repo", skillId: "ok$(whoami)" },
+      ])) as unknown as typeof fetch;
+
+    const got = await searchRegistrySkills("xy");
+    expect(got.skills.map((s) => s.skillId)).toEqual(["tdd_suite"]);
+    expect(got.skills[0].source).toBe("my_org/my_repo");
+  });
+
   test("encodes the query and applies the limit", async () => {
     let calledUrl = "";
     globalThis.fetch = (async (url: string | URL) => {

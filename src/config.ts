@@ -9,7 +9,7 @@
 import type { Config } from "./types";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 /** Directory for persistent state (history, bookmarks, session). */
 export function stateDir(): string {
@@ -61,7 +61,17 @@ export function saveConfig(config: Config): void {
     Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")),
   );
   mkdirSync(dir, { recursive: true });
-  writeFileSync(path, JSON.stringify(config, null, 2));
+  // The file holds a plaintext GitHub token — owner-only, and tighten any
+  // pre-existing world-readable file too.
+  writeFileSync(path, JSON.stringify(config, null, 2), {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
+  try {
+    chmodSync(path, 0o600);
+  } catch {
+    // best effort (read-only file / unsupported filesystem)
+  }
 }
 
 function mergeWithEnv(config: Config): Config {

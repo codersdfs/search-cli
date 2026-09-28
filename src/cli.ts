@@ -140,6 +140,20 @@ interface CLIFlags {
   limitExplicit: boolean;
 }
 
+/**
+ * Valid `--sort` values: the repo strategies plus the npm-package strategies
+ * (the `pkg` subcommand validates its own narrower set).
+ */
+const SORT_VALUES = [
+  "best-match",
+  "stars",
+  "updated",
+  "forks",
+  "score",
+  "downloads",
+  "name",
+];
+
 function parseArgs(args: string[]): CLIFlags {
   const flags: CLIFlags = {
     query: "",
@@ -246,9 +260,17 @@ function parseArgs(args: string[]): CLIFlags {
         }
         break;
       }
-      case "--sort":
-        flags.sort = args[++i] as SearchOptions["sort"];
+      case "--sort": {
+        const sort = args[++i];
+        if (!sort || !SORT_VALUES.includes(sort)) {
+          console.error(
+            `Invalid sort: ${sort ?? "(missing)"} (use best-match|stars|updated|forks).`,
+          );
+          process.exit(1);
+        }
+        flags.sort = sort as SearchOptions["sort"];
         break;
+      }
       case "--token":
         flags.token = args[++i];
         break;
@@ -883,10 +905,11 @@ function rowsToCsv(header: string[], rows: string[][]): string {
 
 /** Markdown table for the same small local-state tables. */
 function rowsToMarkdown(header: string[], rows: string[][]): string {
+  const cell = (value: string) => value.replace(/\|/g, "\\|");
   return [
-    `| ${header.join(" | ")} |`,
+    `| ${header.map(cell).join(" | ")} |`,
     `|${header.map(() => "---").join("|")}|`,
-    ...rows.map((row) => `| ${row.join(" | ")} |`),
+    ...rows.map((row) => `| ${row.map(cell).join(" | ")} |`),
   ].join("\n");
 }
 
@@ -945,7 +968,12 @@ async function runReadme(flags: CLIFlags): Promise<void> {
   }
   try {
     const { owner, name } = repoFromRef(ref); // validates the ref
-    const readme = await fetchReadme(owner, name, { token: flags.token });
+    const readme = await fetchReadme(owner, name, {
+      // A bare ref carries no visibility info, so the token is never
+      // forwarded to raw.githubusercontent.com.
+      token: flags.token,
+      private: false,
+    });
     if (!readme) {
       console.error(`No README found for ${owner}/${name}.`);
       process.exit(1);
@@ -1224,22 +1252,14 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
       }
     },
     compare: async (_ctx) => {
-      const search = createGitHubSearch(undefined, [flags.token ?? ""]);
       const repos: Repo[] = [];
       const missing: string[] = [];
       for (const fullName of flags.compare) {
-        const res = await search.search(
-          { keywords: [fullName], qualifiers: [], raw: fullName },
-          {
-            limit: 1,
-            sort: "stars",
-            json: false,
-            verbose: false,
-            token: flags.token,
-          },
-        );
-        if (res.repos.length > 0) repos.push(...res.repos);
-        else missing.push(fullName);
+        try {
+          repos.push(await resolveRepoFromRef(fullName, flags.token));
+        } catch {
+          missing.push(fullName);
+        }
       }
       if (repos.length < 2) {
         console.error(
@@ -1281,11 +1301,9 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
 }
 
 main().catch((err) => {
-  if (err instanceof Error && err.name === "SearchCliError") {
+  if (err instanceof SearchCliError) {
     // ponytail: known user-facing errors already carry a friendly message; skip the report prompt
-    console.error(
-      err instanceof SearchCliError ? err.userMessage : err.message,
-    );
+    console.error(err.userMessage);
   } else {
     console.error(err instanceof Error ? err.message : String(err));
     reportError(err);

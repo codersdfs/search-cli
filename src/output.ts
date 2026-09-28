@@ -136,18 +136,6 @@ export async function pipeExec(repos: Repo[], target: string): Promise<void> {
   }
 }
 
-// ─── Backward-compatible re-exports ─────────────────────────────────────
+// ─── Narrowed aliases ──────────────────────────────────────────────────
 
 export type ExportFormat = "json" | "csv" | "markdown" | "text";
-export type FormatLine =
-  "urls" | "names" | "ssh-urls" | "clone-commands" | "ids";
-
-/** @deprecated Use `format()` instead. */
-export function formatRepos(repos: Repo[], fmt: ExportFormat): string {
-  return format(repos, fmt);
-}
-
-/** @deprecated Use `format()` instead. */
-export function formatLines(repos: Repo[], fmt: FormatLine): string {
-  return format(repos, fmt);
-}

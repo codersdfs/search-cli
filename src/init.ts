@@ -4,7 +4,7 @@
  * ponytail: simple stdin prompts, no curses/readline UI.
  */
 import { createInterface } from "node:readline";
-import { saveConfig } from "./config";
+import { saveConfig, configPath } from "./config";
 import { isLikelyGithubToken } from "./login";
 import { listThemes } from "./themes";
 import type { Config, SortStrategy } from "./types";
@@ -53,7 +53,6 @@ export async function runInitWizard(): Promise<void> {
   if (token) config.githubToken = token;
 
   saveConfig(config);
-  const { configPath } = await import("./config.ts");
   console.log(`  ✓ Config saved to ${configPath()}`);
   console.log("  Run 'ghfind' to start browsing!");
   console.log("");

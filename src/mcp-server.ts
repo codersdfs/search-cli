@@ -510,19 +510,14 @@ const TOOLS: ToolDefinition[] = [
         throw new McpToolError("repos must contain 2-5 repo fullNames.");
       }
       const token = resolveToken(state, args.token);
-      const provider = createGitHubSearch(undefined, token ? [token] : []);
       const found: Repo[] = [];
       const missing: string[] = [];
       for (const fullName of names) {
-        const res = await provider.search(parseQuery(fullName), {
-          limit: 1,
-          sort: "stars",
-          json: false,
-          verbose: false,
-          token,
-        });
-        if (res.repos.length > 0) found.push(res.repos[0]);
-        else missing.push(fullName);
+        try {
+          found.push(await resolveRepoFromRef(fullName, token));
+        } catch {
+          missing.push(fullName);
+        }
       }
       if (found.length < 2) {
         throw new McpToolError(

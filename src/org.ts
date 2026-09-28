@@ -171,20 +171,21 @@ export async function fetchOrgProfile(
   if (orgPayload.public_repos > 0) {
     const perPage = Math.min(limit, 100);
     const maxPages = Math.ceil(limit / perPage);
-    for (let page = 1; page <= maxPages; page++) {
-      const url =
-        `https://api.github.com/orgs/${encodeURIComponent(name)}/repos` +
-        `?per_page=${perPage}&sort=pushed&page=${page}`;
-      const res = await fetch(url, { headers: apiHeaders(token) });
-      if (!res.ok) {
-        // Org metadata succeeded; degraded summary beats a hard failure.
-        break;
-      }
-      const items = (await res.json()) as GitHubRepoPayload[];
-      if (!Array.isArray(items)) break; // unexpected shape — degrade gracefully
-      repos.push(...items);
-      if (repos.length >= limit || items.length < perPage) break;
-    }
+    const pages = await Promise.all(
+      Array.from({ length: maxPages }, (_, i) => i + 1).map(async (page) => {
+        const url =
+          `https://api.github.com/orgs/${encodeURIComponent(name)}/repos` +
+          `?per_page=${perPage}&sort=pushed&page=${page}`;
+        const res = await fetch(url, { headers: apiHeaders(token) });
+        if (!res.ok) {
+          // Org metadata succeeded; degraded summary beats a hard failure.
+          return [];
+        }
+        const items = (await res.json()) as GitHubRepoPayload[];
+        return Array.isArray(items) ? items : []; // unexpected shape — skip
+      }),
+    );
+    repos.push(...pages.flat());
   }
 
   return normalizeOrg(orgPayload, repos.slice(0, limit));

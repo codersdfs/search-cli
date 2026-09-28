@@ -1891,6 +1891,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     try {
       const readme = await fetchReadme(repo.owner, repo.name, {
         token: githubToken,
+        private: repo.private,
       });
       if (readme) {
         readmeView.setContent(readme.text, readme.sourceUrl);
@@ -2426,10 +2427,13 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         }
       }
     } catch (err) {
-      currentRepos = [];
-      resultsSelect.options = [
-        { name: " (error)", description: "", value: null },
-      ];
+      // A failed "load more" page must not wipe the pages already on screen.
+      if (!append) {
+        currentRepos = [];
+        resultsSelect.options = [
+          { name: " (error)", description: "", value: null },
+        ];
+      }
       const msg =
         err instanceof SearchCliError
           ? err.userMessage
@@ -3071,16 +3075,10 @@ ${pack.description ?? ""}`;
 // ── Utilities ─────────────────────────────────────────────────────────
 
 function formatResultLine(repo: Repo): string {
-  const stars = formatStars(repo.stars);
+  const stars = `★ ${fmtStars(repo.stars)}`;
   const lang = (repo.language ?? "?").padEnd(12).slice(0, 12);
   const name = repo.fullName.padEnd(40).slice(0, 40);
   return `${name}  ${lang}  ${stars}`;
-}
-
-function formatStars(n: number): string {
-  if (n >= 1000000) return `★ ${(n / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1000) return `★ ${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
-  return `★ ${n}`;
 }
 
 function formatToolbar(

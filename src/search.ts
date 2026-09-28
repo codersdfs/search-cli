@@ -58,6 +58,10 @@ export class MemoryCache<T> {
   }
 
   set(key: string, data: T, ttlMs?: number): void {
+    // Re-inserting an existing key must move it to the end of the
+    // insertion-ordered Map, otherwise a refreshed entry keeps its original
+    // position and is the first one evicted — FIFO instead of LRU.
+    this.cache.delete(key);
     if (this.cache.size >= MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey !== undefined) this.cache.delete(firstKey);

@@ -12,10 +12,14 @@ export interface Notification {
 
 let nextId = 1;
 let notifs: Notification[] = [];
+let loaded = false;
 const MAX_NOTIFS = 50;
 const FILE = "notifications.json";
 
-function load(): void {
+/** Load once per process: re-reading on an empty list would reissue ids. */
+function ensureLoaded(): void {
+  if (loaded) return;
+  loaded = true;
   notifs = readJSON<Notification[]>(FILE, []);
   nextId = Math.max(...notifs.map((n) => n.id), 0) + 1;
 }
@@ -28,7 +32,7 @@ export function addNotification(
   type: Notification["type"],
   message: string,
 ): Notification {
-  if (notifs.length === 0) load();
+  ensureLoaded();
   const n: Notification = {
     id: nextId++,
     type,
@@ -60,16 +64,18 @@ function iconFor(type: Notification["type"]): string {
 }
 
 export function getNotifications(): Notification[] {
-  if (notifs.length === 0) load();
+  ensureLoaded();
   return [...notifs];
 }
 
 export function dismissNotification(id: number): void {
+  ensureLoaded();
   notifs = notifs.filter((n) => n.id !== id);
   save();
 }
 
 export function dismissAll(): void {
+  ensureLoaded();
   notifs = [];
   save();
 }
