@@ -18,6 +18,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform, arch } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +97,35 @@ const key = `${platform()}-${arch}`;
 const assetName = map[key];
 const version = "1.3.14";
 
+/**
+ * Pinned SHA256 of every Bun release asset this script can install, taken
+ * from that release's own SHASUMS256.txt. The download is verified before
+ * anything is written, so a tampered or truncated archive can never become
+ * an executable in vendor/.
+ *
+ * ponytail: hand-pinned per Bun release — regenerate this table (and bump
+ * `version`) whenever the release is bumped; the check is what makes the
+ * hardcoded `version` above trustworthy.
+ */
+const SHA256 = {
+  "bun-windows-x64.zip":
+    "0a0620930b6675d7ba440e81f4e0e00d3cfbe096c4b140d3fff02205e9e18922",
+  "bun-windows-aarch64.zip":
+    "89841f5a57f2348b67ec0839b718f4bf4ea7d07c371c9ba4b77b6c790f918953",
+  "bun-darwin-x64.zip":
+    "4183df3374623e5bab315c547cfa0974533cd457d86b73b639f7a87974cd6633",
+  "bun-darwin-aarch64.zip":
+    "d8b96221828ad6f97ac7ac0ab7e95872341af763001e8803e8267652c2652620",
+  "bun-linux-x64.zip":
+    "951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f",
+  "bun-linux-x64-musl.zip":
+    "14bd9aedeebf1dba67e8def9531c89bc989ecfdf1de42e5bfcaf1b8cd9294719",
+  "bun-linux-aarch64.zip":
+    "a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b",
+  "bun-linux-aarch64-musl.zip":
+    "b98e0ad3625c5c00d1d5b5ff55605c7adddbfae151861e68ade57b2d3b8703bb",
+};
+
 if (!assetName) {
   console.error(
     `[ghfind] Unsupported platform: ${key}. Install Bun manually: https://bun.sh`,
@@ -115,6 +145,14 @@ try {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const buffer = Buffer.from(await res.arrayBuffer());
+
+  const expected = SHA256[assetName];
+  const actual = createHash("sha256").update(buffer).digest("hex");
+  if (expected !== actual) {
+    throw new Error(
+      `checksum mismatch for ${assetName} (expected ${expected}, got ${actual})`,
+    );
+  }
 
   // Find the central directory file header signature (PK\x01\x02)
   const cdSig = "PK\x01\x02";

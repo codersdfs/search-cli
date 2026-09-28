@@ -313,7 +313,7 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 414 tests
+bun test         # 482 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
@@ -355,6 +355,16 @@ for the measurements and the remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.8.2
+
+- **Security: tokens no longer leak into crash reports** — an uncaught error auto-built a GitHub issue URL from raw `process.argv`, so a `--token` value ended up in a public URL; every field is redacted now, and ghfind prints the URL to copy instead of opening a browser when it finds a credential
+- **Security: your token is never sent to `raw.githubusercontent.com`** when fetching a README, only to `api.github.com` and only for a private repo
+- **Security: untrusted skill sources are validated** before reaching a shell command or URL, so a hostile skills.sh entry cannot inject into `npx skills add`
+- **Recoverable errors no longer open a bug-report tab** — rate limits, network blips and layout changes print a short message and exit
+- **`--compare` resolves repositories exactly** in both the CLI and the `ghfind_compare_repos` MCP tool; it used a free-text search that could silently compare the wrong repo
+- **State files are written atomically** — a crash mid-write used to leave truncated JSON that was silently replaced with defaults, losing bookmarks and history
+- Fixed notification IDs restarting after "dismiss all", `history --delete` removing every duplicate, an invalid `--sort` degrading silently, a failed "load more" clearing the TUI's results, `--markdown` not escaping `|`, and a not-quite-LRU memory cache
+
 ### v9.8.1
 
 - **`ghfind skill search <query>`** finds agent skills by keyword and prints why
@@ -375,13 +385,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **README viewer renders real markdown** — headings, emphasis, links, lists, blockquotes, boxed tables, and fenced code now come from OpenTUI's markdown renderable with a theme-derived syntax style instead of a box-drawing text approximation
 - **Images render inline — see [Known limitations](#known-limitations)** — relative and `/`-rooted paths resolve against the README's branch, `github.com/.../blob/...` links are rewritten to raw content, downloads are cached and size-capped, SVG and badge-service images are skipped, and anything unloadable falls back to an `🖼 alt` caption; press `i` in the viewer to toggle images
 - **No new dependencies** — the PNG decoder, image-to-cells rasteriser, and fetch cache are plain TypeScript, and images draw with truecolor half blocks, so they work on any truecolor terminal without image-protocol support
-
-### v9.7.1
-
-- **In-app update actually works now** — it used to `bun install -g` into `~/.bun` while your running copy lives in an npm prefix, reporting success while nothing changed; it now detects which package manager owns the running install and updates it in place
-- **New `ghfind --doctor` check** — flags stale/PATH-shadowing global installs (multiple `ghfind` copies with different versions) and prints the exact uninstall command
-- **Windows URL fix** — links with query params were truncated at the first `&` by `cmd /c start`; every pre-filled crash-report/issue link now opens complete
-- Fixed `open-url` crashing under Node; CI now enforces lint + typecheck gates (first green Biome baseline)
 
 ## License
 

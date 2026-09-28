@@ -6,6 +6,69 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.8.2] — 2026-09-28 (released)
+
+### Security
+
+- **GitHub tokens no longer leak into crash reports.** An uncaught error
+  auto-built a GitHub issue URL from the raw `process.argv`, so a token passed
+  as `--token` ended up in a public URL. Every field is now redacted before it
+  reaches the URL, title, body or stack trace, and when a credential is
+  detected ghfind prints the URL to copy instead of opening a browser.
+- **Your token is never sent to `raw.githubusercontent.com`** when fetching a
+  README. It is only attached to `api.github.com` requests, and only for a
+  repository marked private.
+- **Untrusted skill sources are validated** before they can reach a shell
+  command or URL. A `source` or `skillId` containing shell metacharacters
+  (`;`, `$`, backticks, newlines, path traversal) is now dropped from
+  registry results instead of being interpolated into `npx skills add`.
+- **The config file holding your token is written with `0600` permissions**
+  (effective on POSIX; on Windows the file still inherits the directory ACL).
+- `--doctor` masks the token with `maskToken()` instead of printing a
+  raw 7-character prefix.
+
+### Fixed
+
+- **Recoverable errors no longer open a bug-report tab.** The catch in
+  `src/cli.ts` tested `err.name === "SearchCliError"`, which is never true
+  because each subclass sets its own name, so rate-limit, network and
+  layout-change errors all fell through to the crash reporter. Routing now uses
+  `instanceof SearchCliError`.
+- **`--compare` and the MCP tool `ghfind_compare_repos` resolve repos
+  exactly.** Both used a free-text search with no `repo:` qualifier and never
+  checked the returned `fullName`, so they could silently compare a different
+  repository. They now use the existing `resolveRepoFromRef()` seam
+  (`GET /repos/{owner}/{repo}`).
+- **State files are written atomically.** Bookmarks, history, sessions, saved
+  searches, notifications and the update check were written straight to their
+  live path; a crash or a full disk left a truncated JSON file that was then
+  silently replaced with defaults, destroying user data. Writes now go to a
+  temp file and are renamed into place.
+- **Notification IDs no longer restart** after "dismiss all" — the id counter
+  was recomputed from an already-empty list.
+- **`ghfind history --delete` no longer removes every duplicate entry.** The
+  delete matched by value instead of by index.
+- **An invalid `--sort` value is rejected** with the list of valid choices and
+  a non-zero exit code instead of silently degrading to the default.
+- **A failed "load more" in the TUI no longer clears the results** already on
+  screen; the error goes to the status bar.
+- **`--markdown` escapes `|` in cells**, matching `--csv`.
+- Local skill scanning is memoised per process, so a search no longer re-walks
+  the skill roots on every keystroke.
+- `MemoryCache.set` is a true LRU — a refreshed entry now moves to the end of
+  the insertion order.
+- Skill ids and sources may contain `_` (e.g. `my_org/my_repo`), which
+  are common on GitHub and were wrongly rejected.
+
+### Changed
+
+- **`postinstall` and the bundled agent skill are unchanged in behaviour**; the
+  skill now states that `--compare` resolves a repository exactly.
+- Internal `--compare` resolution is now shared by the CLI and the MCP server
+  instead of duplicated in both.
+
+---
+
 ## [9.8.1] — 2026-09-26 (released)
 
 ### Added
