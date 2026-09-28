@@ -50,14 +50,29 @@ until all boxes tick.
 
 ### Environment prerequisites
 
-- [ ] **`NPM_TOKEN` repo secret exists**: `gh secret list -R codersdfs/search-cli`
-      must show `NPM_TOKEN`. Without it, `publish-npm` fails with an empty
-      `NODE_AUTH_TOKEN` (401) after the binaries are already attached — the
-      release lands on GitHub but never on npm (9.7.1 did exactly this).
-  - Mint the token on npmjs.com → Access Tokens → Generate New Token →
-    Classic → type **Automation** (publishes from CI without 2FA prompts).
-  - Set it: `gh secret set NPM_TOKEN -R codersdfs/search-cli` (paste when
-    prompted — never paste the token into chat/logs/issues).
+- [ ] **`NPM_TOKEN` repo secret exists** — this was the 9.7.1 failure and
+      is the one pre-flight item that silently ruins a release. Without it,
+      `publish-npm` fails with an empty `NODE_AUTH_TOKEN` (401) *after* the
+      binaries are already attached, so the release lands on GitHub and never
+      on npm.
+  - **Currently satisfied** — `NPM_TOKEN` was created 2026-09-24T14:32Z and
+    9.8.0 / 9.8.1 both published afterwards. Confirm with
+    `gh secret list -R codersdfs/search-cli`, or more cheaply and more
+    reliably with `npm view github-search-cli version`: if npm's `latest`
+    matches the last release you cut, the secret works. Do **not** try to
+    re-mint a token to "check" this — see the note below.
+  - **Do not follow the old "mint an Automation token" instruction.** npm no
+    longer offers **Automation** as a Classic token type, so that step is
+    impossible today and will waste a release. Existing Automation tokens
+    keep working, which is why the stored `NPM_TOKEN` is still fine.
+  - If the secret ever genuinely has to be replaced, use npm **Trusted
+    Publishing (OIDC)** instead of a long-lived token: bind the workflow on
+    npmjs.com → Package Settings → Trusted Publisher, and drop
+    `NODE_AUTH_TOKEN` from `publish-npm` entirely. `release.yml` already
+    requests `id-token: write`, which provenance and OIDC both need. This
+    retires the 9.7.1 failure mode for good.
+  - Set it if you must: `gh secret set NPM_TOKEN -R codersdfs/search-cli`
+    (paste when prompted — never paste the token into chat/logs/issues).
   - Recover: `gh run rerun <run-id> --failed` re-runs only `publish-npm`;
     binaries/checksums jobs are not repeated.
 - [ ] Local npm auth is irrelevant for CI but check `npm whoami` if you plan
@@ -76,6 +91,12 @@ until all boxes tick.
 - [ ] No stray untracked files in the repo (`git status`): `*.tgz`, `.bak`,
       scratch notes, `nul` (a Windows reserved-name accident — delete with
       `rm ./nul` in Git Bash).
+- [ ] **Ignore the red `Release` rows in `gh run list` history.** `release.yml`
+      only triggers on `tags: ["v*"]` now, but it used to fire on every push to
+      `main`, so the run list is full of failures that were just the
+      `if: startsWith(github.ref, 'refs/tags/v')` guard skipping every job.
+      They are noise, not broken releases. Judge health by the `CI` rows on
+      `main` and by whether npm's `latest` matches your last tag.
 
 ## 4. Release checklist (tag + verify)
 
