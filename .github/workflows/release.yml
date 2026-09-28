@@ -147,13 +147,17 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Trusted Publishing needs npm >= 11.5.1 for the OIDC exchange.
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
       - name: Install deps
         run: bun install --frozen-lockfile
       - name: Build dist
         run: bun run build
       - name: Publish to npm
-        run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No NODE_AUTH_TOKEN. npm exchanges the OIDC token minted by this job
+        # (id-token: write above) for a short-lived publish credential bound to
+        # the Trusted Publisher configured on npmjs.com. This replaces the
+        # long-lived NPM_TOKEN, which started demanding an OTP (EOTP) once the
+        # account had 2FA on - the 9.7.1 failure mode, which recurred on 9.8.2.
+        run: npm publish --provenance --access public
