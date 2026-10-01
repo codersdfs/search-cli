@@ -56,7 +56,14 @@ import {
 import { tabSince, TAB_NAMES, fmtStars } from "./trending";
 import { loadConfig, saveConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
-import { SearchCliError, NoResultsError } from "./errors";
+import {
+  SearchCliError,
+  NoResultsError,
+  NetworkError,
+  RateLimitError,
+  AuthError,
+  ForbiddenError,
+} from "./errors";
 import {
   appendHistory,
   readHistory,
@@ -1929,6 +1936,36 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     statusMgr.set("idle", msg);
   }
 
+  /**
+   * Which error family is showing in the status bar, for the bracketed key
+   * hints the messages advertise ([r]etry, [t]/[c] token, [u]nset).
+   * Null once the next search starts, so the hint keys can't hijack
+   * theme/compare forever after a transient failure.
+   */
+  type ErrorHintKind = "auth" | "forbidden" | "ratelimit" | "network" | null;
+  let errorHint: ErrorHintKind = null;
+
+  /** Render an error in the status bar and remember which hints apply. */
+  function reportError(err: unknown) {
+    errorHint =
+      err instanceof AuthError
+        ? "auth"
+        : err instanceof ForbiddenError
+          ? "forbidden"
+          : err instanceof RateLimitError
+            ? "ratelimit"
+            : err instanceof NetworkError
+              ? "network"
+              : null;
+    const msg =
+      err instanceof SearchCliError
+        ? err.userMessage
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    statusMgr.set("error", msg.slice(0, 60));
+  }
+
   /** Session snapshot; only restorable modes are persisted (see SessionState). */
   function buildSessionState(): SessionState {
     const mode: SessionState["mode"] =
@@ -2222,6 +2259,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   async function loadTrending() {
     currentMode = "trending";
     isLoading = true;
+    errorHint = null;
     searchBox.visible = false;
     toolbarText.visible = false;
     trendingTabBox.visible = true;
@@ -2277,16 +2315,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         resultCount: fetched.length,
       });
     } catch (err) {
-      const msg =
-        err instanceof SearchCliError
-          ? err.userMessage
-          : err instanceof Error
-            ? err.message
-            : String(err);
       resultsSelect.options = [
         { name: " (error)", description: "", value: null },
       ];
-      statusMgr.set("error", msg.slice(0, 60));
+      reportError(err);
     }
     isLoading = false;
     renderer.requestRender();
@@ -2329,6 +2361,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (q === "" || isLoading) return;
     currentQueryInput = q;
     isLoading = true;
+    errorHint = null; // npm errors never carry GitHub auth hints
     resultsSelect.options = [
       { name: "  Searching packages...", description: "", value: null },
     ];
@@ -2367,6 +2400,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     const q = queryText.trim();
     if (q === "" || isLoading) return;
 
+    errorHint = null; // a fresh search retires the previous error's hint keys
     if (!append) currentPage = 1;
     deepDiveActive = false;
 
@@ -2434,13 +2468,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
           { name: " (error)", description: "", value: null },
         ];
       }
-      const msg =
-        err instanceof SearchCliError
-          ? err.userMessage
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      statusMgr.set("error", msg.slice(0, 60));
+      reportError(err);
     }
 
     isLoading = false;
