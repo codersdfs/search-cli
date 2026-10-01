@@ -48,6 +48,17 @@ export function buildHelpSections(): HelpSection[] {
       ],
     },
     {
+      title: " Error Recovery ",
+      titleColor: "red",
+      rows: [
+        { keys: "r", action: "Retry after an error" },
+        { keys: "t", action: "Fix GitHub token (401/403)" },
+        { keys: "u", action: "Search without a token (401)" },
+        { keys: "c", action: "Change token (rate limit)" },
+      ],
+      note: "Active only while the matching error is in the status bar.",
+    },
+    {
       title: " Trending Mode ",
       titleColor: "yellow",
       rows: [

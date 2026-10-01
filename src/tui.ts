@@ -211,7 +211,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   // ── Config ──
   const config = loadConfig();
-  const githubToken = config.githubToken || process.env.GITHUB_TOKEN;
+  // Mutable: the AuthError flow lets the user fix or clear the token without
+  // restarting (the next search re-reads this variable).
+  let githubToken: string | undefined =
+    config.githubToken || process.env.GITHUB_TOKEN;
 
   // Apply theme
   const theme = loadTheme(theme_override || config.theme);
@@ -1930,6 +1933,89 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     }
   }, 2000);
 
+  // ── Token fix flow (from 401/403 error hints) ───────────────────────
+  // Inline prompt box that slides over the search input row. Enter saves the
+  // token to config and re-runs the failed query; Esc cancels.
+  const tokenPromptBox = new BoxRenderable(renderer, {
+    visible: false,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    flexDirection: "row",
+    paddingY: 1,
+    paddingLeft: 1,
+    backgroundColor: colors.surface,
+  });
+  const tokenPromptLabel = new TextRenderable(renderer, {
+    content: " GitHub token:",
+    fg: colors.accent,
+    height: 1,
+  });
+  const tokenPromptInput = new InputRenderable(renderer, {
+    placeholder: "paste token, Enter to save — Esc cancels",
+    value: "",
+    backgroundColor: colors.surface,
+    textColor: colors.text,
+    flexGrow: 1,
+  });
+  tokenPromptBox.add(tokenPromptLabel);
+  tokenPromptBox.add(tokenPromptInput);
+  root.add(tokenPromptBox);
+
+  let tokenPromptQuery: string | null = null;
+
+  function showTokenPrompt(query: string) {
+    tokenPromptQuery = query;
+    tokenPromptInput.value = "";
+    tokenPromptBox.visible = true;
+    searchBox.visible = false;
+    tokenPromptInput.focus();
+    renderer.requestRender();
+  }
+
+  function hideTokenPrompt() {
+    tokenPromptBox.visible = false;
+    tokenPromptQuery = null;
+    if (currentMode === "search" || currentMode === "packages") {
+      searchBox.visible = true;
+      searchInput.focus();
+    }
+    renderer.requestRender();
+  }
+
+  function persistToken(token: string): void {
+    githubToken = token;
+    config.githubToken = token;
+    saveConfig(config);
+  }
+
+  tokenPromptInput.on("enter", () => {
+    const token = tokenPromptInput.value.trim();
+    const query = tokenPromptQuery;
+    hideTokenPrompt();
+    if (!token || !query) return;
+    persistToken(token);
+    setStatus("Token saved");
+    doSearch(query);
+  });
+
+  // ── Error-hint key actions ([t] fix token, [u] unset) ──────────────
+
+  function fixTokenAction() {
+    showTokenPrompt(currentQueryInput || "stars:>10000");
+  }
+
+  function unsetTokenAction() {
+    githubToken = undefined;
+    if (config.githubToken) {
+      delete config.githubToken;
+      saveConfig(config);
+    }
+    setStatus("Token cleared — searching without one");
+    if (currentQueryInput) doSearch(currentQueryInput);
+  }
+
   // ── Helper functions ────────────────────────────────────────────────
 
   function setStatus(msg: string) {
@@ -2586,6 +2672,18 @@ ${pack.description ?? ""}`;
 
   // ── Global keyboard shortcuts ──────────────────────────────────────
   renderer.keyInput.on("keypress", (key) => {
+    // ── Token prompt (own keyboard scope) ──────────────────────────
+    if (tokenPromptBox.visible) {
+      if (key.name === "escape") {
+        hideTokenPrompt();
+        setStatus("Token entry cancelled");
+        renderer.requestRender();
+        return;
+      }
+      if (key.name === "enter" || key.name === "return") return; // InputRenderable fires "enter"
+      return; // let the input consume everything else (letters, paste, etc.)
+    }
+
     // ── Overlay-mode handling ────────────────────────────────────────
     if (currentOverlay !== "none") {
       // Escape or q closes any overlay (except: leader uses Esc for back-nav, q to close)
@@ -2956,6 +3054,34 @@ ${pack.description ?? ""}`;
     if (key.name === "space" && !searchInput.focused) {
       showLeaderMenu();
       return;
+    }
+
+    // Error-hint keys — active only while a status-bar error that advertises
+    // them ([r]etry / [t]oken / [u]nset / [c]ycle) is on screen; the next
+    // search clears the state, returning t/c to their normal roles.
+    if (!searchInput.focused && errorHint) {
+      if (key.name === "r") {
+        errorHint = null;
+        if (currentMode === "trending") loadTrending();
+        else if (currentQueryInput) doSearch(currentQueryInput);
+        renderer.requestRender();
+        return;
+      }
+      if (
+        key.name === "t" &&
+        (errorHint === "auth" || errorHint === "forbidden")
+      ) {
+        fixTokenAction();
+        return;
+      }
+      if (key.name === "u" && errorHint === "auth") {
+        unsetTokenAction();
+        return;
+      }
+      if (key.name === "c" && errorHint === "ratelimit") {
+        fixTokenAction(); // TUI manages a single token — prompt for a different one
+        return;
+      }
     }
 
     // 't' toggles theme and persists to config
