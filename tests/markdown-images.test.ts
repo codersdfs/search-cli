@@ -45,19 +45,65 @@ describe("extractImageRefs", () => {
     ).toBeNull();
   });
 
-  test("ignores images wrapped in emphasis or links", () => {
+  test("extracts an image wrapped in a link, keeping the link", () => {
+    // sst/opencode: `[![alt](img)](url)` rendered nothing before — the link
+    // token fell through `collect()` and the whole block became prose.
     expect(
       extractImageRefs({
         type: "paragraph",
         tokens: [
           {
             type: "link",
-            href: "https://ci.example.com",
-            tokens: [{ type: "image", href: "badge.png", text: "CI" }],
+            href: "https://example.com",
+            tokens: [{ type: "image", href: "shot.png", text: "Shot" }],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        href: "shot.png",
+        alt: "Shot",
+        linkUrl: "https://example.com",
+      },
+    ]);
+  });
+
+  test("a link whose content is prose still disqualifies the block", () => {
+    expect(
+      extractImageRefs({
+        type: "paragraph",
+        tokens: [
+          {
+            type: "link",
+            href: "https://example.com",
+            tokens: [{ type: "text", text: "Docs" }],
           },
         ],
       }),
     ).toBeNull();
+  });
+
+  test("nested links take the innermost href", () => {
+    expect(
+      extractImageRefs({
+        type: "paragraph",
+        tokens: [
+          {
+            type: "link",
+            href: "https://outer.example.com",
+            tokens: [
+              {
+                type: "link",
+                href: "https://inner.example.com",
+                tokens: [{ type: "image", href: "a.png", text: "A" }],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      { href: "a.png", alt: "A", linkUrl: "https://inner.example.com" },
+    ]);
   });
 
   test("finds images embedded as HTML", () => {

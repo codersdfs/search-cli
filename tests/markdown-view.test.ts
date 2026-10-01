@@ -4,8 +4,14 @@ import { createTestRenderer } from "./trending.test.util.ts";
 import { extractImageRefs, type BlockTokenLike } from "../src/markdown-images";
 
 async function setupView() {
+  return setupViewWithLoader(async () => new Uint8Array());
+}
+
+async function setupViewWithLoader(
+  loader: (url: string) => Promise<Uint8Array | null>,
+) {
   const setup = await createTestRenderer({ width: 80, height: 40 });
-  const { renderer } = setup;
+  const { renderer, flush, waitFor } = setup;
   renderer.start();
   const view = createMarkdownView({
     renderer,
@@ -16,10 +22,36 @@ async function setupView() {
       surface: "#111111",
       muted: "#555555",
     },
-    loadImage: async () => new Uint8Array(),
+    loadImage: loader,
     getImageWidth: () => 28,
   });
-  return { renderer, view };
+  return { renderer, flush, waitFor, view };
+}
+
+/**
+ * Collect the text of every renderable under `node`. Content is either a
+ * plain string or a StyledText whose chunks carry the text.
+ */
+function collectText(node: { getChildren: () => unknown[] }): string[] {
+  const texts: string[] = [];
+  const walk = (current: { getChildren: () => unknown[] }): void => {
+    for (const child of current.getChildren()) {
+      const maybe = child as {
+        content?: unknown;
+        getChildren?: () => unknown[];
+      };
+      const content = maybe.content as
+        string | { chunks?: Array<{ text?: string }> } | undefined;
+      if (typeof content === "string") {
+        texts.push(content);
+      } else if (content && Array.isArray(content.chunks)) {
+        texts.push(content.chunks.map((c) => c.text ?? "").join(""));
+      }
+      if (typeof maybe.getChildren === "function") walk(maybe as never);
+    }
+  };
+  walk(node);
+  return texts;
 }
 
 describe("markdown-view setContent", () => {
@@ -70,5 +102,49 @@ describe("extractImageRefs", () => {
       tokens: [{ type: "text", text: "Some text without images." }],
     };
     expect(extractImageRefs(token)).toBeNull();
+  });
+
+  test("linked-image block routes to the image node, not prose", () => {
+    const token: BlockTokenLike = {
+      type: "paragraph",
+      tokens: [
+        {
+          type: "link",
+          href: "https://opencode.ai",
+          tokens: [
+            { type: "image", href: "shot.png", text: "OpenCode Terminal UI" },
+          ],
+        },
+      ],
+    };
+    // sst/opencode renders its hero exactly like this; before the link
+    // recursion fix the whole block was treated as prose and dropped.
+    expect(extractImageRefs(token)).toEqual([
+      {
+        href: "shot.png",
+        alt: "OpenCode Terminal UI",
+        linkUrl: "https://opencode.ai",
+      },
+    ]);
+  });
+});
+
+describe("markdown-view image nodes", () => {
+  test("linked image builds an image container, not prose", async () => {
+    const { renderer, flush, view } = await setupView();
+    view.setContent(
+      "[![OpenCode Terminal UI](https://example.com/shot.png)](https://opencode.ai)",
+      "https://example.com/0",
+    );
+    // Blocks are built on render, not synchronously in setContent.
+    await flush();
+    const joined = collectText(view.renderable).join("\n");
+    // The image node renders the 🖼 alt caption (the load itself fails on
+    // empty bytes, which is fine); prose rendering would show the raw
+    // markdown markers instead.
+    expect(joined).toContain("OpenCode Terminal UI");
+    expect(joined).toContain("🖼");
+    expect(joined).not.toContain("](");
+    renderer.destroy();
   });
 });

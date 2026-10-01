@@ -105,17 +105,21 @@ function rgba(color: Rgb): RGBA {
 }
 
 /** Half-block rows as one styled-text block (one line per image row). */
-function imageStyledText(image: HalfBlockImage): StyledText {
+function imageStyledText(image: HalfBlockImage, linkUrl?: string): StyledText {
   const chunks: TextChunk[] = [];
   toImageRuns(image).forEach((runs, rowIndex) => {
     if (rowIndex > 0) chunks.push({ __isChunk: true, text: "\n" });
     for (const run of runs) {
-      chunks.push({
+      const chunk: TextChunk = {
         __isChunk: true,
         text: run.text,
         fg: rgba(run.top),
         bg: rgba(run.bottom),
-      });
+      };
+      // `[![alt](img)](url)` keeps its link: OSC 8 on the image cells, so a
+      // click in the terminal opens the same URL the prose version would.
+      if (linkUrl) chunk.link = { url: linkUrl };
+      chunks.push(chunk);
     }
   });
   return new StyledText(chunks);
@@ -158,10 +162,16 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
     width: "100%",
   });
 
-  const caption = (label: string, color = muted()) =>
+  const caption = (label: string, linkUrl?: string, color = muted()) =>
     new TextRenderable(renderer, {
-      content: `  ${label}`,
-      fg: color,
+      content: new StyledText([
+        {
+          __isChunk: true,
+          text: `  ${label}`,
+          fg: RGBA.fromHex(color),
+          ...(linkUrl ? { link: { url: linkUrl } } : {}),
+        },
+      ]),
       bg: bg(),
       wrapMode: "word",
       flexShrink: 0,
@@ -199,14 +209,15 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
   const imageNode = (image: ImageRef): Renderable => {
     const label = `🖼  ${image.alt.trim() || "image"}`;
     const url = imageBase ? resolveReadmeImageUrl(image.href, imageBase) : null;
-    if (!imagesEnabled || !url || !opts.loadImage) return caption(label);
+    if (!imagesEnabled || !url || !opts.loadImage)
+      return caption(label, image.linkUrl);
 
     const container = new BoxRenderable(renderer, {
       flexDirection: "column",
       flexShrink: 0,
       width: "100%",
     });
-    const placeholder = caption(`${label}  (loading…)`);
+    const placeholder = caption(`${label}  (loading…)`, image.linkUrl);
     container.add(placeholder);
 
     void rasterize(url).then(
@@ -216,11 +227,11 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
         if (container.isDestroyed || !container.parent) return;
         container.remove(placeholder);
         placeholder.destroy();
-        container.add(caption(label));
+        container.add(caption(label, image.linkUrl));
         if (cells) {
           container.add(
             new TextRenderable(renderer, {
-              content: imageStyledText(cells),
+              content: imageStyledText(cells, image.linkUrl),
               bg: bg(),
               wrapMode: "none",
               selectable: false,

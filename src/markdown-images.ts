@@ -22,6 +22,8 @@ export interface BlockTokenLike extends InlineTokenLike {
 export interface ImageRef {
   href: string;
   alt: string;
+  /** Link target when the image is wrapped in a link (`[![alt](src)](url)`). */
+  linkUrl?: string;
 }
 
 const IMG_TAG = /<img\b[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi;
@@ -81,12 +83,28 @@ export function inlinePlainText(tokens: InlineTokenLike[] | undefined): string {
  */
 export function extractImageRefs(token: BlockTokenLike): ImageRef[] | null {
   const images: ImageRef[] = [];
+  let linkUrl: string | undefined;
 
   const collect = (inline: InlineTokenLike): boolean => {
     if (inline.type === "image") {
       if (inline.href)
-        images.push({ href: inline.href, alt: inline.text ?? "" });
+        images.push({ href: inline.href, alt: inline.text ?? "", linkUrl });
       return true;
+    }
+    if (inline.type === "link" || inline.type === "linkReference") {
+      // `[![alt](img)](url)` — the badge-and-screenshot shape. marked hands
+      // the image to us as a child of the link token, so recurse; rejecting
+      // the block here discarded the image entirely (sst/opencode,
+      // withastro/astro). A link whose content is prose still fails the
+      // inner `text` check, so those blocks stay prose.
+      if (inline.tokens?.length) {
+        const outer = linkUrl;
+        linkUrl = inline.href || outer;
+        const ok = inline.tokens.every(collect);
+        linkUrl = outer;
+        return ok;
+      }
+      return false;
     }
     if (inline.type === "html") {
       const refs = imagesFromHtml(inline.raw);
