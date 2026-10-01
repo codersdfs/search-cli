@@ -47,6 +47,8 @@ import {
   applyFlagFilters,
   validateQuery,
   suggestFor,
+  suggestRelaxations,
+  trendingQuery,
   rankRepos,
   createGitHubSearch,
   SearchModule,
@@ -2365,9 +2367,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
     try {
       const searchModule = new SearchModule(new TrendingAdapter());
-      const response = await searchModule.search(
-        { keywords: [], qualifiers: [], raw: "trending" },
-        {
+      const response = await searchModule.search(trendingQuery(), {
           limit: 25,
           sort: "stars",
           json: false,
@@ -2528,7 +2528,12 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       }
 
       if (currentRepos.length === 0) {
-        throw new NoResultsError(q);
+        // A zero-result search usually means one qualifier over-constrained
+        // it. Offer the ranked loosenings instead of generic advice.
+        throw new NoResultsError(
+          q,
+          suggestRelaxations(parsed).map((r) => r.suggestion),
+        );
       } else {
         resultsSelect.options = currentRepos.map((r) => ({
           name: formatResultLine(r),
