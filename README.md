@@ -224,6 +224,15 @@ ghfind --completion fish | source
 | `Esc`                 | Close current overlay                          |
 | `q`                   | Quit ghfind                                    |
 
+**Error recovery** — active only while the matching error is in the status bar
+
+| Key | Action                                        |
+| --- | --------------------------------------------- |
+| `r` | Retry the failed search / trending load       |
+| `t` | Fix the GitHub token (401 bad token, 403 SSO) |
+| `u` | Search without a token (401)                  |
+| `c` | Change token (rate limit)                     |
+
 **Leader menu** — press `Space`, navigate with `↑`/`↓`, press `Enter` to dispatch
 
 Actions shown depend on current mode (search vs trending) and selection:
@@ -331,23 +340,22 @@ npm run build    # build dist/
 
 ## Known limitations
 
-**README image rendering is currently incomplete.** Images that do render look
-right, but several common cases silently show nothing:
+README image rendering has one deliberate blind spot and one hard one:
 
-- **An image wrapped in a link does not render at all.** This is the common
-  badge-and-screenshot style: `[![alt](shot.png)](https://example.com)`.
-  The whole block is treated as prose and the image is dropped.
-- **An image smaller than 100px is skipped**, judged by the `width`/`height`
-  the README declares in its `<img>` tag. A README that understates an
-  image's size hides that image.
-- **SVG is not rendered** — the rasteriser cannot draw it.
-- Markdown `![](url)` images have no declared size, so they are downloaded
-  before the size check can reject them. A README full of them is slow to open.
+- **Images smaller than 100 px on any edge are skipped.** For `<img>` tags the
+  declared `width`/`height` is trusted, so an image that understates its size
+  is hidden (a README that _overstates_ nothing is never affected). Markdown
+  `![]()` images declare no size, so they are measured from the image header
+  instead — still before any pixels are decoded.
+- **SVG is not rendered** — the rasteriser cannot draw it, so SVGs (and
+  badge-service images, which are tiny SVGs with text baked in) show an
+  `🖼 alt` caption instead.
 
-A README using none of the above — plain `![]()` images and a few large
-banners — renders fine and fast. See
+An image wrapped in a link — `[![alt](shot.png)](url)`, the badge-and-screenshot
+style — renders fine and keeps its link: the image cells carry an OSC 8
+hyperlink, so clicking it opens the target in your browser. See
 [.issues/tickets/readme-image-rendering.md](.issues/tickets/readme-image-rendering.md)
-for the measurements and the remaining work.
+for the architecture, measurements, and remaining work.
 
 ---
 
