@@ -339,8 +339,9 @@ describe("callTool: ghfind_search_repos", () => {
   });
 
   it("flags rate limiting in structured output instead of failing", async () => {
-    // A 403 with no rate-limit headers makes the adapter set rateLimited and
-    // swallow the error — the tool reports it in structuredContent.
+    // A 403 with no rate-limit headers propagates as RateLimitError from the
+    // adapter; the tool converts it to backoff advice in structuredContent
+    // rather than a tool failure or a fake empty result.
     globalThis.fetch = (async () =>
       jsonResponse(
         { message: "rate limited" },
@@ -351,7 +352,8 @@ describe("callTool: ghfind_search_repos", () => {
       { query: "rust" },
       freshState(),
     );
-    expect(outcome.text).toContain("No repositories found");
+    expect(outcome.text).toContain("rate limit");
+    expect(outcome.text).toContain("GITHUB_TOKEN");
     expect((outcome.data as Record<string, unknown>).rateLimited).toBe(true);
   });
 });

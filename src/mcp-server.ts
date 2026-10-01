@@ -55,6 +55,7 @@ import {
   type SkillSource,
 } from "./skill-finder";
 import { getVersion } from "./version";
+import { RateLimitError } from "./errors";
 
 // ─── Protocol constants ────────────────────────────────────────────────
 
@@ -277,7 +278,22 @@ const TOOLS: ToolDefinition[] = [
         verbose: false,
         token,
       };
-      const response = await provider.search(parsed, options);
+      // The adapter no longer swallows rate limits as empty results — it
+      // throws RateLimitError. Convert it to the structured flag here so
+      // agents still get backoff advice (a tool failure reads as breakage;
+      // the flag reads as retry-later).
+      let response: Awaited<ReturnType<typeof provider.search>>;
+      try {
+        response = await provider.search(parsed, options);
+      } catch (err) {
+        if (err instanceof RateLimitError) {
+          return {
+            text: `GitHub API rate limit exceeded for "${query}". Set a token (GITHUB_TOKEN or the tool's token argument) to raise the limit from 60/hr to 5,000/hr.`,
+            data: { totalCount: 0, repos: [], rateLimited: true },
+          };
+        }
+        throw err;
+      }
       const repos = rankRepos(response.repos, sort);
 
       // Make agent searches visible in the user's TUI history (best-effort).
