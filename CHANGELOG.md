@@ -6,6 +6,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **The TUI always opens on the landing menu again.** A saved session used to
+  skip it on every launch, and one user's session had an MCP handshake request
+  saved as its query, so startup auto-ran a garbage search instead of showing
+  the menu. Sessions now restore preferences and pre-fill the last query only
+  when a mode is picked; they never auto-run a search. Both save and restore
+  sanitize the session: JSON-shaped or oversized queries are dropped, and
+  malformed fields fall back to defaults, so a corrupted file can't hijack
+  startup again.
+- **401/403 API errors now say what actually went wrong instead of "Network
+  error".** A rejected token (401) shows "Bad GitHub token (401)" with keys to
+  fix it; an authenticated-but-forbidden 403 (e.g. SAML/SSO enforcement) names
+  the SSO case; only genuine connectivity/server failures keep the generic
+  network message. A rate-limited search no longer swallows the error and
+  renders as a silent zero-result "success" — the real message reaches the
+  status bar, the MCP server reports it as structured backoff advice, and the
+  adapter no longer turns rate limits into empty results.
+- **Recover-from-errors without leaving the TUI.** While the matching error is
+  showing, `t` opens an inline token prompt (saves to config and re-runs the
+  failed query), `u` clears the token and retries unauthenticated, `c` swaps in
+  a different token after a rate limit, and `r` retries. Documented in the help
+  overlay and README.
+- **An image wrapped in a link now renders.** The badge-and-screenshot shape
+  `[![alt](shot.png)](url)` — used by `sst/opencode` (its only hero image was
+  lost) and `withastro/astro` (23 of 25 images lost) — was treated as prose
+  because the markdown token walk rejected `link` tokens instead of recursing
+  into them. The image now renders and keeps its link as an OSC 8 hyperlink on
+  the image cells, so clicking it in the terminal opens the same URL.
+- **A README full of small images no longer floods the screen.** Images whose
+  README declares an edge under 100 px (`<img width="48">` sponsor avatars,
+  badges) are filtered while parsing, before any request is made; images with
+  no declared size are measured from their header after the download
+  (`Bun.Image.metadata()`, header read only — no pixel decode) and rejected
+  before rasterising. On `openclaw/openclaw` (661 `<img>` tags, 648 of them
+  48×48 avatars) this takes the README from 649 downloads / 28.3 s to open to
+  1 download / ~0.5 s.
+- A pure-image block whose refs are all filtered out renders as nothing instead
+  of falling back to prose, which would have printed the raw markdown of the
+  filtered-out image.
+
+### Changed
+
+- **Images smaller than 100 px on any edge are no longer rendered, even when
+  the declared size understates the real one** (two images in
+  `openclaw/openclaw` declare `width="48"` but are 420×420). The README is
+  treated as the authority on size; the alternative — rendering the avatar at
+  whatever the terminal fits — is what made these READMEs unusable.
+- The TUI no longer skips the landing menu on startup: a saved session
+  restores sort/limit/trending tab and pre-fills the query when you pick Repo
+  Search, but the menu always comes first. See the session-sanitizing fix
+  above.
+
+---
+
 ## [9.8.2] — 2026-09-28 (released)
 
 ### Security
