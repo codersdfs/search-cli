@@ -448,6 +448,11 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
         currentMode = "search";
         showLanding(false);
         showSearchMode();
+        // Restore the saved query (if any) as a prefill, never auto-run it.
+        if (currentQueryInput) {
+          searchInput.value = currentQueryInput;
+          renderer.requestRender();
+        }
       },
     },
     {
@@ -3203,26 +3208,15 @@ ${pack.description ?? ""}`;
   // ── Update check (before start) ──────────────────────────────────────
   const _currentVersion = getVersion();
   // ── Start ──────────────────────────────────────────────────────────
-  // Check for updates (non-blocking — doesn't delay TUI startup)
-  if (!session?.mode) {
-    showLanding(true);
-  }
+  // Always start on the landing menu. Saved sessions restore preferences
+  // (sort/limit/trending tab) and pre-fill the query once a mode is picked,
+  // but never auto-run a search — a stale or corrupted session (e.g. an MCP
+  // handshake blob saved as a query) used to hijack startup and skip the
+  // menu on every launch.
+  showLanding(true);
   checkForUpdateAndShow();
   checkPostUpgradePanel();
   renderer.start();
-  if (session?.mode) {
-    if (currentMode === "trending") {
-      loadTrending();
-    } else {
-      searchInput.value = currentQueryInput;
-      if (currentQueryInput) {
-        doSearch(currentQueryInput);
-      } else {
-        showSearchMode();
-      }
-      searchInput.focus();
-    }
-  }
   renderer.requestRender();
 }
 
