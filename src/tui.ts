@@ -123,6 +123,7 @@ import {
   fetchReleaseNotes,
   readUpdateState,
   recordPreUpdateState,
+  markPostUpgradeSeen,
 } from "./update-check";
 import { debugLog } from "./storage";
 import {
@@ -1657,6 +1658,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     if (state.lastInstalledVersion === currentVersion) return;
     // We just upgraded — show notes for the new version
     const notes = fetchReleaseNotes(currentVersion);
+    // Acknowledge immediately: this panel's trigger is a version inequality,
+    // so leaving it unacknowledged makes it reappear on every launch.
+    markPostUpgradeSeen(currentVersion);
     updateSelectedOption = 0;
     updateHeader.content = `  Updated ghfind ${state.lastInstalledVersion} → ${currentVersion}\n`;
     updateNotes.setContent(
@@ -2398,13 +2402,12 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     try {
       const searchModule = new SearchModule(new TrendingAdapter());
       const response = await searchModule.search(trendingQuery(), {
-          limit: 25,
-          sort: "stars",
-          json: false,
-          verbose: false,
-          trendingSince: tabSince(trendingTab),
-        },
-      );
+        limit: 25,
+        sort: "stars",
+        json: false,
+        verbose: false,
+        trendingSince: tabSince(trendingTab),
+      });
       const fetched = response.repos;
       const since = tabSince(trendingTab);
       trendingPeriod =

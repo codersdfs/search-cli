@@ -60,6 +60,32 @@ export function shouldCheckUpdate(): boolean {
 }
 
 /**
+ * Split a semver string into comparable numeric parts.
+ *
+ * A leading `v` is tolerated. Pre-release (`-beta.1`) and build (`+build.5`)
+ * suffixes are both stripped first, so `9.9.0+build.5` and `9.9.0` compare as
+ * the same release — leaving them in makes `Number("0+build")` NaN.
+ */
+function semverParts(v: string): number[] {
+  const core = v.trim().replace(/^v/i, "").split(/[-+]/)[0];
+  return core.split(".").map((s) => {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  });
+}
+
+/**
+ * True when `v` carries a pre-release tag (`-beta.1`, `-rc.2`, …).
+ * npm semantics: a pre-release is OLDER than the matching release.
+ */
+function isPrerelease(v: string): boolean {
+  const core = v.trim().replace(/^v/i, "");
+  const plus = core.indexOf("+");
+  const coreOnly = plus === -1 ? core : core.slice(0, plus);
+  return coreOnly.includes("-");
+}
+
+/**
  * Compare two semver strings. Returns true if `latest` is newer than `current`.
  * Uses Bun's built-in semver if available, falls back to simple comparison.
  */
@@ -68,16 +94,27 @@ export function isNewerVersion(current: string, latest: string): boolean {
   if (typeof Bun !== "undefined" && Bun.semver) {
     return Bun.semver.order(current, latest) < 0;
   }
-  // Fallback: naive string comparison (works for simple semver; does not handle pre-release tags)
-  const curParts = current.split(".").map((s) => Number(s.split("-")[0]));
-  const newParts = latest.split(".").map((s) => Number(s.split("-")[0]));
+  // Fallback for Node/compiled binaries. npm orders `1.0.0-beta.1` BEFORE
+  // `1.0.0`, so a prerelease only counts as an upgrade when its numeric core
+  // is genuinely ahead — never for the same core, which would be a downgrade.
+  const curParts = semverParts(current);
+  const newParts = semverParts(latest);
+  let order = 0;
   for (let i = 0; i < Math.max(curParts.length, newParts.length); i++) {
     const c = curParts[i] ?? 0;
     const n = newParts[i] ?? 0;
-    if (n > c) return true;
-    if (n < c) return false;
+    if (n > c) {
+      order = 1;
+      break;
+    }
+    if (n < c) {
+      order = -1;
+      break;
+    }
   }
-  return false;
+  if (order !== 0) return order > 0;
+  // Same numeric core: only a prerelease -> release move is an upgrade.
+  return isPrerelease(current) && !isPrerelease(latest);
 }
 
 /**
@@ -255,6 +292,35 @@ export function recordPreUpdateState(currentVersion: string): void {
     ...readUpdateState(),
     lastInstalledVersion: currentVersion,
   });
+}
+
+/**
+ * Acknowledge that the post-upgrade panel for `shownVersion` has been seen.
+ *
+ * The panel's trigger is `lastInstalledVersion !== currentVersion`, so without
+ * this write the state stays "upgraded" forever and the panel reappears on
+ * every single launch — including after the user dismissed it with "later" or
+ * "never", since neither touches `lastInstalledVersion`. Writing the running
+ * version makes the condition false exactly once.
+ *
+ * Best-effort: a failed write must not block the panel from being shown.
+ */
+export function markPostUpgradeSeen(currentVersion: string): void {
+  try {
+    const state = readUpdateState();
+    // Already acknowledged — nothing to do.
+    if (state.lastInstalledVersion === currentVersion) return;
+    // Only acknowledge a recorded version that is genuinely OLDER than the
+    // running one (the upgrade we just showed notes for). If the recorded
+    // version is NEWER — e.g. an update landed mid-session, or the install was
+    // rolled back — leave it alone so the next launch still reports something.
+    if (isNewerVersion(currentVersion, state.lastInstalledVersion ?? "")) {
+      return;
+    }
+    writeUpdateState({ ...state, lastInstalledVersion: currentVersion });
+  } catch {
+    // non-critical
+  }
 }
 
 /**
