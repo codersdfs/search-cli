@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
-## [Unreleased]
+## [9.8.3] — 2026-10-01 (released)
 
 ### Fixed
 

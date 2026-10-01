@@ -363,6 +363,15 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.8.3
+
+- **401/403 say what actually happened** — a rejected token and an authenticated-but-forbidden request (e.g. SAML/SSO enforcement) both used to report "Network error", naming a connectivity problem you didn't have; only genuine connectivity and server failures keep that message now
+- **A rate-limited search no longer looks like an empty one** — the adapter used to swallow the error and render a silent, successful "no repositories found"; the real message reaches the status bar, and the `ghfind_search_repos` MCP tool returns `rateLimited: true` with backoff advice instead of a tool failure
+- **Recover from errors without leaving the TUI** — while the matching error is in the status bar, `t` opens an inline token prompt (saves it and re-runs the failed query), `u` clears the token and retries unauthenticated, `c` swaps in a different token, `r` retries
+- **A corrupted session no longer hijacks startup** — a `session.json` holding an MCP handshake blob used to skip the landing menu and auto-run that garbage as a search on every launch; the menu always comes first now, and both save and restore sanitize the session
+- **Images wrapped in a link render now** — the badge-and-screenshot shape `[![alt](shot.png)](url)` rendered nothing at all, which cost `sst/opencode` its only image and `withastro/astro` 23 of its 25; the image cells carry an OSC 8 hyperlink, so clicking it opens the target
+- **A README full of small images no longer floods the screen** — images the README declares under 100px on any edge are skipped before a request is made, and undeclared `![]()` images are measured from the image header before any pixel decode; on `openclaw/openclaw` (648 sponsor avatars) that is 649 fetches / 28.3s → 1 fetch / ~0.5s
+
 ### v9.8.2
 
 - **Security: tokens no longer leak into crash reports** — an uncaught error auto-built a GitHub issue URL from raw `process.argv`, so a `--token` value ended up in a public URL; every field is redacted now, and ghfind prints the URL to copy instead of opening a browser when it finds a credential
