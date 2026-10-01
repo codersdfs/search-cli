@@ -10,14 +10,24 @@ export interface Qualifier {
   negated: boolean;
 }
 
+/** A normalization applied to a qualifier while parsing (typo fix, `10k` → `>=10000`). */
+export interface QueryCorrection {
+  /** What the user typed, e.g. `langauge:rust`. */
+  from: string;
+  /** What it was normalized to, e.g. `language:Rust`. */
+  to: string;
+}
+
 /** The fully parsed, normalized representation of a user's search request. */
 export interface ParsedQuery {
   /** Free-text keywords (everything that is not a qualifier). */
   keywords: string[];
-  /** Structured qualifiers extracted from the query string. */
+  /** Structured qualifiers extracted from the query string, normalized. */
   qualifiers: Qualifier[];
   /** The original, untouched query string (preserved for debugging/display). */
   raw: string;
+  /** Normalizations applied while parsing. Empty when the query was already canonical. */
+  corrections: QueryCorrection[];
 }
 
 /** A repository as returned by a search provider, normalized to a stable shape. */
