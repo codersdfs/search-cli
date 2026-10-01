@@ -6,6 +6,8 @@ import {
   BadQueryError,
   NoResultsError,
   ParseError,
+  AuthError,
+  ForbiddenError,
 } from "../src/errors.ts";
 
 describe("SearchCliError", () => {
@@ -22,6 +24,42 @@ describe("NetworkError", () => {
     const err = new NetworkError();
     expect(err.userMessage).toContain("Network error");
     expect(err.userMessage).toContain("[r]etry");
+  });
+});
+
+describe("AuthError", () => {
+  it("maps 401 to a bad-token message, not a network message", () => {
+    const err = new AuthError();
+    expect(err.name).toBe("AuthError");
+    expect(err.userMessage).toContain("401");
+    expect(err.userMessage).toContain("token");
+    expect(err.userMessage).not.toContain("Network error");
+  });
+
+  it("advertises [t] to fix the token and [u] to unset it", () => {
+    const err = new AuthError();
+    expect(err.userMessage).toContain("[t]");
+    expect(err.userMessage).toContain("[u]");
+  });
+
+  it("stays short enough for the 60-char status bar", () => {
+    expect(new AuthError().userMessage.length).toBeLessThanOrEqual(72);
+  });
+});
+
+describe("ForbiddenError", () => {
+  it("maps non-rate-limit 403 to a forbidden message", () => {
+    const err = new ForbiddenError();
+    expect(err.name).toBe("ForbiddenError");
+    expect(err.userMessage).toContain("403");
+    expect(err.userMessage).toContain("Forbidden");
+    expect(err.userMessage).not.toContain("Network error");
+  });
+
+  it("mentions SSO authorization and the [t] hint", () => {
+    const err = new ForbiddenError();
+    expect(err.userMessage).toContain("SSO");
+    expect(err.userMessage).toContain("[t]");
   });
 });
 

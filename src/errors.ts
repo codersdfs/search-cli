@@ -20,6 +20,33 @@ export class NetworkError extends SearchCliError {
   }
 }
 
+/**
+ * HTTP 401 — the configured GitHub token was rejected.
+ * Distinct from NetworkError: connectivity is fine, the credential is not.
+ */
+export class AuthError extends SearchCliError {
+  constructor() {
+    const msg =
+      "⚠ Bad GitHub token (401). Press [t] to fix it, [u] to search without one";
+    super("GitHub API returned 401 (invalid or revoked token)", msg);
+    this.name = "AuthError";
+  }
+}
+
+/**
+ * HTTP 403 — authenticated but not allowed (SAML enforcement, resource
+ * restrictions, secondary limits). Not the same as the rate-limit 403,
+ * which is detected by an exhausted x-ratelimit-remaining header first.
+ */
+export class ForbiddenError extends SearchCliError {
+  constructor() {
+    const msg =
+      "⚠ Forbidden (403). If your org enforces SSO, authorize the token; [t] to change it";
+    super("GitHub API returned 403 (token lacks access)", msg);
+    this.name = "ForbiddenError";
+  }
+}
+
 export class RateLimitError extends SearchCliError {
   constructor(
     public readonly hasToken: boolean,
