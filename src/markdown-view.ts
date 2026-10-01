@@ -24,11 +24,12 @@ import {
   type HalfBlockImage,
   type Rgb,
 } from "./image-render";
-import { resolveReadmeImageUrl } from "./image-loader";
+import { resolveReadmeImageUrl, shouldRenderImage } from "./image-loader";
 import {
   extractImageRefs,
   inlinePlainText,
   type BlockTokenLike,
+  type DeclaredSize,
   type ImageRef,
 } from "./markdown-images";
 
@@ -178,7 +179,10 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
       width: "100%",
     });
 
-  const rasterize = (url: string): Promise<HalfBlockImage | null> => {
+  const rasterize = (
+    url: string,
+    declared?: DeclaredSize,
+  ): Promise<HalfBlockImage | null> => {
     // Size is part of the key: a resized terminal needs fresh cells.
     const maxCols = Math.max(8, Math.floor(opts.getImageWidth?.() ?? 100));
     const key = `${maxCols}|${url}`;
@@ -189,6 +193,11 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
       if (!loader) return null;
       const bytes = await loader(url);
       if (!bytes) return null;
+      // Size gate before any pixel decode. Declared sizes were already
+      // filtered at parse time (markdown-images.ts); markdown `![]()`
+      // images carry no declared size, so they are measured from the image
+      // header here — the rejected `null` is cached like any other failure.
+      if (!(await shouldRenderImage(bytes, declared))) return null;
       return rasterizeImage(bytes, {
         maxCols,
         maxRows: maxImageRows,
@@ -220,7 +229,7 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
     const placeholder = caption(`${label}  (loading…)`, image.linkUrl);
     container.add(placeholder);
 
-    void rasterize(url).then(
+    void rasterize(url, image.declared).then(
       (cells) => {
         // The document may have been replaced (or the overlay closed) while
         // the image was downloading.
@@ -281,17 +290,26 @@ export function createMarkdownView(opts: MarkdownViewOptions): MarkdownView {
     ): Renderable | undefined => {
       if (token.type === "heading") return headingNode(token);
       const images = extractImageRefs(token);
-      if (images && images.length > 0) {
-        const box = new BoxRenderable(renderer, {
-          flexDirection: "column",
+      if (images === null) return undefined; // prose: default rendering
+      if (images.length === 0) {
+        // Pure image block whose refs the README declares too small to be
+        // worth drawing (openclaw's 648 48x48 avatars). Render an empty
+        // block rather than falling through to prose, which would print the
+        // raw markdown of the filtered-out image.
+        return new BoxRenderable(renderer, {
           flexShrink: 0,
           width: "100%",
-          marginTop: 1,
+          height: 0,
         });
-        for (const image of images) box.add(imageNode(image));
-        return box;
       }
-      return undefined;
+      const box = new BoxRenderable(renderer, {
+        flexDirection: "column",
+        flexShrink: 0,
+        width: "100%",
+        marginTop: 1,
+      });
+      for (const image of images) box.add(imageNode(image));
+      return box;
     };
 
   renderable.renderNode = buildRenderNode();

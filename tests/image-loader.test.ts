@@ -7,6 +7,7 @@ import {
   isRenderableImageUrl,
   readmeBaseUrl,
   resolveReadmeImageUrl,
+  shouldRenderImage,
 } from "../src/image-loader";
 
 const BASE = readmeBaseUrl("octo", "demo", "main");
@@ -314,5 +315,77 @@ describe("fetchImageBytes", () => {
       }),
     });
     expect(Array.from(bytes ?? [])).toEqual([1, 2, 3]);
+  });
+});
+
+describe("shouldRenderImage", () => {
+  const ImageCtor = (Bun as { Image?: unknown }).Image;
+  const maybe = typeof ImageCtor === "function" ? test : test.skip;
+
+  /** 24-bit BMP helper (mirrors the one in image-render.test.ts). */
+  function bmp24(
+    width: number,
+    height: number,
+    pixel: (x: number, y: number) => [number, number, number],
+  ): Uint8Array {
+    const rowSize = Math.ceil((width * 3) / 4) * 4;
+    const pixelSize = rowSize * height;
+    const out = new Uint8Array(54 + pixelSize);
+    const view = new DataView(out.buffer);
+    out[0] = 0x42;
+    out[1] = 0x4d;
+    view.setUint32(2, 54 + pixelSize, true);
+    view.setUint32(10, 54, true);
+    view.setUint32(14, 40, true);
+    view.setInt32(18, width, true);
+    view.setInt32(22, height, true);
+    view.setUint16(26, 1, true);
+    view.setUint16(28, 24, true);
+    view.setUint32(34, pixelSize, true);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const [r, g, b] = pixel(x, y);
+        const o = 54 + (height - 1 - y) * rowSize + x * 3;
+        out[o] = b;
+        out[o + 1] = g;
+        out[o + 2] = r;
+      }
+    }
+    return out;
+  }
+
+  const big = () => bmp24(200, 100, () => [255, 0, 0]);
+  const small = () => bmp24(48, 48, () => [0, 255, 0]);
+
+  test("accepts a declared size at or above the floor without decoding", async () => {
+    // A declared small size must reject even though the real bytes are big.
+    await expect(
+      shouldRenderImage(big(), { width: 48, height: 48 }),
+    ).resolves.toBe(false);
+    // A declared big size must accept even though the real bytes are tiny.
+    await expect(
+      shouldRenderImage(small(), { width: 600, height: 200 }),
+    ).resolves.toBe(true);
+  });
+
+  maybe("measures undeclared sizes from the image header", async () => {
+    await expect(shouldRenderImage(big())).resolves.toBe(true);
+    await expect(shouldRenderImage(small())).resolves.toBe(false);
+  });
+
+  maybe(
+    "accepts unreadable bytes — the rasteriser fails them later",
+    async () => {
+      await expect(shouldRenderImage(new Uint8Array([1, 2, 3]))).resolves.toBe(
+        true,
+      );
+    },
+  );
+
+  test("defers to the rasteriser when there is no image codec", async () => {
+    // This test only runs where Bun.Image is absent; where it exists it
+    // verifies the same contract via the header path above.
+    if (typeof ImageCtor === "function") return;
+    await expect(shouldRenderImage(small())).resolves.toBe(true);
   });
 });

@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { extractImageRefs, inlinePlainText } from "../src/markdown-images";
+import {
+  declaredImageSize,
+  declaresTooSmall,
+  extractImageRefs,
+  inlinePlainText,
+  MIN_IMAGE_PIXELS,
+} from "../src/markdown-images";
 
 describe("extractImageRefs", () => {
   test("finds a lone markdown image", () => {
@@ -112,7 +118,29 @@ describe("extractImageRefs", () => {
         type: "html",
         raw: '<img src="docs/demo.gif" alt="Demo" width="600" />',
       }),
-    ).toEqual([{ href: "docs/demo.gif", alt: "Demo" }]);
+    ).toEqual([
+      {
+        href: "docs/demo.gif",
+        alt: "Demo",
+        declared: { width: 600, height: 600 },
+      },
+    ]);
+  });
+
+  test("reads declared width/height from img tags", () => {
+    expect(
+      declaredImageSize('<img src="a.png" width="48" height="48">'),
+    ).toEqual({ width: 48, height: 48 });
+    expect(declaredImageSize('<img src="a.png" width="48px">')).toEqual({
+      width: 48,
+      height: 48,
+    });
+    expect(declaredImageSize('<img src="a.png" width="100%">')).toBeUndefined();
+    expect(
+      declaredImageSize('<img src="a.png" width="600" height="200">'),
+    ).toEqual({ width: 600, height: 200 });
+    expect(declaredImageSize('<img src="a.png">')).toBeUndefined();
+    expect(declaredImageSize('<img src="a.png" width="abc">')).toBeUndefined();
   });
 
   test("tolerates wrapper markup but not captions", () => {
@@ -122,8 +150,8 @@ describe("extractImageRefs", () => {
         raw: '<p align="center"><img src="a.png"><br/><img src="b.png"></p>',
       }),
     ).toEqual([
-      { href: "a.png", alt: "" },
-      { href: "b.png", alt: "" },
+      { href: "a.png", alt: "", declared: undefined },
+      { href: "b.png", alt: "", declared: undefined },
     ]);
     expect(
       extractImageRefs({
@@ -131,6 +159,47 @@ describe("extractImageRefs", () => {
         raw: '<img src="a.png"> a caption',
       }),
     ).toBeNull();
+  });
+
+  test("drops img tags that declare an edge under the size floor", () => {
+    expect(
+      extractImageRefs({
+        type: "html",
+        raw: '<img src="a.png" width="48">',
+      }),
+    ).toEqual([]);
+    // Mixed block: the small one is dropped, the large one survives.
+    expect(
+      extractImageRefs({
+        type: "html",
+        raw: '<img src="a.png" width="48"><img src="b.png" width="600">',
+      }),
+    ).toEqual([
+      { href: "b.png", alt: "", declared: { width: 600, height: 600 } },
+    ]);
+  });
+
+  test("a markdown image cannot declare a size", () => {
+    // Markdown images carry no size attributes, so they are never filtered
+    // at parse time — the pixel check in image-loader decides after the
+    // download instead.
+    expect(
+      extractImageRefs({
+        type: "paragraph",
+        tokens: [{ type: "image", href: "badge.png", text: "" }],
+      }),
+    ).toEqual([{ href: "badge.png", alt: "" }]);
+  });
+
+  test("MIN_IMAGE_PIXELS floor is 100, on any edge", () => {
+    expect(MIN_IMAGE_PIXELS).toBe(100);
+    // Any edge under the floor skips the image — a 99x999 sliver is as
+    // unreadable at cell resolution as a 48x48 avatar.
+    expect(declaresTooSmall({ width: 99, height: 999 })).toBe(true);
+    expect(declaresTooSmall({ width: 600, height: 99 })).toBe(true);
+    expect(declaresTooSmall({ width: 100, height: 100 })).toBe(false);
+    expect(declaresTooSmall({ width: 600, height: 200 })).toBe(false);
+    expect(declaresTooSmall(undefined)).toBe(false);
   });
 
   test("allows inline <br> next to a markdown image", () => {

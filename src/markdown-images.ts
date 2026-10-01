@@ -14,6 +14,26 @@ export interface InlineTokenLike {
   tokens?: InlineTokenLike[];
 }
 
+/**
+ * A pixel size an image reference declares about itself — the `width`/`height`
+ * attributes of an `<img>` tag, or the dimensions `Bun.Image.metadata()` reads
+ * from an image header. `undefined` means "not declared".
+ */
+export interface DeclaredSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * Images whose larger declared edge is below this are skipped before any
+ * request is made. Badges and 48x48 sponsor avatars are unreadable at cell
+ * resolution and, at 24 rows per image, a README full of them is unusable —
+ * 648 avatars in `openclaw/openclaw` measured 15,552 rows and 28 s to open.
+ * The README is the authority here: it can hide an image whose declared size
+ * understates it, which is judged better than a screen full of avatars.
+ */
+export const MIN_IMAGE_PIXELS = 100;
+
 /** Minimal shape of a marked block token. */
 export interface BlockTokenLike extends InlineTokenLike {
   depth?: number;
@@ -22,13 +42,54 @@ export interface BlockTokenLike extends InlineTokenLike {
 export interface ImageRef {
   href: string;
   alt: string;
+  /** Size the reference declares about itself, when it does. */
+  declared?: DeclaredSize;
   /** Link target when the image is wrapped in a link (`[![alt](src)](url)`). */
   linkUrl?: string;
 }
 
 const IMG_TAG = /<img\b[^>]*?src\s*=\s*["']([^"']+)["'][^>]*>/gi;
 const ALT_ATTR = /\balt\s*=\s*["']([^"']*)["']/i;
+const LENGTH_ATTR = /\b(width|height)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+/** Whole-value integers, with or without a `px` suffix. */
+const PIXEL_VALUE = /^(\d+)(?:px)?$/i;
 const HTML_TAG = /<\/?[a-z][^>]*>/gi;
+
+/**
+ * Pixel size an `<img>` tag declares via its `width`/`height` attributes, or
+ * `undefined` when it declares none. Only whole pixel values count —
+ * percentages (`width="100%"`) say nothing about real pixels, so they are
+ * ignored rather than read as a 100 px image.
+ */
+export function declaredImageSize(tag: string): DeclaredSize | undefined {
+  const values: Partial<Record<"width" | "height", number>> = {};
+  for (const [, name, dq, sq] of tag.matchAll(LENGTH_ATTR)) {
+    const raw = dq ?? sq ?? "";
+    const match = PIXEL_VALUE.exec(raw.trim());
+    if (!match) continue;
+    const n = Number.parseInt(match[1], 10);
+    if (Number.isFinite(n) && n > 0) {
+      values[name as "width" | "height"] = n;
+    }
+  }
+  if (values.width === undefined && values.height === undefined)
+    return undefined;
+  return {
+    width: values.width ?? values.height ?? 0,
+    height: values.height ?? values.width ?? 0,
+  };
+}
+
+/**
+ * Whether a reference declaring `size` is too small to render: an edge under
+ * the floor (the shipped contract — "images declaring an edge under 100px are
+ * skipped"). `undefined` (nothing declared) is never too small — callers
+ * decide from real pixels or render and let the rasteriser cap it.
+ */
+export function declaresTooSmall(size: DeclaredSize | undefined): boolean {
+  if (!size) return false;
+  return size.width < MIN_IMAGE_PIXELS || size.height < MIN_IMAGE_PIXELS;
+}
 
 /** Images embedded as raw `<img>` tags, when there's no other content. */
 function imagesFromHtml(raw: string | undefined): ImageRef[] {
@@ -45,7 +106,7 @@ function imagesFromHtml(raw: string | undefined): ImageRef[] {
   for (const match of raw.matchAll(IMG_TAG)) {
     const tag = match[0];
     const alt = ALT_ATTR.exec(tag)?.[1] ?? "";
-    refs.push({ href: match[1], alt });
+    refs.push({ href: match[1], alt, declared: declaredImageSize(tag) });
   }
   return refs;
 }
@@ -129,7 +190,7 @@ export function extractImageRefs(token: BlockTokenLike): ImageRef[] | null {
 
   if (token.type === "html") {
     const refs = imagesFromHtml(token.raw);
-    return refs.length > 0 ? refs : null;
+    return refs.length > 0 ? dropTooSmall(refs) : null;
   }
 
   const inline = token.tokens ?? [];
@@ -137,5 +198,15 @@ export function extractImageRefs(token: BlockTokenLike): ImageRef[] | null {
   for (const child of inline) {
     if (!collect(child)) return null;
   }
-  return images.length > 0 ? images : null;
+  return images.length > 0 ? dropTooSmall(images) : null;
+}
+
+/**
+ * Filter out refs the README declares too small to be worth a request.
+ * An empty return means "pure image block, but nothing in it is worth
+ * drawing" — distinct from `null` (prose), so the view can render neither
+ * prose nor the raw markdown of a filtered-out image.
+ */
+function dropTooSmall(refs: ImageRef[]): ImageRef[] {
+  return refs.filter((image) => !declaresTooSmall(image.declared));
 }

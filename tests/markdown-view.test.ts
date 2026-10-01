@@ -147,4 +147,31 @@ describe("markdown-view image nodes", () => {
     expect(joined).not.toContain("](");
     renderer.destroy();
   });
+
+  test("declared-small images are dropped before any request", async () => {
+    let loads = 0;
+    const { renderer, flush, view } = await setupViewWithLoader(async () => {
+      loads++;
+      return new Uint8Array(8);
+    });
+    view.setContent('<img src="https://example.com/a.png" width="48">');
+    await flush();
+    expect(loads).toBe(0);
+    renderer.destroy();
+  });
+
+  test("images with no declared size still load (pixel check decides)", async () => {
+    let loads = 0;
+    const { renderer, waitFor, view } = await setupViewWithLoader(async () => {
+      loads++;
+      return new Uint8Array(8);
+    });
+    view.setContent(
+      "![alt](https://example.com/a.png)",
+      "https://example.com/0",
+    );
+    await waitFor(() => loads === 1);
+    expect(loads).toBe(1);
+    renderer.destroy();
+  });
 });

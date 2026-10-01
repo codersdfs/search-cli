@@ -6,6 +6,7 @@
  * inline `data:` URIs. Only some of them are worth downloading, and all of
  * the downloads are cached because a README is re-opened often.
  */
+import { declaresTooSmall, type DeclaredSize } from "./markdown-images";
 
 /** Reject anything bigger than this before buffering it. */
 export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
@@ -263,8 +264,7 @@ async function loadImageBytes(
   }
 }
 
-/**
- * Absolute URL of the README file itself, used as the base for relative
+/** Absolute URL of the README file itself, used as the base for relative
  * image paths.
  */
 export function readmeBaseUrl(
@@ -274,4 +274,59 @@ export function readmeBaseUrl(
   path = "README.md",
 ): string {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+}
+
+/**
+ * Pixel size an image declares about itself, read from its header, or
+ * `undefined` when the runtime has no image codec or the bytes are unreadable.
+ * `Bun.Image.metadata()` reads only the header — no pixel decode — so this is
+ * cheap to run on bytes that are already in hand.
+ */
+async function imageSizeFromBytes(
+  bytes: Uint8Array,
+): Promise<DeclaredSize | undefined> {
+  const ImageCtor = (
+    globalThis as {
+      Bun?: {
+        Image?: new (
+          input: Uint8Array,
+          constructorOptions?: { maxPixels?: number },
+        ) => {
+          metadata(): Promise<{ width: number; height: number }>;
+        };
+      };
+    }
+  ).Bun?.Image;
+  if (!ImageCtor) return undefined;
+  try {
+    const meta = await new ImageCtor(bytes).metadata();
+    if (!meta.width || !meta.height) return undefined;
+    return { width: meta.width, height: meta.height };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a downloaded image is worth rasterising.
+ *
+ * A reference that declares its size in the README is trusted (`declared`);
+ * one that doesn't is measured from the image header. Images below the
+ * 100 px floor are rejected *after* the download but *before* any pixel
+ * decode — markdown `![]()` images carry no declared size, so this is the
+ * only place their real size can be checked, and the header read is the
+ * cheapest check that works.
+ *
+ * On a runtime without `Bun.Image` (plain Node) there is nothing to measure
+ * with, so the image is accepted and left to the rasteriser, which fails
+ * into a caption anyway.
+ */
+export async function shouldRenderImage(
+  bytes: Uint8Array,
+  declared?: DeclaredSize,
+): Promise<boolean> {
+  if (declared) return !declaresTooSmall(declared);
+  const measured = await imageSizeFromBytes(bytes);
+  if (!measured) return true;
+  return !declaresTooSmall(measured);
 }
