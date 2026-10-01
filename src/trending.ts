@@ -14,7 +14,7 @@ import {
 import type { CliRenderer } from "@opentui/core";
 import type { Repo, ParsedQuery } from "./types";
 import { openUrl } from "./open-url";
-import { SearchModule, TrendingAdapter } from "./search";
+import { SearchModule, TrendingAdapter, trendingQuery } from "./search";
 import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 // ─── Tokyo Night palette ──────────────────────────────────────────────
 const C = {
@@ -207,11 +207,7 @@ export async function launchTrending(): Promise<void> {
     renderer.requestRender();
     try {
       const searchModule = new SearchModule(new TrendingAdapter());
-      const parsed: ParsedQuery = {
-        keywords: [],
-        qualifiers: [],
-        raw: "trending",
-      };
+      const parsed: ParsedQuery = trendingQuery();
       const response = await searchModule.search(parsed, {
         limit: 25,
         sort: "stars",

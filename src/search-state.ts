@@ -14,6 +14,7 @@ import {
   createGitHubSearch,
   SearchModule,
   TrendingAdapter,
+  trendingQuery,
 } from "./search";
 import { restoreSession, saveSession } from "./session";
 import { appendHistory } from "./history";
@@ -155,16 +156,13 @@ export class SearchStateManager {
     this.state.trendingTab = tab;
     this.state.currentMode = "trending";
     try {
-      const response = await this.trendingSearch.search(
-        { keywords: [], qualifiers: [], raw: "trending" },
-        {
-          limit: 25,
-          sort: "stars",
-          json: false,
-          verbose: false,
-          trendingSince: tabSince(tab),
-        },
-      );
+      const response = await this.trendingSearch.search(trendingQuery(), {
+        limit: 25,
+        sort: "stars",
+        json: false,
+        verbose: false,
+        trendingSince: tabSince(tab),
+      });
       this.state.currentRepos = response.repos;
       this.state.totalCount = response.totalCount;
       appendHistory({
