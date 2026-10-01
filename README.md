@@ -292,7 +292,22 @@ topic:cli -language:JavaScript
 org:rust-lang language:Rust
 ```
 
-Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, `topic`, `user`, `org`, `repo`, `updated`, `pushed`, `visibility`, `license`, `created`, `size`, `in`.
+Prefix with `-` to exclude. Supported: `language`, `stars`, `forks`, `topics`, `followers`, `size`, `fork`, `archived`, `topic`, `user`, `org`, `repo`, `updated`, `pushed`, `visibility`, `license`, `created`, `in`.
+
+Queries are parsed and checked before the request is sent:
+
+- **Qualifier typos are corrected** — `langauge:Rust` → `language:Rust`,
+  `star:1000` → `stars:1000`. Correction is limited to the qualifiers listed
+  above, so `is:`, `has:` and `props.*` pass through untouched.
+- **Counts accept `k`/`m`** — `stars:10k` means 10,000 or more. A bare count
+  keeps GitHub's exact-match meaning, so use `stars:>=100` or `stars:10k`
+  rather than `stars:100`.
+- **An invalid value is rejected with the fix**, not sent to GitHub:
+  `⚠ Invalid query: "stars:abc" is not a number — use stars:100, stars:>=100, or stars:1k..10k`
+- **An empty result suggests how to loosen the query** — qualifiers are ranked
+  by how sharply they narrow results, and the message offers a concrete retry.
+
+See [docs/HOW-TO.md](docs/HOW-TO.md) for a task-oriented walkthrough.
 
 ---
 
@@ -309,7 +324,7 @@ Prefix with `-` to exclude. Supported: `language`, `stars`, `fork`, `archived`, 
 }
 ```
 
-Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `GHFIND_SKILL_ROOTS` (path-separator separated skill directories for `ghfind skill search`), `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
+Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `GHFIND_LOG` (path — write TUI diagnostics there; unset by default), `GHFIND_SKILL_ROOTS` (path-separator separated skill directories for `ghfind skill search`), `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
 
 ---
 
@@ -322,14 +337,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 516 tests
+bun test         # 624 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 516 tests
+npm test         # 624 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -362,6 +377,19 @@ for the architecture, measurements, and remaining work.
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+### v9.9.0
+
+- **Queries are understood before they are sent** — every surface (TUI, CLI, MCP, `--watch`) parses and checks a query first, so a typo or bad value fails with a specific message and a fix instead of an opaque GitHub 422 or a misleading "network error"; previously only the TUI ran validation at all
+- **Qualifier typos are corrected** — `langauge:Rust` → `language:Rust`, `star:1000` → `stars:1000`, `push:>` → `pushed:>`; correction is limited to the qualifiers ghfind knows, so `is:`, `has:` and `props.*` are never mangled
+- **Counts accept `k`/`m`** — `stars:10k` → `stars:>=10000`, `size:1m`, `stars:1k..10k`; a bare count keeps GitHub's exact-match meaning, so `stars:100` is still exactly 100
+- **Values are validated per qualifier** — numeric counts, `fork:true|false|only`, `archived:true|false`, calendar-checked ISO8601 dates for `created`/`pushed`/`updated`, the `visibility:` enum, and `in:` fields; documented comma-lists like `in:name,description` still work
+- **Zero results suggest how to loosen the query** — `No results for "rust stars:>=5000000"` now offers `Try: rust stars:>=500000`, ranked by how sharply each qualifier narrows results
+- **`GHFIND_LOG=<path>` writes TUI diagnostics to a file** — the TUI's logger was a silent no-op, making API failures undiagnosable; token values are redacted from logged URLs
+- **A 403 no longer claims SSO is the cause** — SSO enforcement, secondary rate limits and org restrictions all produce it, and the message asserted the first one unconditionally; it now reports GitHub's own reason
+- **The post-upgrade panel no longer reappears on every launch** — it was triggered by a version inequality nothing ever cleared, so it showed after every single launch _including_ after "later" or "never"; it now acknowledges itself once shown
+- **A prerelease is no longer offered as an upgrade** — the version comparison used by Node and the compiled binaries reported `9.9.0-beta.1` as newer than `9.9.0`, i.e. a downgrade; it now follows npm ordering and ignores build metadata
+- **A new [how-to guide](docs/HOW-TO.md)** — token setup, writing queries, reading results, recovering from errors, and copy-paste recipes
 
 ### v9.8.3
 
@@ -396,12 +424,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **README image rendering is incomplete** — see
   [Known limitations](#known-limitations); the v9.8.0 notes wrongly described it
   as working
-
-### v9.8.0
-
-- **README viewer renders real markdown** — headings, emphasis, links, lists, blockquotes, boxed tables, and fenced code now come from OpenTUI's markdown renderable with a theme-derived syntax style instead of a box-drawing text approximation
-- **Images render inline — see [Known limitations](#known-limitations)** — relative and `/`-rooted paths resolve against the README's branch, `github.com/.../blob/...` links are rewritten to raw content, downloads are cached and size-capped, SVG and badge-service images are skipped, and anything unloadable falls back to an `🖼 alt` caption; press `i` in the viewer to toggle images
-- **No new dependencies** — the PNG decoder, image-to-cells rasteriser, and fetch cache are plain TypeScript, and images draw with truecolor half blocks, so they work on any truecolor terminal without image-protocol support
 
 ## License
 

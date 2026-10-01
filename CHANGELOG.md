@@ -6,6 +6,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.9.0] — 2026-10-01
+
+### Added
+
+- **Queries are understood instead of passed through.** Every surface —
+  TUI, CLI, MCP, `--watch` — now parses and checks a query before spending an
+  API call, so a typo or a malformed value fails with a specific, actionable
+  message instead of an opaque 422 or a misleading "network error".
+  - Misspelled qualifiers are corrected: `langauge:Rust` → `language:Rust`,
+    `star:1000` → `stars:1000`, `push:>2024-01-01` → `pushed:>2024-01-01`.
+    Correction is scoped to the qualifiers ghfind knows, so a qualifier it has
+    never heard of (`is:`, `has:`, `props.*`) is passed through untouched
+    rather than mangled into something else.
+  - Counts accept `k`/`m` sugar: `stars:10k` → `stars:>=10000`,
+    `size:1m` → `size:>=1000000`, `stars:1k..10k` → `stars:1000..10000`.
+    A bare count keeps GitHub's exact-match meaning — `stars:100` still means
+    exactly 100.
+  - Values are validated per qualifier: numeric counts, `fork:true|false|only`,
+    `archived:true|false`, ISO8601 dates for `created`/`pushed`/`updated`,
+    the `visibility:` enum, and the `in:` searchable fields. An invalid value
+    reports the bad token and the fix, e.g. `⚠ Invalid query: "stars:abc" is
+not a number — use stars:100, stars:>=100, or stars:1k..10k`.
+  - `validateQuery` is now called by the CLI, the MCP server and `--watch`, not
+    just the TUI. Previously only the TUI enforced the one existing rule.
+- **Zero-result searches now suggest how to loosen the query.** Qualifiers are
+  ranked by how sharply they narrow results — a star or size threshold empties
+  a result set outright, so those are loosened first — and each suggestion
+  rewrites one qualifier rather than dropping it: `No results for "rust
+stars:>=5000000"` now offers `Try: rust stars:>=500000`.
+- **`GHFIND_LOG=<path>` writes TUI diagnostics to a file.** The TUI owns the
+  screen and cannot print diagnostics into it, and its logger was previously a
+  silent no-op — which made API failures undiagnosable. Token values are
+  redacted from logged URLs. Unset by default, so there is no cost in normal
+  use.
+- **`docs/HOW-TO.md`** — a task-oriented guide: setting up a token, writing
+  queries, reading results, and what to do when a search returns nothing or an
+  error appears.
+
+### Fixed
+
+- **A forbidden response no longer claims SSO is the cause.** Three unrelated
+  conditions return 403 with rate-limit budget remaining — SSO not authorizing
+  the token, a secondary/abuse rate limit, and org resource restrictions —
+  and the message asserted the SSO case unconditionally, sending people to fix
+  a credential problem that did not exist. The message now reports GitHub's
+  own reason and names both plausible causes; the response headers and body
+  (which identify the real one) are written to `GHFIND_LOG`.
+- **`forks` is recognised as a qualifier.** Only `fork` was listed, so
+  `forks:100` was fuzzy-matched into `fork:100` and lost its numeric
+  validation. `forks`, `topics` and `followers` are now known too, and
+  `fork` (boolean) stays distinct from `forks` (count).
+- **Custom-property qualifiers are no longer misread as keywords.**
+  `props.environment:production` contains a dot, which the parser rejected, so
+  it silently became a literal search term instead of a qualifier.
+- **`--watch` fails fast on a malformed query** instead of retrying the same
+  non-transient error five times.
+- **The post-upgrade panel no longer reappears on every launch.** It is
+  triggered by `lastInstalledVersion !== currentVersion`, and nothing ever
+  cleared `lastInstalledVersion` — so after one upgrade the "Updated ghfind
+  X → Y" panel showed again on every single launch, including after dismissing
+  it with **later** or **never** (neither touched that field). The panel now
+  acknowledges itself when shown. A recorded version _newer_ than the running
+  one is deliberately left alone, so a rollback or a mid-session update is
+  still reported.
+- **A prerelease is no longer offered as an upgrade.** The Node/compiled
+  fallback in the version comparison treated `9.9.0-beta.1` as newer than
+  `9.9.0` — advertising a downgrade. Comparison now follows npm ordering: a
+  prerelease counts only when its numeric core is genuinely ahead, and build
+  metadata (`+build.5`) is ignored rather than corrupting the parse.
+
+---
+
 ## [9.8.3] — 2026-10-01 (released)
 
 ### Fixed
