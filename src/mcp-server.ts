@@ -29,6 +29,8 @@ import {
   createGitHubSearch,
   createTrendingSearch,
   resolveTrendingLanguage,
+  trendingQuery,
+  validateQuery,
 } from "./search";
 import {
   createPackageSearch,
@@ -55,7 +57,7 @@ import {
   type SkillSource,
 } from "./skill-finder";
 import { getVersion } from "./version";
-import { RateLimitError } from "./errors";
+import { RateLimitError, BadQueryError } from "./errors";
 
 // ─── Protocol constants ────────────────────────────────────────────────
 
@@ -215,7 +217,7 @@ function asMcpToolError(err: unknown): McpToolError {
   return new McpToolError(err instanceof Error ? err.message : String(err));
 }
 
-const TRENDING_QUERY = { keywords: [], qualifiers: [], raw: "trending" };
+const TRENDING_QUERY = trendingQuery();
 
 // ─── Tool registry ─────────────────────────────────────────────────────
 
@@ -271,6 +273,20 @@ const TOOLS: ToolDefinition[] = [
 
       const provider = createGitHubSearch(undefined, token ? [token] : []);
       const parsed = parseQuery(query);
+      // Reject a malformed qualifier here rather than spending an API call:
+      // for an agent, GitHub's opaque 422 reads as breakage, whereas the
+      // specific message names the bad token and the fix.
+      try {
+        validateQuery(parsed);
+      } catch (err) {
+        if (err instanceof BadQueryError) {
+          return {
+            text: `Invalid query: ${err.detail}${err.hint ? ` Try: ${err.hint}` : ""}`,
+            data: { totalCount: 0, repos: [], invalidQuery: true },
+          };
+        }
+        throw err;
+      }
       const options: SearchOptions = {
         limit,
         sort,

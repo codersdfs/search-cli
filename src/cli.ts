@@ -6,6 +6,8 @@ import {
   rankRepos,
   createGitHubSearch,
   createTrendingSearch,
+  trendingQuery,
+  validateQuery,
 } from "./search";
 import {
   createPackageSearch,
@@ -645,6 +647,9 @@ interface SearchContext {
 
 function buildSearchContext(flags: CLIFlags): SearchContext {
   const parsed = applyFlagFilters(parseQuery(flags.query), {});
+  // Validate before the context is built so every handler (search, pipe,
+  // format, watch) inherits the same gate — previously only the TUI checked.
+  validateQuery(parsed);
   return {
     query: flags.query,
     parsed,
@@ -1154,17 +1159,14 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         console.error(err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
-      const response = await trendingSearch.search(
-        { keywords: [], qualifiers: [], raw: "trending" },
-        {
-          limit: 25,
-          sort: "stars",
-          json: false,
-          verbose: false,
-          trendingSince: since,
-          ...(language ? { trendingLanguage: language } : {}),
-        },
-      );
+      const response = await trendingSearch.search(trendingQuery(), {
+        limit: 25,
+        sort: "stars",
+        json: false,
+        verbose: false,
+        trendingSince: since,
+        ...(language ? { trendingLanguage: language } : {}),
+      });
       if (outputFormat) {
         console.log(formatOutput(response.repos, outputFormat));
       } else if (flags.count) {

@@ -8,8 +8,9 @@ import {
   applyFlagFilters,
   rankRepos,
   createGitHubSearch,
+  validateQuery,
 } from "./search";
-import { createTrendingSearch } from "./search";
+import { createTrendingSearch, trendingQuery } from "./search";
 
 export interface WatchOptions {
   query: string;
@@ -32,6 +33,13 @@ export async function runWatch(
   let failCount = 0;
   let intervalId: ReturnType<typeof setInterval> | null = null;
 
+  // Validate once, before the poll loop starts. A malformed query is not
+  // transient, so letting it reach the tick would burn the retry budget and
+  // report the same error five times instead of failing fast.
+  if (!opts.trending) {
+    validateQuery(applyFlagFilters(parseQuery(opts.query), {}));
+  }
+
   const tick = async () => {
     try {
       let repos: Repo[];
@@ -43,16 +51,13 @@ export async function runWatch(
               ? "monthly"
               : "daily";
         const trendingSearch = createTrendingSearch();
-        const response = await trendingSearch.search(
-          { keywords: [], qualifiers: [], raw: "trending" },
-          {
-            limit: opts.limit,
-            sort: opts.sort,
-            json: false,
-            verbose: false,
-            trendingSince: since,
-          },
-        );
+        const response = await trendingSearch.search(trendingQuery(), {
+          limit: opts.limit,
+          sort: opts.sort,
+          json: false,
+          verbose: false,
+          trendingSince: since,
+        });
         repos = response.repos;
       } else {
         const parsed = applyFlagFilters(parseQuery(opts.query), {});
