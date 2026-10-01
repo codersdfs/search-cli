@@ -15,7 +15,13 @@ import type {
   SortStrategy,
   CacheEntry,
 } from "./types";
-import { NetworkError, RateLimitError, ParseError } from "./errors";
+import {
+  NetworkError,
+  RateLimitError,
+  ParseError,
+  AuthError,
+  ForbiddenError,
+} from "./errors";
 import { parseTrendingHtml, type RawTrendingRepo } from "./trending-parser";
 
 export interface Logger {
@@ -448,7 +454,14 @@ export class GitHubSearchAdapter implements SearchAdapter {
             this.logger.error(
               `[github] non-rate-limit 403: ${body.slice(0, 200)}`,
             );
-            throw new NetworkError();
+            throw new ForbiddenError();
+          }
+          if (res.status === 401) {
+            const body = await res.text().catch(() => "");
+            this.logger.error(
+              `[github] auth rejected (401): ${body.slice(0, 200)}`,
+            );
+            throw new AuthError();
           }
           if (!res.ok) {
             const body = await res.text().catch(() => "");
@@ -492,6 +505,10 @@ export class GitHubSearchAdapter implements SearchAdapter {
           lastErr = undefined;
           break;
         } catch (err) {
+          // RateLimitError must propagate: swallowing it turns the failure
+          // into a silent zero-result "success" and the user never learns
+          // why their search died.
+          if (err instanceof RateLimitError) throw err;
           lastErr = err as Error;
           if (rateLimited) break;
         }
