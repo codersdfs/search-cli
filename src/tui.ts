@@ -31,6 +31,7 @@ import {
   SelectRenderable,
   ScrollBoxRenderable,
 } from "@opentui/core";
+import { appendFileSync } from "node:fs";
 import type { CliRenderer } from "@opentui/core";
 import type {
   Repo,
@@ -154,12 +155,41 @@ const colors: Record<string, string> = {
 };
 
 // ─── Logger ───────────────────────────────────────────────────────────
-const logger: Logger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
+/**
+ * TUI diagnostic log.
+ *
+ * The TUI owns the screen, so it cannot print debug output to stdout without
+ * corrupting the render — and the logger used to be a silent no-op, which made
+ * API failures (403/401) undiagnosable from the status-bar message alone.
+ *
+ * Set GHFIND_LOG=<path> to append timestamped lines to that file. Unset (the
+ * default) keeps logging completely off, so there is no cost in normal use.
+ * Only the shape of a response is recorded; tokens and headers are redacted.
+ */
+function createTuiLogger(): Logger {
+  const target = process.env.GHFIND_LOG;
+  if (!target) {
+    return { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+  }
+  const write = (level: string, msg: string) => {
+    try {
+      appendFileSync(
+        target,
+        `[${new Date().toISOString()}] [${level}] ${msg}\n`,
+      );
+    } catch {
+      // A broken log path must never take down the TUI.
+    }
+  };
+  return {
+    debug: (m) => write("debug", m),
+    info: (m) => write("info", m),
+    warn: (m) => write("warn", m),
+    error: (m) => write("error", m),
+  };
+}
+
+const logger: Logger = createTuiLogger();
 
 // ─── Sort cycle ───────────────────────────────────────────────────────
 const SORT_MODES: { key: SortStrategy; label: string }[] = [

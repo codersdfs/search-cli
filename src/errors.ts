@@ -34,15 +34,21 @@ export class AuthError extends SearchCliError {
 }
 
 /**
- * HTTP 403 — authenticated but not allowed (SAML enforcement, resource
- * restrictions, secondary limits). Not the same as the rate-limit 403,
- * which is detected by an exhausted x-ratelimit-remaining header first.
+ * HTTP 403 that is NOT a primary rate limit (i.e. `x-ratelimit-remaining`
+ * was greater than zero). Three unrelated causes land here and the status
+ * code cannot tell them apart:
+ *   - the token's org enforces SAML SSO and has not authorized it
+ *   - a secondary/abuse rate limit (concurrent or rapid-fire requests)
+ *   - a valid token blocked by org or resource restrictions
+ * The old message asserted SSO unconditionally, which sent people to fix a
+ * credential problem that did not exist. Check GHFIND_LOG for the body.
  */
 export class ForbiddenError extends SearchCliError {
-  constructor() {
+  constructor(public readonly detail: string = "GitHub API returned 403") {
     const msg =
-      "⚠ Forbidden (403). If your org enforces SSO, authorize the token; [t] to change it";
-    super("GitHub API returned 403 (token lacks access)", msg);
+      `⚠ Forbidden (403) — ${detail}. Common causes: org SSO not authorizing the token, ` +
+      `or a secondary rate limit. Press [t] to change the token`;
+    super(msg, msg);
     this.name = "ForbiddenError";
   }
 }
@@ -61,17 +67,35 @@ export class RateLimitError extends SearchCliError {
 }
 
 export class BadQueryError extends SearchCliError {
-  constructor(public readonly detail: string) {
-    super(`Invalid query: ${detail}`, `⚠ Invalid query: ${detail}`);
+  /** A concrete, corrected query the user can retry with. */
+  constructor(
+    public readonly detail: string,
+    public readonly hint?: string,
+  ) {
+    super(
+      `Invalid query: ${detail}`,
+      hint
+        ? `⚠ Invalid query: ${detail}\n  Try: ${hint}`
+        : `⚠ Invalid query: ${detail}`,
+    );
     this.name = "BadQueryError";
   }
 }
 
 export class NoResultsError extends SearchCliError {
-  constructor(public readonly query: string) {
+  /** Concrete loosened queries to retry, most promising first. */
+  constructor(
+    public readonly query: string,
+    public readonly relaxations: string[] = [],
+  ) {
+    const tips = relaxations.length
+      ? relaxations.map((r) => `Try: ${r}`).join("\n  ")
+      : "Tips: check spelling, try fewer qualifiers, or [b]rowse trending";
     super(
-      `No results for "${query}"`,
-      `🔍 No results for "${query}". Tips: check spelling, try fewer qualifiers, or [b]rowse trending`,
+      relaxations.length > 0
+        ? `No results for "${query}" — try loosening: ${relaxations.join(" / ")}`
+        : `No results for "${query}"`,
+      `🔍 No results for "${query}".\n  ${tips}`,
     );
     this.name = "NoResultsError";
   }
