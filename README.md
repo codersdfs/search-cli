@@ -388,6 +388,8 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.10.0
+
 - **The TUI is now fully clickable** — the mouse was already enabled (OpenTUI emitted and hit-tested every event) but nothing consumed them, so they were silently discarded; click selects, double-click opens, the wheel scrolls, and clicking outside an overlay closes it
 - **Clicks reuse the keyboard's own code paths** — a click calls `setSelectedIndex`, which emits the same `selectionChanged` event `↑`/`↓` does, so the detail pane, graph and packages view work identically with no parallel mouse branch to drift
 - **Every surface responds** — results, landing mode cards, trending tabs, the update dialog's buttons, and all seven overlay lists (history, bookmarks, saved searches, topics, export, share, command menu), with hover highlighting and a pointer cursor
@@ -428,21 +430,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **`--compare` resolves repositories exactly** in both the CLI and the `ghfind_compare_repos` MCP tool; it used a free-text search that could silently compare the wrong repo
 - **State files are written atomically** — a crash mid-write used to leave truncated JSON that was silently replaced with defaults, losing bookmarks and history
 - Fixed notification IDs restarting after "dismiss all", `history --delete` removing every duplicate, an invalid `--sort` degrading silently, a failed "load more" clearing the TUI's results, `--markdown` not escaping `|`, and a not-quite-LRU memory cache
-
-### v9.8.1
-
-- **`ghfind skill search <query>`** finds agent skills by keyword and prints why
-  each one matched; `--remote` searches the public [skills.sh](https://skills.sh)
-  ecosystem instead, and `GHFIND_SKILL_ROOTS` overrides the scanned directories
-- **MCP tool `ghfind_skill_search`** — agents search installed skills or the
-  skills.sh registry as soon as they connect; read-only
-- **Read-only CLI views of local state** — `ghfind bookmarks`, `ghfind history`,
-  `ghfind saved`, `ghfind topics`, plus `ghfind readme <owner/repo>` and
-  `ghfind share <owner/repo>`, each with `--json` for agents
-- **Shell completions** (bash, zsh, fish) cover every new subcommand and flag
-- **README image rendering is incomplete** — see
-  [Known limitations](#known-limitations); the v9.8.0 notes wrongly described it
-  as working
 
 ## License
 
