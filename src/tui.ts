@@ -57,6 +57,13 @@ import {
   type Logger,
 } from "./search";
 import { tabSince, TAB_NAMES, fmtStars } from "./trending";
+import {
+  attachClickToSelect,
+  attachClickOutside,
+  attachClickableBox,
+  NON_INTERACTIVE_TEXT,
+  DOUBLE_CLICK_MS,
+} from "./tui/mouse";
 import { loadConfig, saveConfig } from "./config";
 import { buildHelpSections, HELP_KEYS_COLUMN } from "./help";
 import {
@@ -310,7 +317,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
 
   const header = new TextRenderable(renderer, {
     content:
-      " ghfind — GitHub repo browser   [/]search  [Space]menu  [\u2192]open  [?]help  [q]uit",
+      " ghfind — GitHub repo browser   [/]search  [Esc]menu  [\u2192]open  [?]help  [q]uit   ·   click select · dbl-click open",
     bg: colors.bg,
     fg: colors.muted,
     height: 1,
@@ -335,15 +342,26 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       const isActive = name === trendingTab;
       const label = ` ${name} `;
       const tt = new TextRenderable(renderer, {
+        ...NON_INTERACTIVE_TEXT,
         content: label,
         fg: isActive ? colors.bg : colors.muted,
         bg: isActive ? colors.blue : colors.bg,
         height: 1,
       });
+      // Click a tab to switch to it — same path as the 1-5 number keys.
+      tt.onMouseDown = (event) => {
+        event.stopPropagation();
+        if (name === trendingTab) return;
+        trendingTab = name;
+        loadTrending();
+      };
+      tt.onMouseOver = () => renderer.setMousePointer("pointer");
+      tt.onMouseOut = () => renderer.setMousePointer("default");
       trendingTabTexts.push(tt);
       trendingTabBox.add(tt);
       if (i < TAB_NAMES.length - 1) {
         const sp = new TextRenderable(renderer, {
+          ...NON_INTERACTIVE_TEXT,
           content: "  ",
           fg: colors.muted,
           bg: colors.bg,
@@ -442,6 +460,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     content: "",
     fg: colors.text,
     wrapMode: "none",
+    // Non-interactive: a left-press here would otherwise be swallowed as a
+    // text-selection drag instead of reaching the click handlers.
+    selectable: false,
   });
   detailBox.add(detailText);
 
@@ -458,6 +479,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   });
   root.add(landingBox);
   const landingBanner = new TextRenderable(renderer, {
+    ...NON_INTERACTIVE_TEXT,
     content: [
       " ██████╗ ██╗  ██╗███████╗██╗███╗   ██╗██████╗ ",
       "██╔════╝ ██║  ██║██╔════╝██║████╗  ██║██╔══██╗",
@@ -540,8 +562,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   }
 
   const landingHint = new TextRenderable(renderer, {
+    ...NON_INTERACTIVE_TEXT,
     content:
-      "   \u2191\u2193 Navigate  \u21E9 Select  [b]ookmarks  [?]help  [q]uit",
+      "   \u2191\u2193 Navigate  \u21E9 Select  [b]ookmarks  [?]help  [q]uit   ·   click to pick a mode",
     fg: colors.muted,
     bg: colors.bg,
     height: 1,
@@ -571,6 +594,34 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       }
     }
   }
+
+  // ── Landing mouse ───────────────────────────────────────────
+  // Click selects, double-click runs the card's action (same as Enter), hover
+  // shows a pointer cursor. `updateLandingCards` is the single source of truth
+  // for the card colours, so hover and selection cannot drift.
+  landingCards.forEach((card, i) => {
+    let lastClickAt = 0;
+    card.onMouseDown = (event) => {
+      event.stopPropagation();
+      const now = Date.now();
+      const isDouble =
+        landingSelected === i && now - lastClickAt < DOUBLE_CLICK_MS;
+      lastClickAt = now;
+      if (isDouble) {
+        landingOptions[i].action();
+        return;
+      }
+      landingSelected = i;
+      updateLandingCards();
+      renderer.requestRender();
+    };
+    card.onMouseOver = () => {
+      renderer.setMousePointer("pointer");
+    };
+    card.onMouseOut = () => {
+      renderer.setMousePointer("default");
+    };
+  });
 
   // Landing keyboard handler. Registered before the global handler below,
   // and both listeners receive the same key event — so keys the landing
@@ -645,6 +696,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     updateDim.visible = false;
     if (type === "none") {
       currentOverlay = "none";
+      menuButton.visible = true;
       if (currentMode === "landing") {
         landingBox.visible = true;
         body.visible = false;
@@ -658,6 +710,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
       return;
     }
     currentOverlay = type;
+    // The button floats above the layout, so it would sit on top of every
+    // full-screen overlay (and stay clickable through the dim layer).
+    menuButton.visible = false;
     // An overlay opened from the landing screen must hide the menu too
     // (hideMainContent only covers the search/trending/toolbar boxes).
     landingBox.visible = false;
@@ -945,6 +1000,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     content: "",
     fg: colors.text,
     bg: colors.bg,
+    selectable: false,
   });
   compareBox.add(compareText);
   root.add(compareBox);
@@ -1040,7 +1096,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     savedSelect.setSelectedIndex(0);
   }
 
-  // ── Leader menu overlay (Space key) ─────────────────────────────
+  // ── Leader menu overlay (Esc key) ─────────────────────────────
   // Dim overlay — sits behind the menu, above main content
   const leaderDim = new BoxRenderable(renderer, {
     visible: false,
@@ -1086,7 +1142,9 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     itemSpacing: 0,
   });
   const leaderFooter = new TextRenderable(renderer, {
-    content: " ↑↓ select   Enter run   Esc/q close ",
+    ...NON_INTERACTIVE_TEXT,
+    content:
+      " ↑↓ select   Enter run   Esc/q close   ·   click to run   click outside to close ",
     fg: colors.muted,
     bg: colors.surfaceDim,
     height: 1,
@@ -1236,11 +1294,77 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     renderer.requestRender();
   }
 
+  // ── Update panel mouse ────────────────────────────────────────────
+  // Click a card to select *and* run it in one gesture: these three options are
+  // terminal actions (install now / snooze / suppress), and a modal that needs
+  // select-then-Enter would be two clicks for the common case. `renderUpdateOptions`
+  // stays the single source of truth for the colours.
+  function runUpdateOption(index: number) {
+    updateSelectedOption = index;
+    renderUpdateOptions();
+    const action = ["now", "later", "never"][index] as
+      "now" | "later" | "never" | undefined;
+    if (action === "now") {
+      showOverlay("none");
+      // ponytail: record the running version so the next launch detects the upgrade
+      recordPreUpdateState(cachedVersion ?? "");
+      performUpdate()
+        .then((ok) => {
+          if (ok) {
+            setStatus("✓ Update complete — restart ghfind");
+          } else {
+            setStatus("✗ Update failed — check terminal output");
+          }
+        })
+        .catch(() => {
+          setStatus("✗ Update failed — check terminal output");
+        });
+    } else if (action === "never") {
+      suppressUpdateNotices();
+      showOverlay("none");
+      setStatus("Update notices suppressed");
+    } else {
+      snoozeUpdateNotices(3);
+      showOverlay("none");
+      setStatus("Update reminder snoozed for 3 days");
+    }
+    renderer.requestRender();
+  }
+
+  const updateCards: [BoxRenderable, number][] = [
+    [updateNowBox, 0],
+    [laterBox, 1],
+    [neverBox, 2],
+  ];
+  for (const [box, index] of updateCards) {
+    attachClickableBox(renderer, box, {
+      onActivate: () => runUpdateOption(index),
+      idleBorder:
+        updateSelectedOption === index ? colors.yellow : colors.border,
+      activeBorder: colors.yellow,
+      // Hovering must not fight the selection highlight, so it only moves the
+      // pointer cursor; the border stays owned by renderUpdateOptions().
+      onStateChange: () => {
+        box.borderColor =
+          updateSelectedOption === index ? colors.yellow : colors.border;
+      },
+    });
+  }
+
+  // Clicking the dim layer behind the panel dismisses it without applying
+  // anything (equivalent to Esc).
+  attachClickOutside(updateDim, () => {
+    showOverlay("none");
+    renderer.requestRender();
+  });
+
   updateOptionsRow.add(updateNowBox);
   updateOptionsRow.add(laterBox);
 
   const updateFooter = new TextRenderable(renderer, {
-    content: "  ↑↓/jk/PgUp/PgDn scroll  ←→ select  Enter  Esc/q close",
+    ...NON_INTERACTIVE_TEXT,
+    content:
+      "  ↑↓/jk/PgUp/PgDn scroll  ←→ select  Enter  Esc/q close  ·  click a button  click outside to close",
     fg: colors.muted,
     bg: colors.surfaceDim,
     height: 1,
@@ -1963,6 +2087,48 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     paddingX: 1,
   });
   root.add(statusBar);
+
+  // ── Menu button (bottom-right corner) ─────────────────────────────
+  // Mouse-only affordance: Space types a space in the query, so a mouse user
+  // needs a target to reach the command menu. Absolutely positioned so it
+  // floats over the results pane instead of stealing a flex row, and added
+  // after every other root child so it wins the hit test on overlap.
+  const menuButton = new BoxRenderable(renderer, {
+    position: "absolute",
+    bottom: 1,
+    right: 1,
+    height: 1,
+    paddingX: 1,
+    backgroundColor: colors.surface,
+    focusable: false,
+  });
+  const menuButtonLabel = new TextRenderable(renderer, {
+    ...NON_INTERACTIVE_TEXT,
+    content: "☰ menu",
+    fg: colors.muted,
+    bg: colors.surface,
+    height: 1,
+  });
+  menuButton.add(menuButtonLabel);
+  root.add(menuButton);
+
+  menuButton.onMouseDown = (event) => {
+    event.stopPropagation();
+    // Toggle, so clicking the button twice returns to where you were.
+    if (currentOverlay === "leader") showOverlay("none");
+    else showLeaderMenu();
+    renderer.requestRender();
+  };
+  menuButton.onMouseOver = () => {
+    renderer.setMousePointer("pointer");
+    menuButtonLabel.fg = colors.accent;
+    renderer.requestRender();
+  };
+  menuButton.onMouseOut = () => {
+    renderer.setMousePointer("default");
+    menuButtonLabel.fg = colors.muted;
+    renderer.requestRender();
+  };
 
   const statusMgr = new StatusManager((text) => {
     statusBar.content = ` ${text}`;
@@ -2713,6 +2879,192 @@ ${pack.description ?? ""}`;
     }
   });
 
+  // ── Mouse on the results list ───────────────────────────────────────
+  // Click selects (the `selectionChanged` handler above refreshes the detail
+  // pane), double-click opens via the same path as Enter, and the wheel steps
+  // the selection. `keepFocus` stops OpenTUI from auto-focusing the list away
+  // from the query input, so typing after a click still edits the query.
+  attachClickToSelect(renderer, resultsSelect, {
+    keepFocus: true,
+    onOpen: () => resultsSelect.selectCurrent(),
+  });
+
+  /**
+   * Enter-equivalent for every list overlay. Single source of truth for both
+   * the keyboard handler below and the overlay mouse wiring, so a click can
+   * never drift from pressing Enter.
+   */
+  function activateOverlaySelection() {
+    switch (currentOverlay) {
+      case "history": {
+        const sel = historySelect.getSelectedOption();
+        if (sel?.value) {
+          const entry = (sel.value as { entry?: HistoryEntry }).entry;
+          showOverlay("none");
+          if (!entry) return;
+          if (entry.mode === "trending") {
+            if (entry.tab)
+              trendingTab = entry.tab as (typeof TAB_NAMES)[number];
+            loadTrending();
+          } else {
+            searchInput.value = entry.query;
+            showSearchMode();
+            doSearch(entry.query);
+          }
+        }
+        return;
+      }
+      case "bookmarks": {
+        const sel = bookmarksSelect.getSelectedOption();
+        if (sel?.value)
+          openUrl((sel.value as { repo?: { url?: string } }).repo?.url ?? "");
+        return;
+      }
+      case "saved": {
+        const sel = savedSelect.getSelectedOption();
+        if (sel?.value) {
+          const s = sel.value as SavedSearch;
+          showOverlay("none");
+          touchSavedSearch(s.name);
+          if (s.mode === "trending") {
+            if (s.tab) trendingTab = s.tab as (typeof TAB_NAMES)[number];
+            loadTrending();
+          } else {
+            searchInput.value = s.query;
+            showSearchMode();
+            currentSort = s.sort;
+            currentLimit = s.limit;
+            setToolbar();
+            doSearch(s.query);
+          }
+        }
+        return;
+      }
+      case "topics": {
+        const sel = topicsSelect.getSelectedOption();
+        if (sel?.value) {
+          const topic = sel.value as { name?: string };
+          showOverlay("none");
+          searchInput.value = `topic:${topic.name ?? ""}`;
+          showSearchMode();
+          doSearch(`topic:${topic.name}`);
+        }
+        return;
+      }
+      case "export": {
+        const sel = exportSelect.getSelectedOption();
+        if (sel?.value && currentRepos.length > 0) {
+          const format = sel.value as ExportFormat;
+          const path = exportToFile(currentRepos, format);
+          showOverlay("none");
+          setStatus(`✓ Exported to ${path}`);
+        } else {
+          setStatus("No results to export");
+          showOverlay("none");
+        }
+        renderer.requestRender();
+        return;
+      }
+      case "share": {
+        const sel = shareSelect.getSelectedOption();
+        if (sel?.value) {
+          const opt = resultsSelect.getSelectedOption();
+          const repo = opt?.value as Repo | undefined;
+          if (repo) {
+            const text = formatShare(repo, sel.value as ShareFormat);
+            copyToClipboard(text).then((ok) => {
+              showOverlay("none");
+              setStatus(ok ? "✓ Copied!" : "Clipboard not available");
+            });
+          }
+        }
+        renderer.requestRender();
+        return;
+      }
+      case "help": {
+        showOverlay("none");
+        renderer.requestRender();
+        return;
+      }
+      default:
+        // Leader / update / readme / org / compare / notifications have their
+        // own activation paths (see the key handler) or are not list-driven.
+        return;
+    }
+  }
+
+  /**
+   * Wire the overlay lists. A click selects, a double-click activates (the
+   * overlay's Enter-equivalent), the wheel scrolls, and a click on the panel
+   * outside the rows dismisses the overlay like Esc.
+   */
+  function attachOverlayMouse(
+    box: Parameters<typeof attachClickOutside>[0],
+    select: Parameters<typeof attachClickToSelect>[1],
+  ) {
+    attachClickToSelect(renderer, select, {
+      onOpen: () => activateOverlaySelection(),
+      onClickMiss: () => {
+        showOverlay("none");
+        renderer.requestRender();
+      },
+    });
+    attachClickOutside(box, () => {
+      showOverlay("none");
+      renderer.requestRender();
+    });
+  }
+
+  attachOverlayMouse(historyBox, historySelect);
+  attachOverlayMouse(bookmarksBox, bookmarksSelect);
+  attachOverlayMouse(savedBox, savedSelect);
+  attachOverlayMouse(topicsBox, topicsSelect);
+  attachOverlayMouse(exportBox, exportSelect);
+  attachOverlayMouse(shareBox, shareSelect);
+
+  // Read-only overlays have no rows to click, so the panel itself is the
+  // dismiss target (same as Esc). Their ScrollBox children handle the wheel
+  // natively; claiming it here stops the renderer from also feeding the
+  // focused-renderable fallback.
+  for (const panel of [helpBox, orgBox, readmeBox, compareBox, notifsBox]) {
+    attachClickOutside(panel, () => {
+      showOverlay("none");
+      renderer.requestRender();
+    });
+  }
+  for (const scroller of [helpScroll, orgScroll, readmeScroll, updateScroll]) {
+    scroller.onMouseScroll = (event) => {
+      event.stopPropagation();
+    };
+  }
+
+  // Leader menu: the list activates like Enter, but the dim layer behind the
+  // floating menu is the click-outside target (the menu box itself is nested
+  // inside it and stops propagation).
+  attachClickToSelect(renderer, leaderSelect, {
+    onOpen: () => {
+      const entry = leaderSelect.getSelectedOption()?.value as
+        MenuEntry | undefined;
+      if (!entry) return;
+      if (entry.type === "category") {
+        pushMenuLevel(`  Menu > ${entry.name}`, entry.name, entry.children, 0);
+      } else {
+        resetMenu();
+        showOverlay("none");
+        entry.action();
+      }
+      renderer.requestRender();
+    },
+    onClickMiss: () => {
+      showOverlay("none");
+      renderer.requestRender();
+    },
+  });
+  attachClickOutside(leaderDim, () => {
+    showOverlay("none");
+    renderer.requestRender();
+  });
+
   // ── Global keyboard shortcuts ──────────────────────────────────────
   renderer.keyInput.on("keypress", (key) => {
     // ── Token prompt (own keyboard scope) ──────────────────────────
@@ -2825,21 +3177,7 @@ ${pack.description ?? ""}`;
           return;
         }
         if (key.name === "enter" || key.name === "return") {
-          const sel = historySelect.getSelectedOption();
-          if (sel?.value) {
-            const entry = (sel.value as { entry?: HistoryEntry }).entry;
-            showOverlay("none");
-            if (!entry) return;
-            if (entry.mode === "trending") {
-              if (entry.tab)
-                trendingTab = entry.tab as (typeof TAB_NAMES)[number];
-              loadTrending();
-            } else {
-              searchInput.value = entry.query;
-              showSearchMode();
-              doSearch(entry.query);
-            }
-          }
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2861,9 +3199,7 @@ ${pack.description ?? ""}`;
           return;
         }
         if (key.name === "enter" || key.name === "return") {
-          const sel = bookmarksSelect.getSelectedOption();
-          if (sel?.value)
-            openUrl((sel.value as { repo?: { url?: string } }).repo?.url ?? "");
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2882,23 +3218,7 @@ ${pack.description ?? ""}`;
           return;
         }
         if (key.name === "enter" || key.name === "return") {
-          const sel = savedSelect.getSelectedOption();
-          if (sel?.value) {
-            const s = sel.value as SavedSearch;
-            showOverlay("none");
-            touchSavedSearch(s.name);
-            if (s.mode === "trending") {
-              if (s.tab) trendingTab = s.tab as (typeof TAB_NAMES)[number];
-              loadTrending();
-            } else {
-              searchInput.value = s.query;
-              showSearchMode();
-              currentSort = s.sort;
-              currentLimit = s.limit;
-              setToolbar();
-              doSearch(s.query);
-            }
-          }
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2907,14 +3227,7 @@ ${pack.description ?? ""}`;
       // Topics explorer overlay
       if (currentOverlay === "topics") {
         if (key.name === "enter" || key.name === "return") {
-          const sel = topicsSelect.getSelectedOption();
-          if (sel?.value) {
-            const topic = sel.value as { name?: string };
-            showOverlay("none");
-            searchInput.value = `topic:${topic.name ?? ""}`;
-            showSearchMode();
-            doSearch(`topic:${topic.name}`);
-          }
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2923,17 +3236,7 @@ ${pack.description ?? ""}`;
       // Export overlay
       if (currentOverlay === "export") {
         if (key.name === "enter" || key.name === "return") {
-          const sel = exportSelect.getSelectedOption();
-          if (sel?.value && currentRepos.length > 0) {
-            const format = sel.value as ExportFormat;
-            const path = exportToFile(currentRepos, format);
-            showOverlay("none");
-            setStatus(`✓ Exported to ${path}`);
-          } else {
-            setStatus("No results to export");
-            showOverlay("none");
-          }
-          renderer.requestRender();
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2968,19 +3271,7 @@ ${pack.description ?? ""}`;
       // Share overlay
       if (currentOverlay === "share") {
         if (key.name === "enter" || key.name === "return") {
-          const sel = shareSelect.getSelectedOption();
-          if (sel?.value) {
-            const opt = resultsSelect.getSelectedOption();
-            const repo = opt?.value as Repo | undefined;
-            if (repo) {
-              const text = formatShare(repo, sel.value as ShareFormat);
-              copyToClipboard(text).then((ok) => {
-                showOverlay("none");
-                setStatus(ok ? "✓ Copied!" : "Clipboard not available");
-              });
-            }
-          }
-          renderer.requestRender();
+          activateOverlaySelection();
           return;
         }
         return;
@@ -2988,8 +3279,7 @@ ${pack.description ?? ""}`;
 
       // Help overlay: any key closes
       if (currentOverlay === "help") {
-        showOverlay("none");
-        renderer.requestRender();
+        activateOverlaySelection();
         return;
       }
 
@@ -3029,33 +3319,7 @@ ${pack.description ?? ""}`;
           return;
         }
         if (key.name === "enter" || key.name === "return") {
-          const action = ["now", "later", "never"][updateSelectedOption] as
-            "now" | "later" | "never" | undefined;
-          if (action === "now") {
-            showOverlay("none");
-            // ponytail: record the running version so the next launch detects the upgrade
-            recordPreUpdateState(cachedVersion ?? "");
-            performUpdate()
-              .then((ok) => {
-                if (ok) {
-                  setStatus("✓ Update complete — restart ghfind");
-                } else {
-                  setStatus("✗ Update failed — check terminal output");
-                }
-              })
-              .catch(() => {
-                setStatus("✗ Update failed — check terminal output");
-              });
-          } else if (action === "never") {
-            suppressUpdateNotices();
-            showOverlay("none");
-            setStatus("Update notices suppressed");
-          } else {
-            snoozeUpdateNotices(3);
-            showOverlay("none");
-            setStatus("Update reminder snoozed for 3 days");
-          }
-          renderer.requestRender();
+          runUpdateOption(updateSelectedOption);
           return;
         }
         return;
@@ -3091,21 +3355,12 @@ ${pack.description ?? ""}`;
       return;
     }
 
-    // Esc toggles the leader menu — the only binding for it.
-    //
-    // Space used to do this, gated on the query input not being focused so that
-    // spaces could still be typed into a query. That made one key mean two
-    // things depending on invisible state, and in practice it barely worked:
-    // the input is focused by default, and the only thing that ever blurred it
-    // was clicking a result row (OpenTUI's auto-focus-on-press walks up to the
-    // nearest focusable ancestor). So Space opened the menu only *after* a
-    // mouse click, and typed a space on a fresh launch.
-    //
-    // Esc already closed every overlay, so binding it here adds a meaning
-    // rather than replacing one. Space is now reserved for typing.
+    // Esc toggles the leader menu — the only binding for it. Space used to open it
+    // when the query input was not focused, which made the same key mean two
+    // things depending on invisible state; it is now reserved for typing.
     if (key.name === "escape") {
       if (currentOverlay !== "none") {
-        // Only the leader menu reaches here — every other overlay returned
+        // Only reachable for the leader menu — every other overlay returned
         // above, and its own branch already closed it.
         showOverlay("none");
         setToolbar();
