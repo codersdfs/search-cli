@@ -3091,11 +3091,28 @@ ${pack.description ?? ""}`;
       return;
     }
 
-    // Space toggles leader menu (open if closed, close if open)
-    // Skip when the search input is focused so spaces can be typed in queries
-    // (overlays were already handled above, so this is always "open" here)
-    if (key.name === "space" && !searchInput.focused) {
-      showLeaderMenu();
+    // Esc toggles the leader menu — the only binding for it.
+    //
+    // Space used to do this, gated on the query input not being focused so that
+    // spaces could still be typed into a query. That made one key mean two
+    // things depending on invisible state, and in practice it barely worked:
+    // the input is focused by default, and the only thing that ever blurred it
+    // was clicking a result row (OpenTUI's auto-focus-on-press walks up to the
+    // nearest focusable ancestor). So Space opened the menu only *after* a
+    // mouse click, and typed a space on a fresh launch.
+    //
+    // Esc already closed every overlay, so binding it here adds a meaning
+    // rather than replacing one. Space is now reserved for typing.
+    if (key.name === "escape") {
+      if (currentOverlay !== "none") {
+        // Only the leader menu reaches here — every other overlay returned
+        // above, and its own branch already closed it.
+        showOverlay("none");
+        setToolbar();
+      } else {
+        showLeaderMenu();
+      }
+      renderer.requestRender();
       return;
     }
 
