@@ -172,19 +172,19 @@ ghfind --completion fish | source
 <tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
 <tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
 <tr><td><b>Packages</b></td><td>npm registry search (beta) — <code>ghfind pkg "query"</code></td></tr>
-<tr><td><b>Bookmarks</b></td><td>Space → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
-<tr><td><b>Deep-dive</b></td><td>Space → Deep-dive — languages, contributors, README, activity chart</td></tr>
-<tr><td><b>Compare</b></td><td>Space → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
-<tr><td><b>Explore</b></td><td>Space → Topics — browse popular GitHub topics</td></tr>
-<tr><td><b>History</b></td><td>Space → History — recall past searches</td></tr>
-<tr><td><b>Saved</b></td><td>Space → Saved searches — load or save queries</td></tr>
-<tr><td><b>Export</b></td><td>Space → Export — JSON, CSV, Markdown to file</td></tr>
-<tr><td><b>Share</b></td><td>Space → Share repo — copy repo link to clipboard</td></tr>
-<tr><td><b>Org profile</b></td><td>Space → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
+<tr><td><b>Bookmarks</b></td><td>Menu → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
+<tr><td><b>Deep-dive</b></td><td>Menu → Deep-dive — languages, contributors, README, activity chart</td></tr>
+<tr><td><b>Compare</b></td><td>Menu → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
+<tr><td><b>Explore</b></td><td>Menu → Topics — browse popular GitHub topics</td></tr>
+<tr><td><b>History</b></td><td>Menu → History — recall past searches</td></tr>
+<tr><td><b>Saved</b></td><td>Menu → Saved searches — load or save queries</td></tr>
+<tr><td><b>Export</b></td><td>Menu → Export — JSON, CSV, Markdown to file</td></tr>
+<tr><td><b>Share</b></td><td>Menu → Share repo — copy repo link to clipboard</td></tr>
+<tr><td><b>Org profile</b></td><td>Menu → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
 <tr><td><b>User profile</b></td><td>User summary like org profile — repos, stars, followers, top languages (<code>ghfind user <name></code>)</td></tr>
-<tr><td><b>Notifications</b></td><td>Space → Notifications — view & dismiss alerts</td></tr>
+<tr><td><b>Notifications</b></td><td>Menu → Notifications — view & dismiss alerts</td></tr>
 <tr><td><b>Releases</b></td><td><code>--releases</code> — new-release feed for bookmarked repos</td></tr>
-<tr><td><b>Graph</b></td><td>Space → Activity graph — commit chart, fullscreen toggle</td></tr>
+<tr><td><b>Graph</b></td><td>Menu → Activity graph — commit chart, fullscreen toggle</td></tr>
 <tr><td><b>Help</b></td><td><code>?</code> / <code>Ctrl+H</code> — keybindings reference</td></tr>
 <tr><td><b>Watch</b></td><td><code>--watch</code> — poll for new results</td></tr>
 <tr><td><b>MCP server</b></td><td><code>ghfind mcp</code> — GitHub search as tools for AI agents (Claude Code, Cursor, …)</td></tr>
@@ -214,15 +214,25 @@ ghfind --completion fish | source
 | `/`                   | Focus search input                             |
 | `Enter`               | Execute search / open selected repo in browser |
 | `↑` / `↓` — `j` / `k` | Navigate results & menus                       |
-| `Space`               | Open leader menu (contextual actions)          |
+| `Esc`                 | Open / close leader menu (contextual actions)  |
 | `Tab`                 | Auto-complete search qualifier                 |
 | `?` or `Ctrl+H`       | Help overlay                                   |
 | `1`–`5`               | Switch trending tabs (Today → All)             |
 | `←` / `→` — `h` / `l` | Switch trending tabs (left/right)              |
 | `PageUp`              | Jump to top of results                         |
 | `PageDown`            | Load next page of results                      |
-| `Esc`                 | Close current overlay                          |
 | `q`                   | Quit ghfind                                    |
+
+**Mouse** — every list is clickable, and the keyboard and mouse are interchangeable
+
+| Input                                   | Action                                    |
+| --------------------------------------- | ----------------------------------------- |
+| Click                                   | Select a row / card / trending tab        |
+| Double-click                            | Open the repo, or run the action          |
+| Scroll wheel                            | Move the selection, or scroll a long pane |
+| Click outside an overlay                | Dismiss it (same as `Esc`)                |
+| Click the query box                     | Focus the search input                    |
+| Click <kbd>☰ menu</kbd> (bottom-right) | Open the leader menu                      |
 
 **Error recovery** — active only while the matching error is in the status bar
 
@@ -233,7 +243,7 @@ ghfind --completion fish | source
 | `u` | Search without a token (401)                  |
 | `c` | Change token (rate limit)                     |
 
-**Leader menu** — press `Space`, navigate with `↑`/`↓`, press `Enter` to dispatch
+**Leader menu** — press `Esc` (or click <kbd>☰ menu</kbd>), navigate with `↑`/`↓`, press `Enter` to dispatch
 
 Actions shown depend on current mode (search vs trending) and selection:
 
@@ -277,7 +287,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 
 Trending tabs: `1`–`5` (Today → All) or `←`/`→` — `h`/`l`
 
-> Most actions are accessed via the **leader menu** (`Space`). This keeps the keymap minimal while providing a full command palette. The leader menu filters actions contextually — items that don't apply (e.g., Bookmark with no repo selected) are hidden.
+> Most actions are accessed via the **leader menu** (`Esc`, or the <kbd>☰ menu</kbd> button in the bottom-right corner). This keeps the keymap minimal while providing a full command palette. The leader menu filters actions contextually — items that don't apply (e.g., Bookmark with no repo selected) are hidden.
 
 </details>
 
@@ -337,14 +347,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 624 tests
+bun test         # 657 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 624 tests
+npm test         # 657 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -377,6 +387,15 @@ for the architecture, measurements, and remaining work.
 ## Changelog
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+- **The TUI is now fully clickable** — the mouse was already enabled (OpenTUI emitted and hit-tested every event) but nothing consumed them, so they were silently discarded; click selects, double-click opens, the wheel scrolls, and clicking outside an overlay closes it
+- **Clicks reuse the keyboard's own code paths** — a click calls `setSelectedIndex`, which emits the same `selectionChanged` event `↑`/`↓` does, so the detail pane, graph and packages view work identically with no parallel mouse branch to drift
+- **Every surface responds** — results, landing mode cards, trending tabs, the update dialog's buttons, and all seven overlay lists (history, bookmarks, saved searches, topics, export, share, command menu), with hover highlighting and a pointer cursor
+- **A <kbd>☰ menu</kbd> button in the bottom-right corner** opens the command menu; it floats above the layout and hides while an overlay is open
+- **The scroll wheel no longer scrolls the wrong pane** — a pre-existing bug: scroll events that hit nothing fell through to the focused renderable, so scrolling in the README viewer moved the _result selection_ instead of the README
+- **Clicks over read-only text now register** — every `TextRenderable` defaults to OpenTUI's text-selection mode, which consumed left-presses as a selection drag before ghfind's handlers ran, so the detail pane and comparison table ignored clicks entirely
+- **`Space` now always types a space, and `Esc` opens the command menu** — `Space` opened the menu only while the query input was unfocused, and the only thing that unfocused it was clicking a result row, so `Space` worked only after a mouse click; `Esc` already closed every overlay, so it gains a meaning rather than losing one
+- **A hover highlight no longer painted lists magenta** — OpenTUI's colour parser accepts only hex and CSS names, so an `rgba()` tint fell through to its magenta fallback
 
 ### v9.9.0
 

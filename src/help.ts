@@ -30,7 +30,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "↑ ↓ / j k", action: "Move selection" },
         { keys: "Enter", action: "Open repo in browser" },
         { keys: "/", action: "Focus search input" },
-        { keys: "Space", action: "Open command menu" },
+        { keys: "Esc", action: "Open command menu" },
         { keys: "? / Ctrl+H", action: "Toggle this help screen" },
         { keys: "q", action: "Quit" },
       ],
@@ -65,6 +65,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "1-5", action: "Switch tab: Today → Week → Month → …" },
         { keys: "← → / h l", action: "Navigate tabs" },
       ],
+      note: "Tabs are also clickable.",
     },
     {
       title: " Packages Mode ",
@@ -73,12 +74,12 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "/", action: "Search npm packages" },
         { keys: "↑ ↓ / j k", action: "Move selection" },
         { keys: "Enter", action: "View package details" },
-        { keys: "Space", action: "Open command menu" },
+        { keys: "Esc", action: "Open command menu" },
       ],
       note: "Search by name, description, or tags. Sort by downloads or score.",
     },
     {
-      title: " Command Menu (Space)",
+      title: " Command Menu (Esc)",
       titleColor: "purple",
       rows: [
         { keys: "Sort", action: "Cycle sort: best-match → stars → …" },
@@ -103,7 +104,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "History", action: "View search history" },
         { keys: "Help", action: "Show this help screen" },
       ],
-      note: "Navigate menu with ↑ ↓, select with Enter, back with ← / Esc",
+      note: "Navigate menu with ↑ ↓, select with Enter, back with ← / Esc. Clicking a row runs it directly. Esc (or the ☰ menu button) opens this menu; Space types a space in the query.",
     },
     {
       title: " Bookmarks Page ",
@@ -115,6 +116,22 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Esc / ←", action: "Back to landing" },
       ],
       note: "A full page, not an overlay — Esc returns to the mode menu.",
+    },
+    {
+      title: " Mouse ",
+      titleColor: "green",
+      rows: [
+        { keys: "Click", action: "Select a row / card / tab" },
+        { keys: "Double-click", action: "Open the repo or run the action" },
+        { keys: "Scroll wheel", action: "Move the selection / scroll a pane" },
+        { keys: "Click outside", action: "Dismiss an open overlay" },
+        { keys: "Click query box", action: "Focus the search input" },
+        {
+          keys: "☰ menu button",
+          action: "Open the command menu (bottom-right)",
+        },
+      ],
+      note: "Every list is fully clickable; keyboard and mouse are interchangeable.",
     },
     {
       title: " Overlay Keys ",

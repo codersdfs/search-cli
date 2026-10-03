@@ -141,8 +141,9 @@ ghfind "cli" --sort forks
 ghfind "cli" --sort best-match # GitHub's own relevance order
 ```
 
-In the TUI, `Space` opens the leader menu, where **Sort** cycles the same
-strategies without leaving the results.
+In the TUI, `Esc` opens the leader menu (or click the <kbd>☰ menu</kbd> button in
+the bottom-right corner), where **Sort** cycles the same strategies without
+leaving the results.
 
 ---
 
