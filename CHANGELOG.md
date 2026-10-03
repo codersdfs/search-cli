@@ -6,6 +6,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **The TUI is now fully clickable.** The mouse was already enabled — OpenTUI
+  emits SGR mouse tracking and hit-tests every event — but nothing consumed the
+  events, so they were silently discarded. Every list, card, tab and button now
+  responds:
+  - **Click** selects a row; the detail pane updates exactly as it does with
+    `↑`/`↓`, because clicks ride the same `selectionChanged` event the keyboard
+    already used.
+  - **Double-click** opens the repo in your browser, or runs the overlay's
+    action — the same code path as `Enter`, so the two can't drift apart.
+  - **Scroll wheel** moves the selection in a list and scrolls long panes
+    (README, help, org profile, update notes). This also fixes a pre-existing
+    bug: the wheel previously fell through to whichever renderable held focus,
+    so scrolling while the README viewer was open scrolled the wrong pane.
+  - **Click outside an overlay** dismisses it, the same as `Esc`.
+  - Landing cards, trending tabs, the update dialog's buttons, and every
+    overlay list (history, bookmarks, saved searches, topics, export, share,
+    command menu) are clickable. Hovering shows a pointer cursor and lifts the
+    row background.
+- **A <kbd>☰ menu</kbd> button in the bottom-right corner** opens the command
+  menu. It floats above the layout and hides while an overlay is open.
+
+### Changed
+
+- **`Esc` now opens the command menu; `Space` no longer does.** `Space` opened
+  the menu only while the query input was _not_ focused, which made one key mean
+  two different things depending on invisible state — and it meant `Space` could
+  not type a space in a query. More confusingly, it worked only _after_ you had
+  clicked a result row: clicking moved focus to the list as a side effect of
+  OpenTUI's auto-focus-on-press, and `Space` was gated on that focus being gone.
+  `Esc` is now the sole binding (it already closed overlays), and `Space` always
+  types. The bottom-right <kbd>☰ menu</kbd> button covers mouse users.
+- Help, the README keybinding tables and `docs/HOW-TO.md` now document the mouse
+  bindings and the `Esc` menu binding.
+
+### Fixed
+
+- **Non-interactive text no longer swallows clicks.** Every `TextRenderable`
+  defaults to OpenTUI's `selectable: true`, and a left-press on a selectable
+  renderable is consumed as a text-selection drag before the app's own handlers
+  run. The detail pane, comparison table, tab bar and other read-only text now
+  opt out, so clicks over them behave.
+- **A hover highlight no longer painted the list magenta.** OpenTUI's colour
+  parser accepts only hex and CSS names; an `rgba(...)` hover tint silently
+  resolved to its magenta fallback. Now expressed as 8-digit hex.
+
+---
+
 ## [9.9.0] — 2026-10-01 (released)
 
 ### Added
