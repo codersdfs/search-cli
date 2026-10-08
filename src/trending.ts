@@ -398,7 +398,7 @@ export async function launchTrending(): Promise<void> {
     paddingX: 1,
   });
   const footerText = new TextRenderable(renderer, {
-    content: " ↑↓ navigate  ↵ open  / search  1-3 tab  q quit  r refresh",
+    content: " ↑↓ navigate  ↵ open  / top  1-3 tab  q quit  r refresh",
     fg: C.muted,
     height: 1,
   });
@@ -430,6 +430,8 @@ export async function launchTrending(): Promise<void> {
   renderer.keyInput.on("keypress", (key) => {
     const name = key.name || "";
     if (name === "q") {
+      // Release the terminal before the hard exit, same as the main TUI.
+      renderer.destroy();
       process.exit(0);
       return;
     }

@@ -265,6 +265,8 @@ export async function launchPackageBrowser(): Promise<void> {
   renderer.keyInput.on("keypress", (key: import("@opentui/core").KeyEvent) => {
     const name = key.name || "";
     if (name === "q" || name === "escape") {
+      // Release the terminal before the hard exit, same as the main TUI.
+      renderer.destroy();
       process.exit(0);
       return;
     }

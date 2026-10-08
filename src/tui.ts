@@ -203,6 +203,10 @@ const logger: Logger = createTuiLogger();
 // hoisted cleanup() can dispose the spinner interval on the quit path; a stale
 // interval would otherwise outlive the destroyed renderable it writes to.
 let activeStatusMgr: StatusManager | null = null;
+// The live renderer, so the hoisted cleanup() can release the terminal
+// (raw mode, alternate screen) before process.exit() — same reasoning as
+// activeStatusMgr above.
+let activeRenderer: CliRenderer | null = null;
 
 // ─── Sort cycle ───────────────────────────────────────────────────────
 const SORT_MODES: { key: SortStrategy; label: string }[] = [
@@ -213,7 +217,10 @@ const SORT_MODES: { key: SortStrategy; label: string }[] = [
 ];
 
 // ─── Main ─────────────────────────────────────────────────────────────
-export async function launchBrowser(theme_override?: string): Promise<void> {
+export async function launchBrowser(
+  theme_override?: string,
+  startMode?: "trending",
+): Promise<void> {
   // Ask the terminal for its real background color (OSC 11) BEFORE the
   // renderer takes over stdin — after that, reading the reply gets messy.
   // Used below so the app backdrop matches the user's terminal theme.
@@ -252,6 +259,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   }
 
   const root = renderer.root;
+  activeRenderer = renderer;
   root.flexDirection = "column";
 
   // ── Config ──
@@ -3535,12 +3543,18 @@ ${pack.description ?? ""}`;
   // ── Update check (before start) ──────────────────────────────────────
   const _currentVersion = getVersion();
   // ── Start ──────────────────────────────────────────────────────────
-  // Always start on the landing menu. Saved sessions restore preferences
+  // Default is the landing menu. Saved sessions restore preferences
   // (sort/limit/trending tab) and pre-fill the query once a mode is picked,
   // but never auto-run a search — a stale or corrupted session (e.g. an MCP
   // handshake blob saved as a query) used to hijack startup and skip the
-  // menu on every launch.
-  showLanding(true);
+  // menu on every launch. An explicit `ghfind --trending` is not a stale
+  // session though: it is the mode the user asked for, so it skips the menu.
+  if (startMode === "trending") {
+    showLanding(false);
+    loadTrending();
+  } else {
+    showLanding(true);
+  }
   checkForUpdateAndShow();
   checkPostUpgradePanel();
   renderer.start();
@@ -3575,6 +3589,13 @@ function cleanup(): void {
   } catch {
     /* non-critical */
   }
+  // Release the terminal (raw mode, alternate screen) before the hard exit.
+  try {
+    activeRenderer?.destroy();
+  } catch {
+    /* non-critical */
+  }
+  activeRenderer = null;
   process.exit(0);
 }
 
