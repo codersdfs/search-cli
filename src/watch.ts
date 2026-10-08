@@ -19,6 +19,23 @@ export interface WatchOptions {
   token?: string;
   intervalMs: number;
   trending?: boolean;
+  /** Trending period (`--since`); falls back to the query-string convention. */
+  since?: string;
+}
+
+/**
+ * Resolve the trending period for a watch tick. `--since` wins when it names a
+ * real period; otherwise fall back to the legacy `ghfind --watch weekly`
+ * convention where the query string itself carried the period.
+ */
+export function resolveTrendingSince(
+  opts: Pick<WatchOptions, "query" | "since">,
+): "daily" | "weekly" | "monthly" {
+  if (opts.since === "weekly" || opts.since === "monthly") return opts.since;
+  if (opts.since === "daily") return "daily";
+  if (opts.query === "weekly") return "weekly";
+  if (opts.query === "monthly") return "monthly";
+  return "daily";
 }
 
 const MAX_FAILS = 5;
@@ -44,12 +61,7 @@ export async function runWatch(
     try {
       let repos: Repo[];
       if (opts.trending) {
-        const since =
-          opts.query === "weekly"
-            ? "weekly"
-            : opts.query === "monthly"
-              ? "monthly"
-              : "daily";
+        const since = resolveTrendingSince(opts);
         const trendingSearch = createTrendingSearch();
         const response = await trendingSearch.search(trendingQuery(), {
           limit: opts.limit,
