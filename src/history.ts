@@ -29,6 +29,10 @@ export function readHistory(): HistoryEntry[] {
 
 /** Delete a single history entry by index (0 = newest). */
 export function deleteHistoryEntry(index: number): void {
+  // The index comes from the overlay, which lists readHistory()'s deduplicated
+  // newest-first view — so delete against that same view. Raw lines can't be
+  // addressed by this index: consecutive duplicate queries are collapsed in
+  // the view, which shifts every raw-line position after them.
   const entries = readHistory();
   if (index < 0 || index >= entries.length) return;
   entries.splice(index, 1);
@@ -58,9 +62,4 @@ export function rotateHistory(): void {
       .map((e) => JSON.stringify(e))
       .join("\n")}\n`,
   );
-}
-
-/** Count entries in history file. */
-export function historyCount(): number {
-  return readJSONL<HistoryEntry>(HISTORY_FILE).length;
 }
