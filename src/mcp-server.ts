@@ -38,7 +38,7 @@ import {
   type PackageSortMode,
 } from "./package";
 import { fetchOrgProfile, formatOrgText } from "./org";
-import { fetchUserProfile, formatUserJson } from "./user";
+import { fetchUserProfile, formatUserText } from "./user";
 import {
   fetchDeepDive,
   buildDeepDiveText,
@@ -511,7 +511,9 @@ const TOOLS: ToolDefinition[] = [
         token: resolveToken(state, args.token),
         limit,
       });
-      return { text: formatUserJson(profile), data: { ...profile } };
+      // Human-readable text like ghfind_org_profile (the structured data
+      // still rides along in `data` for callers that want the raw numbers).
+      return { text: formatUserText(profile), data: { ...profile } };
     },
   },
   {
