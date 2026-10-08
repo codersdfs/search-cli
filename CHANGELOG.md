@@ -6,6 +6,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.10.1] — 2026-10-08 (released)
+
+### Fixed
+
+- **`--interval` is parsed again.** The flag was documented in `--help`, the
+  README, the shell completions and `docs/HOW-TO.md`, but `parseArgs` had no
+  case for it — so `ghfind --watch --interval 60` silently searched for
+  `"--interval 60"` and polled at the default 300s. It now parses a positive
+  whole number of seconds and rejects anything else.
+- **`--format` and `--pipe` validate up front.** A typo like `--format jsonn`
+  used to throw `Unknown format` mid-run and route into the crash-report flow
+  (which prints "ghfind encountered an unexpected error" and opens a GitHub
+  issue tab); `--pipe clonee` silently did nothing and exited 0. Both now fail
+  fast with the list of valid values and exit 1.
+- **An empty query no longer reaches GitHub.** `ghfind --count` sent `q=" "`,
+  got a 422 back, and surfaced it as "⚠ Network error — check your connection.
+  Retrying in 5s…". The search/format/pipe/watch handlers now fail fast with a
+  usage hint instead.
+- **Bare `ghfind --trending` launches the trending view** (as TRACKER.md
+  documents) instead of falling through to the landing menu.
+- **`--since` validates its value** (`daily|weekly|monthly`) instead of
+  silently falling back to daily for anything it did not recognize — matching
+  the existing `--sort` validation.
+- **Watch mode honors `--since`.** The trending period was derived from the
+  query string (`ghfind --watch --trending weekly`), so `--since weekly` was
+  ignored in watch-trending. An explicit `--since` now wins; the query-string
+  convention still applies when the flag is absent.
+- **The MCP `ghfind_user_profile` tool returns formatted text** like
+  `ghfind_org_profile` (and like the CLI's default `ghfind user`), instead of
+  raw JSON; the structured profile still rides along in `data`.
+- **Trending TUI footer matches the `/` key** (scroll-to-top: `/ top`, not
+  `/ search`), and the quit paths of the main TUI, trending and package browser
+  call `renderer.destroy()` before `process.exit(0)` so the terminal is
+  released (raw mode, alternate screen).
+
+### Removed
+
+- Dead modules with no importers: `src/search-state.ts` (stale
+  `config.githubTokens` reference from before token unification),
+  `src/export.ts` and `src/pipe.ts` (byte-for-byte duplicates of the formats
+  in `src/output.ts`, which is what everything imports), and the unused
+  `historyCount()` export.
+
 ## [9.10.0] — 2026-10-03 (released)
 
 ### Added

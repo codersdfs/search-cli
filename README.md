@@ -347,14 +347,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 657 tests
+bun test         # 682 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 657 tests
+npm test         # 682 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -388,6 +388,17 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.10.1
+
+- **`--interval` is parsed again** — it was documented in `--help`, the README, the how-to guide and all three shell completions, but `parseArgs` had no case for it, so `ghfind --watch --interval 60` searched for the literal string `--interval 60` and polled at the default 300s anyway
+- **A flag typo no longer opens a GitHub issue tab** — `--format jsonn` threw mid-run and routed into the crash-report flow (printing "ghfind encountered an unexpected error" and opening a prefilled issue page); `--pipe clonee` silently did nothing and exited 0; both now validate up front, list the valid values, and exit 1
+- **An empty query fails fast instead of faking a network error** — `ghfind --count` with no query sent `q=" "`, got a 422 back, and looped on `⚠ Network error — check your connection. Retrying in 5s...`; the search/format/pipe/watch handlers now print a usage hint instead
+- **Bare `ghfind --trending` opens the trending view** instead of falling through to the landing menu, as documented
+- **`--since` validates `daily|weekly|monthly`** instead of silently accepting anything and falling back to daily — the same treatment `--sort` already had
+- **`--watch --trending --since weekly` polls weekly** — the trending period used to be derived from the query string, so `--since` was ignored in watch mode
+- **The MCP `ghfind_user_profile` tool returns formatted text**, matching `ghfind_org_profile` and the CLI's default `ghfind user` output; the raw JSON still rides along in `data`
+- **Quit paths release the terminal** — the main TUI, the trending view and the package browser call `renderer.destroy()` before exiting, and the trending footer's `/` hint now matches the scroll-to-top key it actually binds
+
 ### v9.10.0
 
 - **The TUI is now fully clickable** — the mouse was already enabled (OpenTUI emitted and hit-tested every event) but nothing consumed them, so they were silently discarded; click selects, double-click opens, the wheel scrolls, and clicking outside an overlay closes it
@@ -411,25 +422,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **The post-upgrade panel no longer reappears on every launch** — it was triggered by a version inequality nothing ever cleared, so it showed after every single launch _including_ after "later" or "never"; it now acknowledges itself once shown
 - **A prerelease is no longer offered as an upgrade** — the version comparison used by Node and the compiled binaries reported `9.9.0-beta.1` as newer than `9.9.0`, i.e. a downgrade; it now follows npm ordering and ignores build metadata
 - **A new [how-to guide](docs/HOW-TO.md)** — token setup, writing queries, reading results, recovering from errors, and copy-paste recipes
-
-### v9.8.3
-
-- **401/403 say what actually happened** — a rejected token and an authenticated-but-forbidden request (e.g. SAML/SSO enforcement) both used to report "Network error", naming a connectivity problem you didn't have; only genuine connectivity and server failures keep that message now
-- **A rate-limited search no longer looks like an empty one** — the adapter used to swallow the error and render a silent, successful "no repositories found"; the real message reaches the status bar, and the `ghfind_search_repos` MCP tool returns `rateLimited: true` with backoff advice instead of a tool failure
-- **Recover from errors without leaving the TUI** — while the matching error is in the status bar, `t` opens an inline token prompt (saves it and re-runs the failed query), `u` clears the token and retries unauthenticated, `c` swaps in a different token, `r` retries
-- **A corrupted session no longer hijacks startup** — a `session.json` holding an MCP handshake blob used to skip the landing menu and auto-run that garbage as a search on every launch; the menu always comes first now, and both save and restore sanitize the session
-- **Images wrapped in a link render now** — the badge-and-screenshot shape `[![alt](shot.png)](url)` rendered nothing at all, which cost `sst/opencode` its only image and `withastro/astro` 23 of its 25; the image cells carry an OSC 8 hyperlink, so clicking it opens the target
-- **A README full of small images no longer floods the screen** — images the README declares under 100px on any edge are skipped before a request is made, and undeclared `![]()` images are measured from the image header before any pixel decode; on `openclaw/openclaw` (648 sponsor avatars) that is 649 fetches / 28.3s → 1 fetch / ~0.5s
-
-### v9.8.2
-
-- **Security: tokens no longer leak into crash reports** — an uncaught error auto-built a GitHub issue URL from raw `process.argv`, so a `--token` value ended up in a public URL; every field is redacted now, and ghfind prints the URL to copy instead of opening a browser when it finds a credential
-- **Security: your token is never sent to `raw.githubusercontent.com`** when fetching a README, only to `api.github.com` and only for a private repo
-- **Security: untrusted skill sources are validated** before reaching a shell command or URL, so a hostile skills.sh entry cannot inject into `npx skills add`
-- **Recoverable errors no longer open a bug-report tab** — rate limits, network blips and layout changes print a short message and exit
-- **`--compare` resolves repositories exactly** in both the CLI and the `ghfind_compare_repos` MCP tool; it used a free-text search that could silently compare the wrong repo
-- **State files are written atomically** — a crash mid-write used to leave truncated JSON that was silently replaced with defaults, losing bookmarks and history
-- Fixed notification IDs restarting after "dismiss all", `history --delete` removing every duplicate, an invalid `--sort` degrading silently, a failed "load more" clearing the TUI's results, `--markdown` not escaping `|`, and a not-quite-LRU memory cache
 
 ## License
 
