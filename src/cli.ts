@@ -25,6 +25,8 @@ import { reportError } from "./error-report";
 import {
   format as formatOutput,
   pipeExec,
+  FORMAT_VALUES,
+  PIPE_TARGETS,
   type Format,
   type ExportFormat,
 } from "./output";
@@ -104,6 +106,8 @@ interface CLIFlags {
   token?: string;
   trending: boolean;
   since: string;
+  /** True when --since was passed (watch falls back to the query-string convention otherwise). */
+  sinceExplicit: boolean;
   pipe?: string;
   format?: string;
   watch: boolean;
@@ -156,6 +160,9 @@ const SORT_VALUES = [
   "name",
 ];
 
+/** Valid `--since` values — the periods github.com/trending accepts. */
+const SINCE_VALUES: readonly string[] = ["daily", "weekly", "monthly"];
+
 function parseArgs(args: string[]): CLIFlags {
   const flags: CLIFlags = {
     query: "",
@@ -168,6 +175,7 @@ function parseArgs(args: string[]): CLIFlags {
     token: process.env.GITHUB_TOKEN,
     trending: false,
     since: "daily",
+    sinceExplicit: false,
     watch: false,
     releases: false,
     interval: 300,
@@ -276,15 +284,51 @@ function parseArgs(args: string[]): CLIFlags {
       case "--token":
         flags.token = args[++i];
         break;
-      case "--since":
-        flags.since = args[++i];
+      case "--interval": {
+        const parsed = parseInt(args[++i], 10);
+        if (Number.isNaN(parsed) || parsed < 1) {
+          console.error(
+            `Invalid interval: ${args[i] ?? "(missing)"} (must be a whole number of seconds, e.g. 300).`,
+          );
+          process.exit(1);
+        }
+        flags.interval = parsed;
         break;
-      case "--pipe":
-        flags.pipe = args[++i];
+      }
+      case "--since": {
+        const since = args[++i];
+        if (!since || !SINCE_VALUES.includes(since)) {
+          console.error(
+            `Invalid since: ${since ?? "(missing)"} (use daily|weekly|monthly).`,
+          );
+          process.exit(1);
+        }
+        flags.since = since;
+        flags.sinceExplicit = true;
         break;
-      case "--format":
-        flags.format = args[++i];
+      }
+      case "--pipe": {
+        const target = args[++i];
+        if (!target || !PIPE_TARGETS.includes(target)) {
+          console.error(
+            `Invalid pipe target: ${target ?? "(missing)"} (use open|clone).`,
+          );
+          process.exit(1);
+        }
+        flags.pipe = target;
         break;
+      }
+      case "--format": {
+        const fmt = args[++i];
+        if (!fmt || !FORMAT_VALUES.includes(fmt)) {
+          console.error(
+            `Invalid format: ${fmt ?? "(missing)"} (use ${FORMAT_VALUES.join("|")}).`,
+          );
+          process.exit(1);
+        }
+        flags.format = fmt;
+        break;
+      }
       case "--registry":
         flags.registry = args[++i] ?? "npm";
         break;
@@ -636,7 +680,13 @@ Options:
     return;
   }
 
-  await launchBrowser(flags.theme);
+  await launchBrowser(
+    flags.theme,
+    // `ghfind --trending` with no query/format promises the trending view
+    // (TRACKER.md), but the bare flag used to fall through to the landing
+    // menu. An explicit flag is explicit intent — skip the menu.
+    flags.trending ? "trending" : undefined,
+  );
 }
 
 interface SearchContext {
@@ -1197,6 +1247,7 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
           token: flags.token,
           intervalMs: flags.interval * 1000,
           trending: flags.trending,
+          since: flags.sinceExplicit ? flags.since : undefined,
         },
         (repos, delta) => {
           tick++;
@@ -1297,6 +1348,25 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
             : flags.format
               ? "format"
               : "search";
+
+  // The search/format/pipe/watch handlers all need a query. Without this
+  // gate an empty query was sent to GitHub as `q=" "`, which returns 422 and
+  // surfaced to the user as a misleading "Network error — check your
+  // connection" retry loop.
+  const needsQuery =
+    key === "search" ||
+    key === "format" ||
+    key === "pipe" ||
+    (key === "watch" && !flags.trending);
+  if (needsQuery && flags.query.trim() === "") {
+    console.error("⚠ No search query given.");
+    console.error(
+      '  Usage: ghfind "<query>" [--count|--format <fmt>|--pipe <tgt>|--watch]',
+    );
+    console.error('  Example: ghfind "language:Rust stars:>500" --count');
+    console.error("  Run `ghfind --help` for all options.");
+    process.exit(1);
+  }
 
   const ctx = buildSearchContext(flags);
   await handlers[key](ctx);

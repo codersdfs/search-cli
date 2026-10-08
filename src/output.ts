@@ -22,8 +22,11 @@ export type Format =
 
 export type FormatFn = (repos: Repo[]) => string;
 
+/** Accepted `--pipe` targets — the cases `pipeExec` actually handles. */
+export const PIPE_TARGETS: readonly string[] = ["open", "clone"];
+
 /** Registry of all format functions. Adding a format = 1 line here. */
-const FORMATS: Map<Format, FormatFn> = new Map([
+const FORMATS: Map<Format, FormatFn> = new Map<Format, FormatFn>([
   // Export formats
   ["json", formatJson],
   ["csv", formatCsv],
@@ -36,6 +39,13 @@ const FORMATS: Map<Format, FormatFn> = new Map([
   ["clone-commands", formatCloneCommands],
   ["ids", formatIds],
 ]);
+
+/**
+ * Every accepted `--format` value, derived from the registry above so the CLI
+ * can validate up front instead of throwing `Unknown format` mid-run (a plain
+ * typo used to route into the crash-report flow).
+ */
+export const FORMAT_VALUES: readonly string[] = [...FORMATS.keys()];
 
 // ── Export format functions ────────────────────────────────────────────
 
