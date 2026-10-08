@@ -88,6 +88,47 @@ describe("overlay registry seam", () => {
     }
   });
 
+  test("showOverlay hides every overlay it can show", () => {
+    // The regression that motivated this guard: `orgBox` was created as a
+    // flexGrow sibling of `body` and had a `visible = true` branch, but was
+    // missing from showOverlay()'s reset prologue. Opening the org panel and
+    // pressing Esc left it visible forever — it kept half the content height
+    // and swallowed every click in the lower half of the screen, which read as
+    // "the TUI broke". A panel that can be shown must be resettable, so derive
+    // both sides from the source instead of hard-coding the box list: the next
+    // overlay added without a reset line fails here.
+    const src = readTui();
+    const start = src.indexOf("function showOverlay(");
+    expect(start).toBeGreaterThan(-1);
+    const end = src.indexOf("renderer.requestRender();\n  }", start);
+    expect(end).toBeGreaterThan(start);
+    const body = src.slice(start, end);
+
+    // Everything before the `type === "none"` early return is the prologue
+    // that hides every panel on every switch.
+    const prologue = body.slice(0, body.indexOf('if (type === "none") {'));
+    const resetBoxes = new Set(
+      [...prologue.matchAll(/(\w+)\.visible = false;/g)].map((m) => m[1]),
+    );
+    // Only the panels showOverlay turns on are in scope: start after the
+    // `type === "none"` branch (which owns menuButton / landingBox / the main
+    // content boxes) so those don't look like overlays with a missing reset.
+    const dispatch = body.slice(body.indexOf("currentOverlay = type;"));
+    const shownBoxes = new Set(
+      [...dispatch.matchAll(/(\w+)\.visible = true;/g)].map((m) => m[1]),
+    );
+
+    expect(shownBoxes.size).toBeGreaterThan(0);
+    for (const box of shownBoxes) {
+      expect(
+        resetBoxes.has(box),
+        `${box} can be shown by showOverlay but is never reset to visible = false`,
+      ).toBe(true);
+    }
+    // The regression itself, pinned by name so the failure names the box.
+    expect(resetBoxes.has("orgBox")).toBe(true);
+  });
+
   test("update modal never references the removed updateSelect", () => {
     // `updateSelect` was a vestigial reference from the 9.4.0 refactor. It
     // was never declared, and every boot with upgrade state hit

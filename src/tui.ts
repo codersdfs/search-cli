@@ -108,7 +108,7 @@ import {
   PACKAGE_SORT_MODES,
   type PackageSortMode,
 } from "./package";
-import { StatusManager } from "./status";
+import { type StatusManager, createStatusManager } from "./status";
 import {
   getNotifications,
   dismissNotification,
@@ -198,6 +198,11 @@ function createTuiLogger(): Logger {
 }
 
 const logger: Logger = createTuiLogger();
+
+// The live StatusManager for the current renderer. Kept at module scope so the
+// hoisted cleanup() can dispose the spinner interval on the quit path; a stale
+// interval would otherwise outlive the destroyed renderable it writes to.
+let activeStatusMgr: StatusManager | null = null;
 
 // ─── Sort cycle ───────────────────────────────────────────────────────
 const SORT_MODES: { key: SortStrategy; label: string }[] = [
@@ -692,6 +697,10 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     leaderBox.visible = false;
     leaderDim.visible = false;
     readmeBox.visible = false;
+    // The org panel is a flexGrow sibling of `body` just like every other
+    // overlay — omitting it here meant it stayed visible after Esc, permanently
+    // stealing half the content height and every click in the lower half.
+    orgBox.visible = false;
     updateBox.visible = false;
     updateDim.visible = false;
     if (type === "none") {
@@ -1929,6 +1938,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     },
   });
   const orgText = new TextRenderable(renderer, {
+    ...NON_INTERACTIVE_TEXT,
     content: "",
     fg: colors.text,
     bg: colors.bg,
@@ -1936,6 +1946,7 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
   orgScroll.add(orgText);
   orgBox.add(orgScroll);
   const orgFooter = new TextRenderable(renderer, {
+    ...NON_INTERACTIVE_TEXT,
     content: "  ↑↓/jk scroll  Esc/q close",
     fg: colors.muted,
     bg: colors.bg,
@@ -2130,10 +2141,16 @@ export async function launchBrowser(theme_override?: string): Promise<void> {
     renderer.requestRender();
   };
 
-  const statusMgr = new StatusManager((text) => {
-    statusBar.content = ` ${text}`;
-    renderer.requestRender();
-  });
+  // Held at module scope so cleanup() (a hoisted function declaration, called
+  // from key handlers defined above the manager's creation) can still reach it.
+  activeStatusMgr = createStatusManager(statusBar, () =>
+    renderer.requestRender(),
+  );
+  const statusMgr = activeStatusMgr;
+  // The renderer tears down its renderables on Ctrl+C / SIGTERM / terminal
+  // close, but the 120ms spinner interval is ours. Without this, the next tick
+  // assigns to a destroyed TextBuffer and throws out of a timer callback.
+  renderer.on("destroy", () => statusMgr.dispose());
   setTimeout(() => {
     if (currentOverlay === "none") {
       setStatus(nextTip());
@@ -3549,6 +3566,10 @@ function formatToolbar(
 }
 
 function cleanup(): void {
+  // Stop the spinner before exiting: process.exit() would kill the process
+  // anyway, but a tick already queued between here and the exit can still fire.
+  activeStatusMgr?.dispose();
+  activeStatusMgr = null;
   try {
     rotateHistory();
   } catch {
