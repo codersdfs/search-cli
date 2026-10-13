@@ -3458,6 +3458,20 @@ ${pack.description ?? ""}`;
       showOverlay("help");
       return;
     }
+    // Ctrl+E opens the export chooser (CSV / Markdown / JSON / plain text)
+    // straight from the results — the shortcut the startup tip advertises.
+    // Claim the chord first: while the query input is focused its default
+    // emacs binding would otherwise also treat Ctrl+E as "move to line end".
+    if (key.ctrl && key.name === "e") {
+      key.stopPropagation();
+      if (currentRepos.length > 0) {
+        showOverlay("export");
+      } else {
+        setStatus("No results to export — run a search first");
+      }
+      renderer.requestRender();
+      return;
+    }
 
     // Tab auto-completes qualifiers in search input
     if (key.name === "tab") {
