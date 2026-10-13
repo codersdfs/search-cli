@@ -173,6 +173,10 @@ export function buildHelpSections(): HelpSection[] {
       title: " Utility Keys ",
       titleColor: "muted",
       rows: [
+        {
+          keys: "Ctrl+E",
+          action: "Export results (CSV / Markdown / JSON / text)",
+        },
         { keys: "t", action: "Cycle theme (light / dark / solarized)" },
         { keys: "Ctrl+X", action: "Copy repo URL to clipboard" },
         { keys: "Ctrl+C", action: "Copy search query to clipboard" },
