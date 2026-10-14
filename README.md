@@ -389,6 +389,10 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.10.3
+
+- **The help overlay lists `Ctrl+E`** — the utility-keys section documented `t`, `Ctrl+X` and `Ctrl+C` but not the export shortcut the startup tip and the README already advertised
+
 ### v9.10.2
 
 - **`Ctrl+E` opens the export chooser** — the startup tip advertised "Press Ctrl+E to export results as CSV or Markdown", but nothing bound the chord: it was ignored on the results screen and, while the query input had focus, its emacs binding read it as "move to line end"; it now opens the export overlay (JSON / CSV / Markdown / plain text), or reports that there is nothing to export yet
@@ -403,17 +407,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **`--watch --trending --since weekly` polls weekly** — the trending period used to be derived from the query string, so `--since` was ignored in watch mode
 - **The MCP `ghfind_user_profile` tool returns formatted text**, matching `ghfind_org_profile` and the CLI's default `ghfind user` output; the raw JSON still rides along in `data`
 - **Quit paths release the terminal** — the main TUI, the trending view and the package browser call `renderer.destroy()` before exiting, and the trending footer's `/` hint now matches the scroll-to-top key it actually binds
-
-### v9.10.0
-
-- **The TUI is now fully clickable** — the mouse was already enabled (OpenTUI emitted and hit-tested every event) but nothing consumed them, so they were silently discarded; click selects, double-click opens, the wheel scrolls, and clicking outside an overlay closes it
-- **Clicks reuse the keyboard's own code paths** — a click calls `setSelectedIndex`, which emits the same `selectionChanged` event `↑`/`↓` does, so the detail pane, graph and packages view work identically with no parallel mouse branch to drift
-- **Every surface responds** — results, landing mode cards, trending tabs, the update dialog's buttons, and all seven overlay lists (history, bookmarks, saved searches, topics, export, share, command menu), with hover highlighting and a pointer cursor
-- **A <kbd>☰ menu</kbd> button in the bottom-right corner** opens the command menu; it floats above the layout and hides while an overlay is open
-- **The scroll wheel no longer scrolls the wrong pane** — a pre-existing bug: scroll events that hit nothing fell through to the focused renderable, so scrolling in the README viewer moved the _result selection_ instead of the README
-- **Clicks over read-only text now register** — every `TextRenderable` defaults to OpenTUI's text-selection mode, which consumed left-presses as a selection drag before ghfind's handlers ran, so the detail pane and comparison table ignored clicks entirely
-- **`Space` now always types a space, and `Esc` opens the command menu** — `Space` opened the menu only while the query input was unfocused, and the only thing that unfocused it was clicking a result row, so `Space` worked only after a mouse click; `Esc` already closed every overlay, so it gains a meaning rather than losing one
-- **A hover highlight no longer painted lists magenta** — OpenTUI's colour parser accepts only hex and CSS names, so an `rgba()` tint fell through to its magenta fallback
 
 ## License
 

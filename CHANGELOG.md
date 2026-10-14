@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.10.3] — 2026-10-14 (released)
+
+### Fixed
+
+- **The help overlay documents `Ctrl+E`.** The utility-keys section listed `t`,
+  `Ctrl+X` and `Ctrl+C` but not the export shortcut, so the keybinding
+  reference was the one place `Ctrl+E` went unmentioned — the startup tip and
+  the README both advertised it. It now appears alongside the other utility
+  keys as `Ctrl+E` — "Export results (CSV / Markdown / JSON / text)".
+
 ## [9.10.2] — 2026-10-14 (released)
 
 ### Fixed
