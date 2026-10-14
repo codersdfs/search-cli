@@ -67,6 +67,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./tui";
+import { cloneRepo, GIT_MISSING_MESSAGE, type CloneResult } from "./clone";
 import { getVersion } from "./version";
 import { runMcpServer } from "./mcp-server";
 import {
@@ -136,6 +137,9 @@ interface CLIFlags {
   saved: boolean; // list saved searches (ghfind saved)
   readme?: string; // print a repo README (ghfind readme <owner/repo>)
   share?: string; // print a share snippet (ghfind share <owner/repo>)
+  clone?: string; // clone a repo to disk (ghfind clone <owner/repo>)
+  cloneDir?: string; // --dir <path> for clone (the repo gets a <name> subdir)
+  cloneSsh: boolean; // --ssh for clone (git@github.com form instead of HTTPS)
   skillSearch?: string; // skill search query (ghfind skill search <query>)
   sharedAs?: string; // --as <format> for share
   remote: boolean; // skill search: hit skills.sh instead of this machine
@@ -196,6 +200,7 @@ function parseArgs(args: string[]): CLIFlags {
     local: false,
     copy: false,
     raw: false,
+    cloneSsh: false,
     limitExplicit: false,
   };
 
@@ -350,6 +355,18 @@ function parseArgs(args: string[]): CLIFlags {
       case "--raw":
         flags.raw = true;
         break;
+      case "--dir": {
+        const dir = args[++i];
+        if (!dir || dir.startsWith("-")) {
+          console.error("Missing value for --dir <path>.");
+          process.exit(1);
+        }
+        flags.cloneDir = dir;
+        break;
+      }
+      case "--ssh":
+        flags.cloneSsh = true;
+        break;
       case "--as":
         flags.sharedAs = args[++i];
         break;
@@ -387,6 +404,17 @@ function parseArgs(args: string[]): CLIFlags {
           i++;
         } else {
           flags.share = "";
+        }
+        break;
+      }
+      case "clone": {
+        // Single repo ref; a following flag means none was given.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.clone = next;
+          i++;
+        } else {
+          flags.clone = "";
         }
         break;
       }
@@ -508,6 +536,7 @@ Usage:
   ghfind topics                    Browse popular GitHub topics
   ghfind saved                     Named searches saved in the TUI
   ghfind readme <owner/repo>       Print a repository README
+  ghfind clone <owner/repo>        Clone a repo to disk (HTTPS; --ssh = git@github.com)
   ghfind share a/b --as gh-cli     Share snippet (--copy to clipboard)
   ghfind skill search <query>      Find skills locally, or --remote
   ghfind --watch <query>           Watch mode (poll every Ns)
@@ -539,6 +568,8 @@ Options:
   --as <fmt>                           share format: markdown|plain|gh-cli|short
   --copy                               share: also copy the snippet to the clipboard
   --raw                                readme: print the raw markdown with no header
+  --dir <path>                         clone: directory to clone into (default: cwd)
+  --ssh                                clone: clone over SSH (git@github.com)
 `);
     return;
   }
@@ -612,6 +643,11 @@ Options:
   }
   if (flags.share !== undefined) {
     await runShare(flags);
+    return;
+  }
+  // Clone a repo to disk (parity with the TUI's Repo → Clone action)
+  if (flags.clone !== undefined) {
+    await runClone(flags);
     return;
   }
   // Package search (prototype, ticket 002-008)
@@ -1088,6 +1124,43 @@ async function runShare(flags: CLIFlags): Promise<void> {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
+}
+
+/**
+ * `ghfind clone <owner/repo>` — clone the repo to disk.
+ *
+ * Runs interactively: git inherits our stdio, so its own progress bar renders
+ * and a credential prompt can still be answered. No API call — the ref is
+ * validated syntactically and git reports whether the repo exists or is
+ * readable. git's exit code is propagated (scripts can tell a usage error from
+ * a git failure), and git's own output is left on the terminal untouched.
+ */
+async function runClone(flags: CLIFlags): Promise<void> {
+  const ref = flags.clone ?? "";
+  if (!ref) {
+    console.error("Usage: ghfind clone <owner/repo> [--dir <path>] [--ssh]");
+    process.exit(1);
+  }
+  let result: CloneResult;
+  try {
+    result = await cloneRepo(ref, {
+      dir: flags.cloneDir,
+      ssh: flags.cloneSsh,
+      interactive: true,
+    });
+  } catch (err) {
+    // A malformed ref — parseRepoRef's message names the expected shape.
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+  if (result.error === "git-missing") {
+    console.error(GIT_MISSING_MESSAGE);
+    process.exit(1);
+  }
+  if (result.ok) {
+    console.error(`Cloned to ${result.dir}`);
+  }
+  process.exit(result.code ?? 1);
 }
 
 /** `ghfind pkg "<query>"` — npm package search. Pass-through query to the registry. */

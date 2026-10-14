@@ -87,6 +87,7 @@ ghfind "query" --count       # count only
 ghfind "query" --format urls # one URL per line
 ghfind "query" --pipe open   # open in browser
 ghfind "query" --pipe clone  # clone commands
+ghfind clone facebook/react # clone the repo into ./react (--dir, --ssh)
 ghfind --trending --json     # trending as JSON
 ghfind trending rust --json  # trending, filtered by language
 ghfind --watch "query"       # poll every 300s
@@ -261,6 +262,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 | Compare         | Add/remove repo to comparison set                       |
 | Compare view    | Show side-by-side comparison table                      |
 | Open in browser | Open selected repo URL                                  |
+| Clone           | Clone the repo to disk (into the cwd)                   |
 | History         | Recall past searches                                    |
 | Saved searches  | Load a saved search                                     |
 | Save search     | Save current query                                      |
@@ -348,14 +350,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 682 tests
+bun test         # 705 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 682 tests
+npm test         # 705 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,

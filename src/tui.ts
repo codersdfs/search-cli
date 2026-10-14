@@ -133,6 +133,7 @@ import {
   markPostUpgradeSeen,
 } from "./update-check";
 import { debugLog } from "./storage";
+import { cloneRepo, gitErrorLine, GIT_MISSING_MESSAGE } from "./clone";
 import {
   landingConsumesKey,
   landingKeysActive,
@@ -1571,6 +1572,12 @@ export async function launchBrowser(
         },
         {
           type: "action",
+          name: "Clone",
+          description: "Clone the repo to disk (into the cwd)",
+          action: () => cloneSelectedRepo(),
+        },
+        {
+          type: "action",
           name: "Readme",
           description: "Full README viewer",
           action: () => {
@@ -1633,7 +1640,7 @@ export async function launchBrowser(
       groups.push({
         type: "category",
         name: "Repo",
-        description: "Open, readme, bookmark, share, compare",
+        description: "Open, clone, readme, bookmark, share, compare",
         icon: "\uD83D\uDCCB",
         children: repoItems,
       });
@@ -1839,6 +1846,49 @@ export async function launchBrowser(
     const repo = opt?.value as Repo | undefined;
     if (repo) openUrl(repo.url);
     else setStatus("No repo selected");
+  }
+
+  /**
+   * Clone the selected repo to disk, without blocking the render loop.
+   *
+   * Follows the `performUpdate` precedent: git runs in the background with its
+   * output captured, because the TUI owns the screen and has nowhere to draw a
+   * progress bar or a credential prompt (`cloneRepo` sets GIT_TERMINAL_PROMPT=0
+   * for exactly that reason). The full output is written to GHFIND_LOG when it
+   * is set, and the status bar carries git's own diagnosis.
+   */
+  function cloneSelectedRepo() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    if (!repo) {
+      setStatus("No repo selected");
+      return;
+    }
+    showOverlay("none");
+    setStatus(`Cloning ${repo.fullName}…`);
+    renderer.requestRender();
+    cloneRepo(repo.fullName)
+      .then((result) => {
+        debugLog(
+          `ghfind clone ${repo.fullName} → ${result.dir} (exit ${result.code})\n${result.output}`,
+        );
+        if (result.error === "git-missing") {
+          setStatus(`✗ ${GIT_MISSING_MESSAGE}`);
+        } else if (result.ok) {
+          setStatus(`✓ Cloned ${repo.fullName} → ${result.dir}`);
+        } else {
+          const detail = gitErrorLine(result.output);
+          setStatus(
+            `✗ Clone failed: ${detail || `git exited ${result.code}`} — see GHFIND_LOG`,
+          );
+        }
+        renderer.requestRender();
+      })
+      .catch((err) => {
+        // A malformed ref never reaches git — parseRepoRef's message names it.
+        setStatus(`✗ ${err instanceof Error ? err.message : String(err)}`);
+        renderer.requestRender();
+      });
   }
 
   function toggleBookmarkOnSelected() {

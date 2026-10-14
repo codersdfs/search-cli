@@ -77,7 +77,13 @@ reported in text output and via the error message.
     ghfind deep-dive owner/repo --json
 Text output (no flag) prints the same sections formatted for the terminal.
 
-## Finding skills
+## Clone a repository
+
+    ghfind clone owner/repo              # into ./repo, over HTTPS
+    ghfind clone owner/repo --dir PATH --ssh
+This is the one command here that writes to disk: the clone lands in
+PATH/<repo-name>, or the cwd when --dir is omitted. Confirm the destination
+first; the repo name is taken from the ref, not from the query.
     ghfind skill search QUERY            # skills installed on this machine
     ghfind skill search QUERY --remote   # the public skills.sh ecosystem
 Results carry path+description (local) or install command (registry, read-only --

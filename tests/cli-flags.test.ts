@@ -184,3 +184,32 @@ describe("watch --since passthrough", () => {
     );
   });
 });
+
+describe("clone usage guards", () => {
+  // Every case below fails before git is spawned, so it stays offline.
+
+  test("bare `clone` prints usage and exits 1", () => {
+    const { code, err } = runCli("clone");
+    expect(code).toBe(1);
+    expect(err).toContain("Usage: ghfind clone <owner/repo>");
+  });
+
+  test("a malformed ref is rejected with the expected shape", () => {
+    const { code, err } = runCli("clone", "not-a-repo-ref");
+    expect(code).toBe(1);
+    expect(err).toContain("is not a repo name");
+  });
+
+  test("`--dir` with no value is a usage error, not a stray query word", () => {
+    const { code, err } = runCli("clone", "facebook/react", "--dir");
+    expect(code).toBe(1);
+    expect(err).toContain("Missing value for --dir");
+  });
+
+  test("`clone` is documented in --help", () => {
+    const { out } = runCli("--help");
+    expect(out).toContain("ghfind clone <owner/repo>");
+    expect(out).toContain("--dir <path>");
+    expect(out).toContain("--ssh");
+  });
+});

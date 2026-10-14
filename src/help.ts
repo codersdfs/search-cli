@@ -86,6 +86,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Limit", action: "Cycle limit: 10 → 25 → 50 → 100" },
         { keys: "Refresh", action: "Re-run current search" },
         { keys: "Graph", action: "Toggle commit activity chart" },
+        { keys: "Clone", action: "Clone the repo to disk" },
         { keys: "Readme", action: "Full markdown README viewer" },
         { keys: "Deep-dive", action: "Languages + contributors + excerpt" },
         { keys: "Bookmark", action: "Save / unsave selected repo" },

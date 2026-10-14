@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`ghfind clone <owner/repo>` — clone a repository to disk.** Cloning was
+  previously only reachable as a command you copy: `--pipe clone` and
+  `--format clone-commands` print `git clone …` lines. This runs it. The ref is
+  validated with the same `parseRepoRef` the other repo subcommands use, the
+  repo lands in `<dir>/<name>` (default: the cwd), and HTTPS is the default
+  transport — `--ssh` switches to `git@github.com`, `--dir <path>` moves the
+  destination root. No GitHub API call is made, so a clone is never blocked by
+  the 60/hr unauthenticated budget, and git's own output and exit code are
+  passed through untouched. The TUI gets the same action under
+  `Esc` → Repo → Clone: git runs in the background with its output captured for
+  `GHFIND_LOG`, and the status bar carries git's own diagnosis, because the TUI
+  owns the screen and cannot render a progress bar or a credential prompt.
+  `ghfind --doctor` now reports whether git is on PATH.
+
 ## [9.10.3] — 2026-10-14 (released)
 
 ### Fixed

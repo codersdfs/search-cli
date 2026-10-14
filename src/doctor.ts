@@ -140,6 +140,25 @@ function checkSystemBun(bundledOk: boolean): void {
   }
 }
 
+/**
+ * git is only needed by `ghfind clone`, so a missing git is a WARN, not a FAIL:
+ * every other surface works without it, and the exit code should stay 0 for
+ * people who never clone.
+ */
+function checkGit(): void {
+  const res = run("git", ["--version"]);
+  const version = res.stdout.trim();
+  if (res.status === 0 && version) {
+    add("PASS", "git", `${version} — used by \`ghfind clone\`.`);
+    return;
+  }
+  add(
+    "WARN",
+    "git",
+    "not found on PATH — `ghfind clone` will fail; every other command works. Install: https://git-scm.com/downloads",
+  );
+}
+
 function checkNodeVersion(): void {
   const major = parseInt(process.version.replace(/^v/, "").split(".")[0], 10);
   if (Number.isNaN(major) || major >= 20) {
@@ -414,6 +433,7 @@ export async function runDoctor(): Promise<void> {
   const bundled = checkBundledBun();
   checkSystemBun(bundled.ok);
   checkNodeVersion();
+  checkGit();
   checkBuildOutput();
   checkSource();
   checkTuiBackend();

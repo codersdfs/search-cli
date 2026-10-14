@@ -233,7 +233,15 @@ ghfind --trending rust --count
 
 # Pipe into another tool
 ghfind "cli language:Rust" --json | jq -r '.[].url'
+
+# Clone a repo you found (into ./react; --dir and --ssh are optional)
+ghfind clone facebook/react
+ghfind clone facebook/react --dir ~/code --ssh
 ```
+
+The same action is in the TUI under `Esc` → **Repo** → **Clone**. It clones into
+the directory ghfind was started in and reports the path in the status bar; git
+runs in the background, so the interface stays responsive.
 
 ---
 

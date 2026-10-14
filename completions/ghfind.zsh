@@ -28,6 +28,8 @@ _ghfind() {
     '--local[Skill search: force the local scan (default)]'
     '--copy[Share: also copy the snippet to the clipboard]'
     '--raw[Readme: print the raw markdown with no header]'
+    '--dir[Clone: directory to clone into (default: cwd)]:path:'
+    '--ssh[Clone: clone over SSH (git@github.com)]'
 
     'login[Import a GitHub token from the gh CLI or paste one]'
     'init[Run the setup wizard]'
@@ -40,6 +42,7 @@ _ghfind() {
     'saved[List saved searches]'
     'readme[Print a repository README]:owner/repo:'
     'share[Print a share snippet]:owner/repo:'
+    'clone[Clone a repo to disk]:owner/repo:'
     'pkg[Search packages]:query:'
     'trending[Trending repos, optionally by language]'
     'deep-dive[Repo deep-dive: languages, contributors, README]:owner/repo:'
