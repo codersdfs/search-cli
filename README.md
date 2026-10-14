@@ -193,6 +193,7 @@ ghfind --completion fish | source
 <tr><td><b>Skill search</b></td><td><code>ghfind skill search &lt;query&gt;</code> — find installed skills, or <code>--remote</code> for the skills.sh ecosystem (also <code>ghfind_skill_search</code> over MCP)</td></tr>
 <tr><td><b>Read-only state</b></td><td><code>ghfind bookmarks|history|saved|topics</code> — print local state and popular topics without modifying anything</td></tr>
 <tr><td><b>README &amp; share</b></td><td><code>ghfind readme a/b</code> and <code>ghfind share a/b --as gh-cli</code> — the TUI's <code>r</code> / <code>y</code> actions from the shell</td></tr>
+<tr><td><b>Clone</b></td><td>Menu → Clone, or <code>ghfind clone a/b</code> — clone the repo to disk (HTTPS, or <code>--ssh</code>; <code>--dir</code> picks the destination)</td></tr>
 </table>
 
 <details>
@@ -391,6 +392,12 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.11.0
+
+- **`ghfind clone <owner/repo>` clones to disk** — until now cloning was only a command you copy (`--pipe clone` printed `git clone …` lines); the new subcommand runs it, into `<dir>/<name>` (default: the cwd), over HTTPS or `--ssh` for the `git@github.com` form, and with no GitHub API call, so a spent unauthenticated budget can never block a clone
+- **`Esc` → Repo → Clone in the TUI** — git runs in the background because the TUI owns the screen: full output goes to `GHFIND_LOG` and the status bar carries git's own diagnosis; `--pipe clone` keeps printing commands for scripts, and git's exit codes are passed through (128 stays 128)
+- **`ghfind --doctor` reports whether git is on PATH** — a warning rather than a failure, since only `clone` needs it
+
 ### v9.10.3
 
 - **The help overlay lists `Ctrl+E`** — the utility-keys section documented `t`, `Ctrl+X` and `Ctrl+C` but not the export shortcut the startup tip and the README already advertised
@@ -398,17 +405,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 ### v9.10.2
 
 - **`Ctrl+E` opens the export chooser** — the startup tip advertised "Press Ctrl+E to export results as CSV or Markdown", but nothing bound the chord: it was ignored on the results screen and, while the query input had focus, its emacs binding read it as "move to line end"; it now opens the export overlay (JSON / CSV / Markdown / plain text), or reports that there is nothing to export yet
-
-### v9.10.1
-
-- **`--interval` is parsed again** — it was documented in `--help`, the README, the how-to guide and all three shell completions, but `parseArgs` had no case for it, so `ghfind --watch --interval 60` searched for the literal string `--interval 60` and polled at the default 300s anyway
-- **A flag typo no longer opens a GitHub issue tab** — `--format jsonn` threw mid-run and routed into the crash-report flow (printing "ghfind encountered an unexpected error" and opening a prefilled issue page); `--pipe clonee` silently did nothing and exited 0; both now validate up front, list the valid values, and exit 1
-- **An empty query fails fast instead of faking a network error** — `ghfind --count` with no query sent `q=" "`, got a 422 back, and looped on `⚠ Network error — check your connection. Retrying in 5s...`; the search/format/pipe/watch handlers now print a usage hint instead
-- **Bare `ghfind --trending` opens the trending view** instead of falling through to the landing menu, as documented
-- **`--since` validates `daily|weekly|monthly`** instead of silently accepting anything and falling back to daily — the same treatment `--sort` already had
-- **`--watch --trending --since weekly` polls weekly** — the trending period used to be derived from the query string, so `--since` was ignored in watch mode
-- **The MCP `ghfind_user_profile` tool returns formatted text**, matching `ghfind_org_profile` and the CLI's default `ghfind user` output; the raw JSON still rides along in `data`
-- **Quit paths release the terminal** — the main TUI, the trending view and the package browser call `renderer.destroy()` before exiting, and the trending footer's `/` hint now matches the scroll-to-top key it actually binds
 
 ## License
 
