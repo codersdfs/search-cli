@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.10.2] — 2026-10-14 (released)
+
+### Fixed
+
+- **`Ctrl+E` opens the export chooser.** The startup tip list advertises
+  "Press Ctrl+E to export results as CSV or Markdown", but no handler ever
+  claimed the chord: `Ctrl+E` did nothing on the results screen, and while the
+  query input was focused its emacs binding read the same chord as "move to
+  line end". The key handler now claims `Ctrl+E` before the input sees it and
+  opens the export overlay (JSON / CSV / Markdown / plain text). With results on
+  screen that is the shortest route to a `ghfind-export-<ts>.<ext>` file; with
+  an empty result list the status bar reports "No results to export — run a
+  search first" instead of opening an empty chooser.
+
 ## [9.10.1] — 2026-10-08 (released)
 
 ### Fixed

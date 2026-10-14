@@ -216,6 +216,7 @@ ghfind --completion fish | source
 | `↑` / `↓` — `j` / `k` | Navigate results & menus                       |
 | `Esc`                 | Open / close leader menu (contextual actions)  |
 | `Tab`                 | Auto-complete search qualifier                 |
+| `Ctrl+E`              | Export results (JSON / CSV / Markdown / text)  |
 | `?` or `Ctrl+H`       | Help overlay                                   |
 | `1`–`5`               | Switch trending tabs (Today → All)             |
 | `←` / `→` — `h` / `l` | Switch trending tabs (left/right)              |
@@ -388,6 +389,10 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.10.2
+
+- **`Ctrl+E` opens the export chooser** — the startup tip advertised "Press Ctrl+E to export results as CSV or Markdown", but nothing bound the chord: it was ignored on the results screen and, while the query input had focus, its emacs binding read it as "move to line end"; it now opens the export overlay (JSON / CSV / Markdown / plain text), or reports that there is nothing to export yet
+
 ### v9.10.1
 
 - **`--interval` is parsed again** — it was documented in `--help`, the README, the how-to guide and all three shell completions, but `parseArgs` had no case for it, so `ghfind --watch --interval 60` searched for the literal string `--interval 60` and polled at the default 300s anyway
@@ -409,19 +414,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **Clicks over read-only text now register** — every `TextRenderable` defaults to OpenTUI's text-selection mode, which consumed left-presses as a selection drag before ghfind's handlers ran, so the detail pane and comparison table ignored clicks entirely
 - **`Space` now always types a space, and `Esc` opens the command menu** — `Space` opened the menu only while the query input was unfocused, and the only thing that unfocused it was clicking a result row, so `Space` worked only after a mouse click; `Esc` already closed every overlay, so it gains a meaning rather than losing one
 - **A hover highlight no longer painted lists magenta** — OpenTUI's colour parser accepts only hex and CSS names, so an `rgba()` tint fell through to its magenta fallback
-
-### v9.9.0
-
-- **Queries are understood before they are sent** — every surface (TUI, CLI, MCP, `--watch`) parses and checks a query first, so a typo or bad value fails with a specific message and a fix instead of an opaque GitHub 422 or a misleading "network error"; previously only the TUI ran validation at all
-- **Qualifier typos are corrected** — `langauge:Rust` → `language:Rust`, `star:1000` → `stars:1000`, `push:>` → `pushed:>`; correction is limited to the qualifiers ghfind knows, so `is:`, `has:` and `props.*` are never mangled
-- **Counts accept `k`/`m`** — `stars:10k` → `stars:>=10000`, `size:1m`, `stars:1k..10k`; a bare count keeps GitHub's exact-match meaning, so `stars:100` is still exactly 100
-- **Values are validated per qualifier** — numeric counts, `fork:true|false|only`, `archived:true|false`, calendar-checked ISO8601 dates for `created`/`pushed`/`updated`, the `visibility:` enum, and `in:` fields; documented comma-lists like `in:name,description` still work
-- **Zero results suggest how to loosen the query** — `No results for "rust stars:>=5000000"` now offers `Try: rust stars:>=500000`, ranked by how sharply each qualifier narrows results
-- **`GHFIND_LOG=<path>` writes TUI diagnostics to a file** — the TUI's logger was a silent no-op, making API failures undiagnosable; token values are redacted from logged URLs
-- **A 403 no longer claims SSO is the cause** — SSO enforcement, secondary rate limits and org restrictions all produce it, and the message asserted the first one unconditionally; it now reports GitHub's own reason
-- **The post-upgrade panel no longer reappears on every launch** — it was triggered by a version inequality nothing ever cleared, so it showed after every single launch _including_ after "later" or "never"; it now acknowledges itself once shown
-- **A prerelease is no longer offered as an upgrade** — the version comparison used by Node and the compiled binaries reported `9.9.0-beta.1` as newer than `9.9.0`, i.e. a downgrade; it now follows npm ordering and ignores build metadata
-- **A new [how-to guide](docs/HOW-TO.md)** — token setup, writing queries, reading results, recovering from errors, and copy-paste recipes
 
 ## License
 
