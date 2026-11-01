@@ -512,7 +512,8 @@ const TOOLS: ToolDefinition[] = [
       // silent fallback: "score" on crates.io would order rows by a number
       // that does not exist, so the agent must be told the registry's modes.
       const allowedSorts = sortableModesFor(registry);
-      const requestedSort = args.sort === undefined ? "" : String(args.sort);
+      const requestedSort =
+        args.sort === undefined || args.sort === null ? "" : String(args.sort);
       if (
         requestedSort &&
         !allowedSorts.includes(requestedSort as PackageSortMode)

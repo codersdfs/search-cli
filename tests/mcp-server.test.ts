@@ -843,22 +843,40 @@ describe("ghfind_package_search", () => {
   });
 
   it("rejects an unknown registry with a tool error, not a crash", async () => {
-    await expect(
-      callTool(
-        "ghfind_package_search",
-        { query: "x", registry: "pypi" },
-        freshState(),
-      ),
-    ).rejects.toThrow(/registry/i);
+    const call = callTool(
+      "ghfind_package_search",
+      { query: "x", registry: "pypi" },
+      freshState(),
+    );
+    await expect(call).rejects.toThrow(McpToolError);
+    // The agent must be told which registries exist.
+    await expect(call).rejects.toThrow("npm|crates|rubygems|nuget|maven");
   });
 
   it("rejects a sort the chosen registry cannot do", async () => {
-    await expect(
-      callTool(
-        "ghfind_package_search",
-        { query: "x", registry: "maven", sort: "downloads" },
-        freshState(),
-      ),
-    ).rejects.toThrow(/downloadsWindow|sort/i);
+    const call = callTool(
+      "ghfind_package_search",
+      { query: "x", registry: "maven", sort: "downloads" },
+      freshState(),
+    );
+    await expect(call).rejects.toThrow(McpToolError);
+    // Maven Central has no download data, so only these modes are honest.
+    await expect(call).rejects.toThrow("best-match|name");
+  });
+
+  it("treats a null sort as unset, like a missing sort", async () => {
+    // Agent clients send null for "not set"; it must not become the string
+    // "null" and fail the per-registry sort validation.
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "zod", registry: "npm", sort: null },
+      freshState(),
+    );
+    expect(out.text).toContain("zod");
   });
 });
