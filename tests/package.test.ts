@@ -1,6 +1,10 @@
 // Tests for package search normalize + sort semantics
-import { describe, it, expect } from "vitest";
-import { sortPackages, type PackageSortMode } from "../src/package.ts";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  createPackageSearch,
+  sortPackages,
+  type PackageSortMode,
+} from "../src/package.ts";
 import { normalizeNpmObject } from "../src/registries/npm.ts";
 import type { Package } from "../src/types";
 
@@ -123,5 +127,60 @@ describe("normalizeNpmObject", () => {
     expect(out.url).toBe("https://www.npmjs.com/package/ghfind");
     expect(out.description).toBeNull();
     expect(out.downloads).toBe(0);
+  });
+});
+
+describe("createPackageSearch facade", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  /**
+   * Stub the registry and hand back a reader for the URL it was called with.
+   * The stub must be installed BEFORE createPackageSearch() runs: the facade's
+   * `fetchImpl` default binds at factory-call time, so a later swap would be
+   * invisible to the provider it just captured.
+   */
+  function stubNpmSearch(body: unknown): () => string {
+    let seenUrl = "";
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    return () => seenUrl;
+  }
+
+  const ZOD_ROW = {
+    package: {
+      name: "zod",
+      version: "3.25.0",
+      description: "TypeScript-first schema validation",
+      links: { npm: "https://www.npmjs.com/package/zod" },
+      publisher: { username: "colinhacks" },
+    },
+    downloads: { monthly: 1234567 },
+    score: { final: 2396 },
+  };
+
+  it("routes searchPackage to the npm provider with the requested size", async () => {
+    const seenUrl = stubNpmSearch({ total: 1, objects: [ZOD_ROW] });
+    const search = createPackageSearch();
+    const res = await search.searchPackage("zod", 20);
+    expect(seenUrl()).toContain("/-/v1/search");
+    expect(seenUrl()).toContain("text=zod");
+    expect(seenUrl()).toContain("size=20");
+    expect(res.packages).toHaveLength(1);
+    expect(res.packages[0]).toMatchObject({ name: "zod", registry: "npm" });
+  });
+
+  it("returns the registry total through the facade", async () => {
+    stubNpmSearch({ total: 447322, objects: [ZOD_ROW] });
+    const search = createPackageSearch();
+    const res = await search.searchPackage("cli", 50);
+    expect(res.totalCount).toBe(447322);
   });
 });
