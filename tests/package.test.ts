@@ -183,4 +183,30 @@ describe("createPackageSearch facade", () => {
     const res = await search.searchPackage("cli", 50);
     expect(res.totalCount).toBe(447322);
   });
+
+  it("passes the injected fetchImpl through to searchNpm", async () => {
+    // The seam that kills "facade drops fetchImpl": the injected stub must be
+    // the one that gets called. globalThis.fetch is a tripwire, not a fallback,
+    // so a dropped argument fails this test offline instead of quietly issuing
+    // a live npm request through the provider's own default parameter.
+    let seenUrl = "";
+    const stub = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify({ total: 1, objects: [ZOD_ROW] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    globalThis.fetch = (async () => {
+      throw new Error(
+        "searchNpm reached for globalThis.fetch instead of the injected fetchImpl",
+      );
+    }) as unknown as typeof fetch;
+    const search = createPackageSearch("npm", stub);
+    const res = await search.searchPackage("zod", 20);
+    expect(seenUrl).toContain("/-/v1/search");
+    expect(seenUrl).toContain("text=zod");
+    expect(res.packages).toHaveLength(1);
+    expect(res.packages[0]).toMatchObject({ name: "zod", registry: "npm" });
+  });
 });
