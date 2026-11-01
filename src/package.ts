@@ -1,88 +1,41 @@
 /**
- * package.ts — package-registry search provider (prototype for ticket 002-008).
+ * package.ts — the package-search facade every consumer imports.
  *
- * npm-only for the MVP (ticket 002-005). Query is passed through verbatim to npm's
- * native `/-/v1/search` (ticket 002-006) and the response normalized to the parallel
- * `Package` shape (ticket 002-007). Rough on purpose — this is the artifact to react to.
+ * The npm-only MVP (ticket 002-005) is now a registry behind a seam: providers
+ * live in src/registries/, this module keeps the stable public surface
+ * (`createPackageSearch`, the `Package*` formatters, `sortPackages`) so the CLI,
+ * the TUI, the package browser and the MCP server never learned about registries.
+ * Query stays pass-through (ticket 002-006) and rows stay the parallel
+ * `Package` shape (ticket 002-007).
  */
 import type { Package } from "./types";
+import type { PackageSortMode, RegistryId } from "./registries/catalog";
+import { getProvider } from "./registries/index";
+import type { PackageSearchResult, ProviderFetch } from "./registries/types";
 
-export interface PackageSearchResult {
-  totalCount: number;
-  packages: Package[];
-}
+// Re-exports keep every existing import path through `./package` compiling: the
+// moved npm normalizer, the sort vocabulary, and the result shape. These are
+// `export ... from` statements, not local imports, so nothing is unused.
+export type { PackageSearchResult } from "./registries/types";
+export type { PackageSortMode } from "./registries/catalog";
+export { PACKAGE_SORT_MODES } from "./registries/catalog";
+export { normalizeNpmObject, type NpmSearchObject } from "./registries/npm";
 
-/** The npm `/-/v1/search` object shape we actually consume (research 002-001). */
-interface NpmSearchObject {
-  package: {
-    name?: string;
-    scope?: string;
-    version?: string;
-    description?: string | null;
-    keywords?: string[];
-    date?: string;
-    links?: { npm?: string; homepage?: string; repository?: string };
-    publisher?: { username?: string };
-    author?: { name?: string };
-  };
-  score?: {
-    final?: number;
-    detail?: { quality?: number; popularity?: number; maintenance?: number };
-  };
-  searchScore?: number;
-  downloads?: { npm?: number; total?: number; monthly?: number };
-}
-
-export function normalizeNpmObject(obj: NpmSearchObject): Package {
-  const p = obj.package;
-  const name = p.name ?? "";
+export function createPackageSearch(
+  registry: RegistryId = "npm",
+  fetchImpl: ProviderFetch = fetch,
+) {
+  const provider = getProvider(registry);
   return {
-    name,
-    version: p.version ?? "",
-    description: p.description ?? null,
-    url: p.links?.npm ?? `https://www.npmjs.com/package/${name}`,
-    downloads: obj.downloads?.monthly ?? 0,
-    score: obj.score?.final ?? obj.searchScore ?? 0,
-    publisher: p.publisher?.username ?? p.author?.name ?? null,
-    keywords: p.keywords ?? [],
-    registry: "npm",
-  };
-}
-
-export function createPackageSearch() {
-  return {
+    registry,
     async searchPackage(
       rawQuery: string,
       limit: number,
     ): Promise<PackageSearchResult> {
-      const size = Math.min(Math.max(Math.trunc(limit) || 50, 1), 250); // npm caps size at 250
-      const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(rawQuery)}&size=${size}`;
-      const res = await fetch(url, {
-        headers: { "User-Agent": "ghfind", Accept: "application/json" },
-      });
-      if (!res.ok) {
-        throw new Error(`npm search failed: HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as {
-        objects?: NpmSearchObject[];
-        total?: number;
-      };
-      const packages = (data.objects ?? []).map(normalizeNpmObject);
-      return { totalCount: data.total ?? packages.length, packages };
+      return provider.search(rawQuery, limit, fetchImpl);
     },
   };
 }
-
-/** Sort strategies for package results (npm registry order IS best-match). */
-export type PackageSortMode = "best-match" | "score" | "downloads" | "name";
-
-/** Sort modes in cycle order for the TUI Sort menu. */
-export const PACKAGE_SORT_MODES: { key: PackageSortMode; label: string }[] = [
-  { key: "best-match", label: "best-match" },
-  { key: "downloads", label: "downloads" },
-  { key: "score", label: "score" },
-  { key: "name", label: "name" },
-];
 
 /**
  * Sort fetched packages. "best-match" is a no-op: it preserves the registry's

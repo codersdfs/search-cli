@@ -1,10 +1,7 @@
 // Tests for package search normalize + sort semantics
 import { describe, it, expect } from "vitest";
-import {
-  normalizeNpmObject,
-  sortPackages,
-  type PackageSortMode,
-} from "../src/package";
+import { sortPackages, type PackageSortMode } from "../src/package.ts";
+import { normalizeNpmObject } from "../src/registries/npm.ts";
 import type { Package } from "../src/types";
 
 function pkg(partial: Partial<Package> & { name: string }): Package {
