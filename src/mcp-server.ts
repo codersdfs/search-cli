@@ -10,7 +10,8 @@
  *   ──────────────────────────  ─────────────────────────────────
  *   ghfind_search_repos         search.ts (SearchProvider seam)
  *   ghfind_trending             search.ts (TrendingAdapter)
- *   ghfind_npm_packages         package.ts
+ *   ghfind_package_search       package.ts + registries/
+ *   ghfind_npm_packages         package.ts (npm-pinned alias)
  *   ghfind_org_profile          org.ts
  *   ghfind_user_profile         user.ts
  *   ghfind_compare_repos        compare.ts + search.ts
@@ -22,7 +23,7 @@
  * Only the tools capability is declared (no prompts/resources yet), so those
  * methods fall through to "Method not found".
  */
-import type { Repo, SearchOptions, SortStrategy } from "./types";
+import type { Package, Repo, SearchOptions, SortStrategy } from "./types";
 import {
   parseQuery,
   rankRepos,
@@ -34,9 +35,18 @@ import {
 } from "./search";
 import {
   createPackageSearch,
+  formatDownloads,
+  formatScore,
   sortPackages,
   type PackageSortMode,
 } from "./package";
+import {
+  REGISTRY_IDS,
+  registryHelp,
+  registryMeta,
+  resolveRegistry,
+  sortableModesFor,
+} from "./registries/catalog";
 import { fetchOrgProfile, formatOrgText } from "./org";
 import { fetchUserProfile, formatUserText } from "./user";
 import {
@@ -196,18 +206,13 @@ function formatRepoLines(repos: Repo[]): string {
     .join("\n");
 }
 
-function formatPackageLines(
-  pkgs: Array<{
-    name: string;
-    version: string;
-    description: string | null;
-    downloads: number;
-  }>,
-): string {
+function formatPackageLines(pkgs: Package[]): string {
   return pkgs
     .map((p, i) => {
       const desc = p.description ? ` — ${truncate(p.description, 90)}` : "";
-      return `${i + 1}. ${p.name}@${p.version}${desc} (↓ ${fmtInt(p.downloads)}/mo)`;
+      const score = formatScore(p);
+      const scorePart = score === "—" ? "" : ` · score ${score}`;
+      return `${i + 1}. ${p.name}@${p.version}${desc} (↓ ${formatDownloads(p)}${scorePart})`;
     })
     .join("\n");
 }
@@ -412,7 +417,7 @@ const TOOLS: ToolDefinition[] = [
     name: "ghfind_npm_packages",
     title: "Search npm packages",
     description:
-      "Search the npm registry: name, version, monthly downloads, quality score, and description for each package.",
+      "Search the npm registry (pinned alias of ghfind_package_search with registry=npm): name, version, monthly downloads, quality score, and description for each package.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,6 +457,90 @@ const TOOLS: ToolDefinition[] = [
           ? `No npm packages found for "${query}".`
           : formatPackageLines(sorted);
       return { text, data: { totalCount, packages: sorted } };
+    },
+  },
+  {
+    name: "ghfind_package_search",
+    title: "Search package registries",
+    description:
+      "Search a package registry: npm (default), crates, rubygems, nuget, or maven. Returns name, version, downloads (with each registry's own window — npm monthly, crates.io 90 days, RubyGems/NuGet lifetime, Maven none), and description. Query text is passed through to the registry's native search unchanged, so npm's own qualifiers (scope:, keywords:, not:) work when registry is npm.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: 'Package search text, e.g. "terminal ui".',
+        },
+        registry: {
+          type: "string",
+          description:
+            "Registry to search (default npm). Aliases like crates.io are accepted.",
+          enum: [...REGISTRY_IDS],
+        },
+        limit: {
+          type: "number",
+          description:
+            "Max results, 1-100 (default 20). Clamped to the registry's own ceiling.",
+          minimum: 1,
+          maximum: 100,
+        },
+        sort: {
+          type: "string",
+          description:
+            "Sort strategy. Registries differ: npm allows all four; crates/rubygems/nuget have no score; maven has no downloads. Invalid values for the chosen registry raise a tool error.",
+          enum: [...PKG_SORTS],
+        },
+      },
+      required: ["query"],
+    },
+    async run(args) {
+      const query = String(args.query ?? "").trim();
+      if (!query) throw new McpToolError("query must be a non-empty string.");
+      const rawRegistry = args.registry;
+      if (
+        rawRegistry !== undefined &&
+        rawRegistry !== null &&
+        !resolveRegistry(String(rawRegistry))
+      ) {
+        throw new McpToolError(
+          `Unknown registry "${String(rawRegistry)}" (use ${registryHelp()}).`,
+        );
+      }
+      const registry = resolveRegistry(String(rawRegistry ?? "npm")) ?? "npm";
+      const limit = coerceInt(args.limit, 20, 1, 100);
+      // Unlike the repo tools, an unsupported sort is an error rather than a
+      // silent fallback: "score" on crates.io would order rows by a number
+      // that does not exist, so the agent must be told the registry's modes.
+      const allowedSorts = sortableModesFor(registry);
+      const requestedSort = args.sort === undefined ? "" : String(args.sort);
+      if (
+        requestedSort &&
+        !allowedSorts.includes(requestedSort as PackageSortMode)
+      ) {
+        throw new McpToolError(
+          `sort "${requestedSort}" is not supported by ${registry} (use ${allowedSorts.join("|")}).`,
+        );
+      }
+      const sort = (requestedSort || "best-match") as PackageSortMode;
+
+      const { totalCount, packages } = await createPackageSearch(
+        registry,
+      ).searchPackage(query, limit);
+      const sorted = sortPackages(packages, sort);
+      const meta = registryMeta(registry);
+      const text =
+        sorted.length === 0
+          ? `No ${meta.label} packages found for "${query}".`
+          : formatPackageLines(sorted);
+      return {
+        text,
+        data: {
+          registry,
+          downloadsWindow: meta.downloadsWindow,
+          totalCount,
+          packages: sorted,
+        },
+      };
     },
   },
   {
@@ -824,7 +913,7 @@ export async function processServerLine(
             version: getVersion(),
           },
           instructions:
-            "ghfind gives agents GitHub search: repositories, trending, npm packages, org/user profiles, repo comparison and deep-dives. " +
+            "ghfind gives agents GitHub search: repositories, trending, package registries (npm, crates.io, RubyGems, NuGet, Maven Central), org/user profiles, repo comparison and deep-dives. " +
             "ghfind_skill_search finds agent skills, either installed on this machine or in the public skills.sh ecosystem. " +
             "Call ghfind_skill for the full CLI guide. Unauthenticated requests are rate-limited to 60/hr; pass a token or set GITHUB_TOKEN for 5,000/hr.",
         }),

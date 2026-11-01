@@ -172,6 +172,7 @@ describe("protocol", () => {
     expect(names).toContain("ghfind_search_repos");
     expect(names).toContain("ghfind_trending");
     expect(names).toContain("ghfind_npm_packages");
+    expect(names).toContain("ghfind_package_search");
     expect(names).toContain("ghfind_org_profile");
     expect(names).toContain("ghfind_user_profile");
     expect(names).toContain("ghfind_compare_repos");
@@ -734,5 +735,130 @@ describe("toolSummaries", () => {
         "title",
       ]);
     }
+  });
+});
+
+describe("ghfind_package_search", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "ghfind-mcp-"));
+    process.env.XDG_STATE_HOME = tmp;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  const NPM_ROW = {
+    package: {
+      name: "zod",
+      version: "3.25.0",
+      description: "TypeScript schema validation",
+      links: { npm: "https://www.npmjs.com/package/zod" },
+      publisher: { username: "colinhacks" },
+    },
+    downloads: { monthly: 4000000 },
+    score: { final: 2396.5 },
+  };
+
+  it("is listed with a registry enum covering the five ids", async () => {
+    const state = freshState();
+    await init(state);
+    const res = await rpc("tools/list", undefined, state);
+    const tools = (res.result as Record<string, unknown>).tools as Array<
+      Record<string, unknown>
+    >;
+    const tool = tools.find((t) => t.name === "ghfind_package_search");
+    expect(tool, "ghfind_package_search missing from tools/list").toBeTruthy();
+    const schema = tool?.inputSchema as {
+      properties: Record<string, { enum?: string[] }>;
+    };
+    expect(schema.properties.registry.enum).toEqual([
+      "npm",
+      "crates",
+      "rubygems",
+      "nuget",
+      "maven",
+    ]);
+  });
+
+  it("defaults to npm and keeps ghfind_npm_packages working identically", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const state = freshState();
+    const legacy = await callTool(
+      "ghfind_npm_packages",
+      { query: "zod" },
+      state,
+    );
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const modern = await callTool(
+      "ghfind_package_search",
+      { query: "zod" },
+      state,
+    );
+    expect(modern.text).toBe(legacy.text);
+    expect((modern.data as Record<string, unknown>).registry).toBe("npm");
+  });
+
+  it("queries crates.io and labels the download window", async () => {
+    let seenUrl = "";
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return jsonResponse({
+        crates: [
+          {
+            name: "clap",
+            max_stable_version: "4.5.4",
+            description: "A command line argument parser",
+            recent_downloads: 8200000,
+          },
+        ],
+        meta: { total: 65530 },
+      });
+    }) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "cli", registry: "crates" },
+      freshState(),
+    );
+    expect(seenUrl).toContain("crates.io/api/v1/crates");
+    expect(out.text).toContain("clap@4.5.4");
+    expect(out.text).toContain("/90d");
+    // No relevance score exists on crates.io, so none is invented.
+    expect(out.text).not.toMatch(/score \d/);
+    const data = out.data as Record<string, unknown>;
+    expect(data.registry).toBe("crates");
+    expect(data.downloadsWindow).toBe("quarterly");
+    expect((data.packages as Array<Record<string, unknown>>)[0].registry).toBe(
+      "crates",
+    );
+  });
+
+  it("rejects an unknown registry with a tool error, not a crash", async () => {
+    await expect(
+      callTool(
+        "ghfind_package_search",
+        { query: "x", registry: "pypi" },
+        freshState(),
+      ),
+    ).rejects.toThrow(/registry/i);
+  });
+
+  it("rejects a sort the chosen registry cannot do", async () => {
+    await expect(
+      callTool(
+        "ghfind_package_search",
+        { query: "x", registry: "maven", sort: "downloads" },
+        freshState(),
+      ),
+    ).rejects.toThrow(/downloadsWindow|sort/i);
   });
 });
