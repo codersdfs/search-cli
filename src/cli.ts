@@ -16,6 +16,8 @@ import {
   formatPackagesMarkdown,
   formatPackagesUrls,
   formatPackagesNames,
+  formatDownloads,
+  formatScore,
   sortPackages,
   type PackageSortMode,
 } from "./package";
@@ -1211,7 +1213,7 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
     } else {
       for (const p of sorted) {
         console.log(
-          `${p.name}@${p.version}  ↓ ${p.downloads.toLocaleString()}  ${p.score.toFixed(2)}  ${p.description ?? ""}`,
+          `${p.name}@${p.version}  ↓ ${formatDownloads(p)}  ${formatScore(p)}  ${p.description ?? ""}`,
         );
       }
     }

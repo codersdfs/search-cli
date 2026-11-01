@@ -14,7 +14,7 @@ import {
 import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
-import { createPackageSearch } from "./package";
+import { createPackageSearch, formatDownloads, formatScore } from "./package";
 import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 const C = {
   bg: "#1a1b26",
@@ -45,8 +45,8 @@ function fmtCount(n: number): string {
 /** Format one package as a 2-line StyledText (name line + description line). */
 function formatPackageLine(pack: Package): StyledText {
   const nameStr = `${pack.name}@${pack.version}`.padEnd(28).slice(0, 28);
-  const dlStr = `↓ ${fmtCount(pack.downloads)}`.padEnd(20).slice(0, 20);
-  const scoreStr = `score ${pack.score.toFixed(2)}`.padEnd(12).slice(0, 12);
+  const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(20).slice(0, 20);
+  const scoreStr = `score ${formatScore(pack)}`.padEnd(12).slice(0, 12);
   const desc =
     (pack.description ?? "").length > 60
       ? `${(pack.description ?? "").slice(0, 57)}...`

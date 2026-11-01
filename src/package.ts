@@ -10,6 +10,7 @@
  */
 import type { Package } from "./types";
 import type { PackageSortMode, RegistryId } from "./registries/catalog";
+import { registryMeta, type DownloadWindow } from "./registries/catalog";
 import { getProvider } from "./registries/index";
 import type { PackageSearchResult, ProviderFetch } from "./registries/types";
 
@@ -74,21 +75,53 @@ export function formatPackagesJson(pkgs: Package[]): string {
   return JSON.stringify(pkgs, null, 2);
 }
 
+/** Printed suffix for each registry's download tally. Never a bare number. */
+const DOWNLOAD_SUFFIX: Record<DownloadWindow, string> = {
+  monthly: "/mo",
+  quarterly: "/90d",
+  lifetime: " total",
+  none: "",
+};
+
+/** `1,234,567/mo`, `729 total`, or `n/a` — the window comes from the catalog. */
+export function formatDownloads(
+  p: Pick<Package, "registry" | "downloads">,
+): string {
+  const meta = registryMeta(p.registry);
+  if (meta.downloadsWindow === "none") return "n/a";
+  return `${p.downloads.toLocaleString()}${DOWNLOAD_SUFFIX[meta.downloadsWindow]}`;
+}
+
+/** npm's relevance score, or an em dash for registries that publish none. */
+export function formatScore(p: Pick<Package, "registry" | "score">): string {
+  return registryMeta(p.registry).hasScore ? p.score.toFixed(2) : "—";
+}
+
 export function formatPackagesCsv(pkgs: Package[]): string {
-  const header = "rank,name,version,downloads,score,url";
-  const rows = pkgs.map(
-    (p, i) =>
-      `${i + 1},${csvEscape(p.name)},${p.version},${p.downloads},${p.score.toFixed(2)},${csvEscape(p.url)}`,
-  );
+  const header =
+    "rank,registry,name,version,downloads,downloads_window,score,url";
+  const rows = pkgs.map((p, i) => {
+    const score = registryMeta(p.registry).hasScore ? p.score.toFixed(2) : "";
+    return [
+      i + 1,
+      p.registry,
+      csvEscape(p.name),
+      p.version,
+      p.downloads,
+      registryMeta(p.registry).downloadsWindow,
+      score,
+      csvEscape(p.url),
+    ].join(",");
+  });
   return [header, ...rows].join("\n");
 }
 
 export function formatPackagesMarkdown(pkgs: Package[]): string {
-  const header = "| # | Package | Version | Downloads | Score |";
-  const sep = "|---|---------|---------|-----------|-------|";
+  const header = "| # | Registry | Package | Version | Downloads | Score |";
+  const sep = "|---|----------|---------|---------|-----------|-------|";
   const rows = pkgs.map(
     (p, i) =>
-      `| ${i + 1} | [${p.name}@${p.version}](${p.url}) | ${p.version} | ${p.downloads.toLocaleString()} | ${p.score.toFixed(2)} |`,
+      `| ${i + 1} | ${registryMeta(p.registry).label} | [${p.name}@${p.version}](${p.url}) | ${p.version} | ${formatDownloads(p)} | ${formatScore(p)} |`,
   );
   return [header, sep, ...rows].join("\n");
 }
