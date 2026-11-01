@@ -16,7 +16,7 @@ _ghfind() {
     '--since[Trending period]:(daily weekly monthly)'
     '--pipe[Pipe target]:(clone open)'
     '--format[Output format]:(urls names ssh-urls clone-commands ids)'
-    '--registry[Registry for pkg]:(npm)'
+    '--registry[Registry for pkg]:(npm crates rubygems nuget maven)'
 
     '--watch[Watch mode]'
     '--interval[Watch interval seconds]:seconds:'

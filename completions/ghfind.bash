@@ -35,7 +35,7 @@ _ghfind() {
       return 0
       ;;
     --registry)
-      COMPREPLY=( $(compgen -W "npm" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "npm crates rubygems nuget maven" -- "${cur}") )
       return 0
       ;;
     --language)

@@ -71,6 +71,17 @@ describe("cli --help usage block", () => {
     }
   });
 
+  test("no package usage row claims npm alone", () => {
+    const rows = usageRows(readCli());
+    const pkgRows = rows.filter((r) => r.includes("ghfind pkg"));
+    expect(pkgRows.length).toBeGreaterThanOrEqual(2);
+    for (const row of pkgRows) {
+      expect(row, `usage row still npm-only: ${row}`).not.toMatch(
+        /npm packages/,
+      );
+    }
+  });
+
   test("every row puts its description in the same column", () => {
     const columns = new Set<number>();
     for (const row of usageRows(readCli())) {

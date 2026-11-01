@@ -213,3 +213,76 @@ describe("clone usage guards", () => {
     expect(out).toContain("--ssh");
   });
 });
+
+describe("--registry", () => {
+  test("rejects an unknown registry before touching the network", () => {
+    const { code, err } = runCli(
+      "pkg",
+      "express",
+      "--registry",
+      "pypi",
+      "--json",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain('Unknown registry: "pypi"');
+    expect(err).toContain("npm|crates|rubygems|nuget|maven");
+    expect(err).not.toContain("search failed");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("a missing value is reported as a missing value", () => {
+    const { code, err } = runCli("pkg", "express", "--registry", "--json");
+    expect(code).toBe(1);
+    expect(err).toContain("Missing value for --registry");
+  });
+
+  test("accepts each canonical id", () => {
+    for (const id of ["npm", "crates", "rubygems", "nuget", "maven"]) {
+      // --help short-circuits before any search, so this proves acceptance
+      // without a network round trip.
+      const { code, err } = runCli("pkg", "cli", "--registry", id, "--help");
+      expect(code, `--registry ${id} rejected: ${err}`).toBe(0);
+    }
+  });
+
+  test("accepts the crates.io spelling", () => {
+    const { code } = runCli("pkg", "cli", "--registry", "crates.io", "--help");
+    expect(code).toBe(0);
+  });
+
+  test("rejects a sort the chosen registry cannot do, naming its modes", () => {
+    const { code, err } = runCli(
+      "pkg",
+      "json",
+      "--registry",
+      "maven",
+      "--sort",
+      "downloads",
+      "--count",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain("Invalid sort for maven");
+    expect(err).toContain("best-match|name");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("the flag row in --help names the real registries", () => {
+    const { out } = runCli("--help");
+    expect(out).toContain(
+      "Registry for pkg: npm (default)|crates|rubygems|nuget|maven",
+    );
+    expect(out).not.toContain("others TBD");
+  });
+
+  test("completions advertise every id", () => {
+    expect(readSrc("completions/ghfind.bash")).toContain(
+      'compgen -W "npm crates rubygems nuget maven"',
+    );
+    expect(readSrc("completions/ghfind.zsh")).toContain(
+      "'--registry[Registry for pkg]:(npm crates rubygems nuget maven)'",
+    );
+    expect(readSrc("completions/ghfind.fish")).toContain(
+      '-a "npm crates rubygems nuget maven"',
+    );
+  });
+});

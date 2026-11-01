@@ -21,6 +21,12 @@ import {
   sortPackages,
   type PackageSortMode,
 } from "./package";
+import {
+  registryHelp,
+  resolveRegistry,
+  sortableModesFor,
+  type RegistryId,
+} from "./registries/catalog";
 import { launchPackageBrowser } from "./package-browser";
 import { runDoctor } from "./doctor";
 import { reportError } from "./error-report";
@@ -123,7 +129,8 @@ interface CLIFlags {
   help: boolean;
   pkg: boolean;
   theme?: string;
-  registry: string;
+  /** Registry id for `pkg`. Validated at parse time, so it is always canonical. */
+  registry: RegistryId;
   compare: string[]; // repo fullNames to compare
   doctor: boolean;
   org?: string; // org profile lookup (ghfind org <name>)
@@ -336,9 +343,22 @@ function parseArgs(args: string[]): CLIFlags {
         flags.format = fmt;
         break;
       }
-      case "--registry":
-        flags.registry = args[++i] ?? "npm";
+      case "--registry": {
+        const raw = args[++i];
+        if (!raw || raw.startsWith("-")) {
+          console.error(
+            `Missing value for --registry (use ${registryHelp()}).`,
+          );
+          process.exit(1);
+        }
+        const resolved = resolveRegistry(raw);
+        if (!resolved) {
+          console.error(`Unknown registry: "${raw}" (use ${registryHelp()}).`);
+          process.exit(1);
+        }
+        flags.registry = resolved;
         break;
+      }
       case "--theme":
         flags.theme = args[++i] ?? "tokyo-night";
         break;
@@ -529,8 +549,8 @@ Usage:
   ghfind deep-dive a/b --json      Deep-dive as JSON
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
-  ghfind pkg <query> --json        Search npm packages, output JSON
-  ghfind pkg <query>               Search npm packages, text list
+  ghfind pkg <query> --json        Search registries, output JSON
+  ghfind pkg <query>               Search registries, text list
   ghfind mcp                       Run the MCP server for AI agents (stdio)
   ghfind skill [name]              Print the agent skill guide (or catalog)
   ghfind bookmarks [query]         Saved repos, newest first
@@ -559,7 +579,7 @@ Options:
   --since <period>                     Trending period: daily|weekly|monthly
   --pipe <target>                      Pipe target: clone|open
   --format <fmt>                       Line format: urls|names|ssh-urls|...
-  --registry <name>                  Registry for pkg: npm (default) | others TBD
+  --registry <name>                  Registry for pkg: npm (default)|crates|rubygems|nuget|maven
 
   --watch                              Watch mode (re-run periodically)
   --releases                           New-release feed for bookmarks
@@ -1165,30 +1185,22 @@ async function runClone(flags: CLIFlags): Promise<void> {
   process.exit(result.code ?? 1);
 }
 
-/** `ghfind pkg "<query>"` — npm package search. Pass-through query to the registry. */
+/** `ghfind pkg "<query>"` — registry package search. Pass-through query to the registry. */
 async function runPackageSearch(flags: CLIFlags): Promise<void> {
-  if (flags.registry !== "npm") {
-    console.error(`Registry "${flags.registry}" not yet supported (only npm).`);
-    process.exit(1);
-  }
-  const PKG_SORTS: PackageSortMode[] = [
-    "best-match",
-    "score",
-    "downloads",
-    "name",
-  ];
+  const registry = flags.registry;
+  const allowedSorts = sortableModesFor(registry);
   const pkgSort = flags.sort as PackageSortMode;
-  if (!PKG_SORTS.includes(pkgSort)) {
+  if (!allowedSorts.includes(pkgSort)) {
     console.error(
-      `Invalid sort for pkg: "${flags.sort}" (use best-match|score|downloads|name).`,
+      `Invalid sort for ${registry}: "${flags.sort}" (use ${allowedSorts.join("|")}).`,
     );
     process.exit(1);
   }
-  const search = createPackageSearch();
+  const search = createPackageSearch(registry);
   const query = flags.query.trim();
   if (!query) {
     console.error(
-      "Usage: ghfind pkg <query> [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]",
+      "Usage: ghfind pkg <query> [--registry npm|crates|rubygems|nuget|maven] [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]",
     );
     process.exit(1);
   }
