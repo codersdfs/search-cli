@@ -6,9 +6,11 @@
 import type { RegistryId } from "./catalog";
 import type { PackageProvider } from "./types";
 import { npmProvider } from "./npm";
+import { cratesProvider } from "./crates";
 
 const PROVIDERS: Partial<Record<RegistryId, PackageProvider>> = {
   [npmProvider.id]: npmProvider,
+  [cratesProvider.id]: cratesProvider,
 };
 
 /** The provider for `id`. Throws if the catalog advertises an unbuilt registry. */
