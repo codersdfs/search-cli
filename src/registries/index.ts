@@ -8,11 +8,13 @@ import type { PackageProvider } from "./types";
 import { npmProvider } from "./npm";
 import { cratesProvider } from "./crates";
 import { rubygemsProvider } from "./rubygems";
+import { nugetProvider } from "./nuget";
 
 const PROVIDERS: Partial<Record<RegistryId, PackageProvider>> = {
   [npmProvider.id]: npmProvider,
   [cratesProvider.id]: cratesProvider,
   [rubygemsProvider.id]: rubygemsProvider,
+  [nugetProvider.id]: nugetProvider,
 };
 
 /** The provider for `id`. Throws if the catalog advertises an unbuilt registry. */
