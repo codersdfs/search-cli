@@ -1,5 +1,7 @@
 /** Core domain types shared across the CLI. */
 
+import type { RegistryId } from "./registries/catalog";
+
 /** A single parsed search qualifier (e.g. `language:Rust`). */
 export interface Qualifier {
   /** The qualifier key, e.g. "language", "stars", "topic". */
@@ -63,7 +65,9 @@ export interface Package {
   score: number; // registry relevance (npm score.final)
   publisher: string | null;
   keywords: string[];
-  registry: "npm"; // registry this package came from (npm-only for MVP)
+  /** The registry the row came from. Its download window and score availability
+   *  live in src/registries/catalog.ts, keyed on this id. */
+  registry: RegistryId;
 }
 
 /** Ranking strategies supported by the ranking layer. */
