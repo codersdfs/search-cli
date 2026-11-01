@@ -144,6 +144,8 @@ export interface SessionState {
   limit: number;
   /** Active trending tab (restored when mode is "trending"). */
   trendingTab?: string;
+  /** Active package registry (restored when mode is "packages"). */
+  registry?: RegistryId;
   theme?: string;
 }
 

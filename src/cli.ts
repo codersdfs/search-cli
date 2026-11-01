@@ -682,7 +682,7 @@ Options:
       !flags.count &&
       !flags.format;
     if (interactive) {
-      await launchPackageBrowser();
+      await launchPackageBrowser(flags.registry);
     } else {
       await runPackageSearch(flags);
     }

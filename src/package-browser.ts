@@ -15,6 +15,7 @@ import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
 import { createPackageSearch, formatDownloads, formatScore } from "./package";
+import { registryMeta, type RegistryId } from "./registries/catalog";
 import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 const C = {
   bg: "#1a1b26",
@@ -45,8 +46,8 @@ function fmtCount(n: number): string {
 /** Format one package as a 2-line StyledText (name line + description line). */
 function formatPackageLine(pack: Package): StyledText {
   const nameStr = `${pack.name}@${pack.version}`.padEnd(28).slice(0, 28);
-  const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(20).slice(0, 20);
-  const scoreStr = `score ${formatScore(pack)}`.padEnd(12).slice(0, 12);
+  const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(24);
+  const scoreStr = `score ${formatScore(pack)}`.padEnd(14);
   const desc =
     (pack.description ?? "").length > 60
       ? `${(pack.description ?? "").slice(0, 57)}...`
@@ -58,7 +59,9 @@ function formatPackageLine(pack: Package): StyledText {
   return new StyledText(chunks);
 }
 // ─── Main TUI entry ───────────────────────────────────────────────────
-export async function launchPackageBrowser(): Promise<void> {
+export async function launchPackageBrowser(
+  registry: RegistryId = "npm",
+): Promise<void> {
   // Match the app backdrop to the terminal's own background (OSC 11), before
   // the renderer takes over stdin. Falls back to the local palette default.
   // Surface and border layers are blended toward that background as well.
@@ -104,7 +107,7 @@ export async function launchPackageBrowser(): Promise<void> {
     paddingX: 1,
   });
   const headerText = new TextRenderable(renderer, {
-    content: t`${bold(fg(C.purple)("⟠ tulipsearch"))}${fg(C.muted)(" — Packages")}`,
+    content: t`${bold(fg(C.purple)("⟠ tulipsearch"))}${fg(C.muted)(` — Packages · ${registryMeta(registry).label}`)}`,
     fg: C.purple,
     bg: C.bg,
     height: 1,
@@ -220,7 +223,7 @@ export async function launchPackageBrowser(): Promise<void> {
     });
     renderer.requestRender();
     try {
-      const searcher = createPackageSearch();
+      const searcher = createPackageSearch(registry);
       const res = await searcher.searchPackage(q, 25);
       packages = res.packages;
       selectedIdx = 0;
