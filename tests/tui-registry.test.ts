@@ -50,6 +50,13 @@ describe("src/tui.ts package registry wiring", () => {
     expect(src).toMatch(/name: "Registry"/);
     expect(src).toMatch(/cycleRegistry/);
   });
+
+  it("retires stale package results on registry cycle", () => {
+    // Pressing p mid-search must not let the previous registry's response
+    // repaint the list under the new label.
+    expect(src).toMatch(/packageSearchEpoch/);
+    expect(src).toMatch(/if \(epoch !== packageSearchEpoch\) return;/);
+  });
 });
 
 describe("src/package-browser.ts registry awareness", () => {

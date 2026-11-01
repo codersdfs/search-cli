@@ -309,6 +309,10 @@ export async function launchBrowser(
   let packages: Package[] = [];
   let currentPackageSort: PackageSortMode = "best-match";
   let packageResultsRaw: Package[] = [];
+  // Bumped whenever a package search is superseded, so a cycle during an
+  // in-flight search cannot let the stale response repaint the list under the
+  // new registry's label.
+  let packageSearchEpoch = 0;
   // Active package registry. npm is the default (ticket 002-005); the Esc menu
   // and `p` cycle it, and a sort unsupported by the new registry is dropped.
   let currentRegistry: RegistryId = session?.registry ?? "npm";
@@ -2746,6 +2750,9 @@ export async function launchBrowser(
   async function doPackageSearch(queryText: string) {
     const q = queryText.trim();
     if (q === "" || isLoading) return;
+    // Every fresh search takes precedence: a response whose epoch has moved on
+    // is retired (see packageSearchEpoch) instead of repainting the list.
+    const epoch = ++packageSearchEpoch;
     currentQueryInput = q;
     isLoading = true;
     errorHint = null; // npm errors never carry GitHub auth hints
@@ -2758,6 +2765,9 @@ export async function launchBrowser(
     try {
       const search = createPackageSearch(currentRegistry);
       const result = await search.searchPackage(q, currentLimit);
+      // A registry cycle (or a newer search) owns the list from here on; this
+      // response belongs to the previous registry and must not paint.
+      if (epoch !== packageSearchEpoch) return;
       totalCount = result.totalCount;
       packageResultsRaw = result.packages;
       packages = sortPackages(packageResultsRaw, currentPackageSort);
@@ -2774,14 +2784,18 @@ export async function launchBrowser(
         throw new NoResultsError(q);
       }
     } catch (err) {
+      if (epoch !== packageSearchEpoch) return;
       const msg = err instanceof Error ? err.message : String(err);
       resultsSelect.options = [
         { name: " (error)", description: "", value: null },
       ];
       statusMgr.set("error", msg.slice(0, 60));
+    } finally {
+      // Runs on the retired path too, so a discarded response can never leave
+      // the flag stuck true (a stale search no longer owns the screen).
+      isLoading = false;
+      renderer.requestRender();
     }
-    isLoading = false;
-    renderer.requestRender();
   }
   async function doSearch(queryText: string, append = false) {
     const q = queryText.trim();
@@ -2905,8 +2919,30 @@ export async function launchBrowser(
     if (currentMode === "packages") {
       searchInput.placeholder = `Search ${registryLabel()} packages`;
     }
+    if (currentQueryInput && !isLoading) {
+      setToolbar();
+      doPackageSearch(currentQueryInput);
+      return;
+    }
+    // No re-run is coming (empty query, or a search still in flight): retire
+    // whatever is on screen — bump the epoch so a pending response cannot paint
+    // registry-A rows under the new registry's label — and say so.
+    packageSearchEpoch++;
+    packages = [];
+    packageResultsRaw = [];
+    totalCount = 0;
+    resultsSelect.options = [
+      {
+        name: "",
+        description: "Type a query and press Enter to search",
+        value: null,
+      },
+    ];
+    detailText.content = "";
     setToolbar();
-    if (currentQueryInput) doPackageSearch(currentQueryInput);
+    setStatus(
+      `Registry switched to ${registryLabel()} — press Enter to re-search`,
+    );
   }
 
   function changePackageSort() {
