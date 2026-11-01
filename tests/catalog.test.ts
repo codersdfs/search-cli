@@ -12,6 +12,7 @@ import {
   sortableModesFor,
   type RegistryId,
 } from "../src/registries/catalog.ts";
+import { getProvider } from "../src/registries/index.ts";
 
 describe("REGISTRY_IDS", () => {
   it("lists the five shipped registries with npm first", () => {
@@ -135,5 +136,13 @@ describe("Package.registry accepts every catalog id", () => {
       registry,
     }));
     expect(rows.map((r) => r.registry)).toEqual([...REGISTRY_IDS]);
+  });
+});
+
+describe("every catalog id has a provider", () => {
+  it("getProvider resolves each id without throwing", () => {
+    for (const id of REGISTRY_IDS) {
+      expect(getProvider(id).id).toBe(id);
+    }
   });
 });
