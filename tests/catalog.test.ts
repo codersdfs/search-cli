@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import type { Package } from "../src/types.ts";
 import {
   REGISTRY_IDS,
-  clampLimit,
+  clampRegistryLimit,
   isRegistryId,
   registryHelp,
   registryMeta,
@@ -48,18 +48,18 @@ describe("registry ceilings", () => {
     expect(registryMeta("maven").maxResults).toBe(200);
   });
 
-  it("clampLimit keeps npm's existing behaviour exactly", () => {
-    expect(clampLimit(0, "npm")).toBe(50); // falsy → default 50
-    expect(clampLimit(Number.NaN, "npm")).toBe(50);
-    expect(clampLimit(-5, "npm")).toBe(1);
-    expect(clampLimit(1000, "npm")).toBe(250);
-    expect(clampLimit(30.7, "npm")).toBe(30); // truncates
+  it("clampRegistryLimit keeps npm's existing behaviour exactly", () => {
+    expect(clampRegistryLimit(0, "npm")).toBe(50); // falsy → default 50
+    expect(clampRegistryLimit(Number.NaN, "npm")).toBe(50);
+    expect(clampRegistryLimit(-5, "npm")).toBe(1);
+    expect(clampRegistryLimit(1000, "npm")).toBe(250);
+    expect(clampRegistryLimit(30.7, "npm")).toBe(30); // truncates
   });
 
-  it("clampLimit clamps to each registry's own ceiling", () => {
-    expect(clampLimit(50, "rubygems")).toBe(30);
-    expect(clampLimit(200, "crates")).toBe(100);
-    expect(clampLimit(250, "maven")).toBe(200);
+  it("clampRegistryLimit clamps to each registry's own ceiling", () => {
+    expect(clampRegistryLimit(50, "rubygems")).toBe(30);
+    expect(clampRegistryLimit(200, "crates")).toBe(100);
+    expect(clampRegistryLimit(250, "maven")).toBe(200);
   });
 });
 
@@ -100,6 +100,9 @@ describe("resolveRegistry", () => {
     expect(resolveRegistry("pypi")).toBeNull();
     expect(resolveRegistry("")).toBeNull();
     expect(resolveRegistry("npm;rm -rf")).toBeNull();
+    // Prototype names must not resolve through the object-literal table.
+    expect(resolveRegistry("constructor")).toBeNull();
+    expect(resolveRegistry("__proto__")).toBeNull();
   });
 
   it("isRegistryId agrees with resolveRegistry", () => {

@@ -10,7 +10,7 @@
 /** Sort strategies a registry's results can be re-ordered by, client-side. */
 export type PackageSortMode = "best-match" | "score" | "downloads" | "name";
 
-/** Sort modes in cycle order for the TUI Sort menu (npm, the default view). */
+/** Sort modes in cycle order for the TUI Sort menu (npm offers all four). */
 export const PACKAGE_SORT_MODES: { key: PackageSortMode; label: string }[] = [
   { key: "best-match", label: "best-match" },
   { key: "downloads", label: "downloads" },
@@ -126,7 +126,9 @@ export function resolveRegistry(raw: string): RegistryId | null {
     .trim()
     .toLowerCase();
   if (!key) return null;
-  return REGISTRY_ALIASES[key] ?? null;
+  // Own-property check: `constructor` / `__proto__` must resolve to null,
+  // not leak Object.prototype values typed as RegistryId.
+  return Object.hasOwn(REGISTRY_ALIASES, key) ? REGISTRY_ALIASES[key] : null;
 }
 
 /** Canonical id list for error messages: "npm|crates|rubygems|nuget|maven". */
@@ -142,7 +144,7 @@ export function sortableModesFor(id: RegistryId): PackageSortMode[] {
  * Clamp a requested limit to what the registry accepts. The falsy branch
  * preserves the npm facade's long-standing "no limit → 50" behaviour.
  */
-export function clampLimit(limit: number, id: RegistryId): number {
+export function clampRegistryLimit(limit: number, id: RegistryId): number {
   const { maxResults } = registryMeta(id);
   return Math.min(Math.max(Math.trunc(limit) || 50, 1), maxResults);
 }
