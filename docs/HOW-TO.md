@@ -129,17 +129,17 @@ registry; the default is npm and `--registry` selects another:
 
 ```bash
 ghfind pkg "terminal ui"                        # npm (default)
-ghfind pkg clap --registry crates               # crates.io (alias: crates.io)
+ghfind pkg clap --registry crates               # crates.io
 ghfind pkg pdf --registry rubygems              # RubyGems
 ghfind pkg Serilog --registry nuget             # NuGet
-ghfind pkg jackson --registry maven              # Maven Central
+ghfind pkg jackson --registry maven             # Maven Central
 ```
 
-**The query is passed through verbatim.** Each registry gets its own syntax and
-ghfind does not translate: npm understands `scope:`, `keywords:`, `not:` and
-`is:insecure`; crates.io understands `category:`; the others take plain text
-only. GitHub qualifiers (`language:`, `stars:`) mean nothing here — they are left
-untouched rather than rewritten.
+**The query is passed through verbatim.** Each registry's own search syntax
+applies — npm documents `scope:`/`keywords:`/`not:` qualifiers, for instance —
+and ghfind forwards the text without translating or validating it. GitHub
+qualifiers (`language:`, `stars:`) mean nothing here: they are passed through
+as plain words rather than rewritten.
 
 **A download number is not comparable across registries.** Each publishes a
 different window, and ghfind labels it rather than flattening it:

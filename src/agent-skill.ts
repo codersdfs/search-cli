@@ -61,8 +61,8 @@ Formats: --json | --csv | --markdown | --count | --format urls|names|ssh-urls|cl
 
     ghfind pkg "QUERY" --json [--registry npm|crates|rubygems|nuget|maven] [--limit N] [--sort best-match|score|downloads|name]
 
-Query text goes to that registry's native search unchanged (npm supports
-scope:/keywords:/not: qualifiers). Downloads carry each registry's own window:
+Query text goes to that registry's native search unchanged — each registry's own
+syntax applies, ghfind does not translate it. Downloads carry each registry's own window:
 npm monthly, crates.io 90 days, RubyGems/NuGet lifetime, Maven Central publishes
 none. --sort is validated per registry; score exists on npm only.
 
