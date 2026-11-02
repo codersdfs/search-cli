@@ -33,13 +33,13 @@ function buildGhfindSkill(): Skill {
     name: "ghfind-cli",
     title: "ghfind CLI for agents",
     description:
-      "Search GitHub (repos, trending, npm packages, org/user profiles) from the terminal via the `ghfind` command. Use when the user asks to find, compare, or track GitHub repositories or npm packages.",
+      "Search GitHub (repos, trending, org/user profiles) and package registries from the terminal via the `ghfind` command. Use when the user asks to find, compare, or track GitHub repositories or packages on npm, crates.io, RubyGems, NuGet, or Maven Central.",
     builtin: true,
     content: `# ghfind — GitHub search for agents
 
-ghfind searches GitHub from the terminal: repositories, trending, npm
-packages, org/user profiles. This guide covers the non-interactive surface
-only — ignore anything about a TUI in other docs; agents cannot drive it.
+ghfind searches GitHub from the terminal: repositories, trending, org/user
+profiles, and five package registries. This guide covers the non-interactive
+surface only — ignore anything about a TUI in other docs; agents cannot drive it.
 
 ## Search GitHub repositories
 
@@ -57,9 +57,14 @@ Formats: --json | --csv | --markdown | --count | --format urls|names|ssh-urls|cl
     ghfind --trending --json [--since daily|weekly|monthly] [--language rust]
     ghfind trending rust --json      # subcommand form of the same thing
 
-## npm packages
+## Package registries
 
-    ghfind pkg "QUERY" --json [--limit N] [--sort best-match|score|downloads|name]
+    ghfind pkg "QUERY" --json [--registry npm|crates|rubygems|nuget|maven] [--limit N] [--sort best-match|score|downloads|name]
+
+Query text goes to that registry's native search unchanged (npm supports
+scope:/keywords:/not: qualifiers). Downloads carry each registry's own window:
+npm monthly, crates.io 90 days, RubyGems/NuGet lifetime, Maven Central publishes
+none. --sort is validated per registry; score exists on npm only.
 
 ## Org & user profiles
 

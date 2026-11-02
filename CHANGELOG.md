@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven`
+  selects which one, npm stays the default, and each registry's query is passed
+  through to its own native search untouched.
+  Downloads are labelled with the window each registry actually publishes
+  (`1,234,567/mo` on npm, `/90d` on crates.io, `total` on RubyGems and NuGet,
+  `n/a` on Maven Central, which has no download data), `--sort` is validated
+  against the chosen registry, and the TUI cycles registries with `p` or
+  `Esc` → Search → Registry. Agents get `ghfind_package_search` over MCP;
+  `ghfind_npm_packages` keeps working unchanged as the npm-pinned alias.
+
 ## [9.11.0] — 2026-10-14 (released)
 
 ### Added

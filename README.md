@@ -46,7 +46,7 @@ Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https
 | Bookmarks, tags & release tracking          | ✅       | ❌                       | ❌    |
 | Side-by-side repo compare (JSON/CSV/MD)     | ✅       | ❌                       | ❌    |
 | Deep-dive (languages, contributors, README) | ✅       | ❌                       | ❌    |
-| npm package search                          | ✅       | ❌                       | ❌    |
+| Package search, 5 registries                | ✅       | ❌                       | ❌    |
 | Org profile                                 | ✅       | ✅                       | ❌    |
 | User profile                                | ✅       | ❌                       | ❌    |
 | Pipeable JSON / CSV / Markdown export       | ✅       | JSON only                | ❌    |
@@ -96,6 +96,10 @@ ghfind --compare a/b c/d     # side-by-side comparison
 ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
 ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
 ghfind pkg "query" --json    # npm package search as JSON
+ghfind pkg clap --registry crates --json          # crates.io
+ghfind pkg Newtonsoft --registry nuget --limit 5  # NuGet, --registry npm|crates|rubygems|nuget|maven
+ghfind pkg pdf --registry rubygems                # RubyGems
+ghfind pkg jackson --registry maven --count       # Maven Central, as a count
 # Read-only local state
 ghfind bookmarks             # saved repos, newest first
 ghfind history --limit 20    # past searches
@@ -132,8 +136,10 @@ or in your MCP client config:
 ```
 
 Exposed tools: `ghfind_search_repos`, `ghfind_trending`,
-`ghfind_npm_packages`, `ghfind_org_profile`, `ghfind_user_profile`,
-`ghfind_compare_repos`, `ghfind_deep_dive`, `ghfind_bookmarked_releases`,
+`ghfind_package_search` (npm, crates.io, RubyGems, NuGet, Maven Central —
+`registry` selects it, npm by default), `ghfind_npm_packages` (the npm-pinned
+alias), `ghfind_org_profile`, `ghfind_user_profile`, `ghfind_compare_repos`,
+`ghfind_deep_dive`, `ghfind_bookmarked_releases`,
 `ghfind_skill` (a token-efficient CLI usage guide for agents), and
 `ghfind_skill_search` (find agent skills, either installed on this machine or
 in the public skills.sh ecosystem ? read-only, it never installs anything).
@@ -172,7 +178,13 @@ ghfind --completion fish | source
 <table>
 <tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
 <tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
-<tr><td><b>Packages</b></td><td>npm registry search (beta) — <code>ghfind pkg "query"</code></td></tr>
+<tr>
+  <td><b>Packages</b></td>
+  <td>
+    Search 5 package registries (npm, crates.io, RubyGems, NuGet, Maven Central)
+    — <code>ghfind pkg "query" --registry crates</code>
+  </td>
+</tr>
 <tr><td><b>Bookmarks</b></td><td>Menu → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
 <tr><td><b>Deep-dive</b></td><td>Menu → Deep-dive — languages, contributors, README, activity chart</td></tr>
 <tr><td><b>Compare</b></td><td>Menu → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
@@ -351,14 +363,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 705 tests
+bun test         # 814 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 705 tests
+npm test         # 814 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,

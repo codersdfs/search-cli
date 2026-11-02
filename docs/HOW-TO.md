@@ -7,6 +7,7 @@ good result out of a query**, and what to do when one goes wrong.
 - [Set up a token first](#set-up-a-token-first)
 - [Write a query](#write-a-query)
 - [Qualifier reference](#qualifier-reference)
+- [Package registries](#package-registries)
 - [Read the results](#read-the-results)
 - [When a search returns nothing](#when-a-search-returns-nothing)
 - [When something goes wrong](#when-something-goes-wrong)
@@ -118,6 +119,56 @@ $ ghfind "cli stars:abc"
 ⚠ Invalid query: "stars:abc" is not a number — use stars:100, stars:>=100, or stars:1k..10k
   Try: cli
 ```
+
+---
+
+## Package registries
+
+`ghfind pkg` searches package registries, not GitHub. One query hits exactly one
+registry; the default is npm and `--registry` selects another:
+
+```bash
+ghfind pkg "terminal ui"                        # npm (default)
+ghfind pkg clap --registry crates               # crates.io (alias: crates.io)
+ghfind pkg pdf --registry rubygems              # RubyGems
+ghfind pkg Serilog --registry nuget             # NuGet
+ghfind pkg jackson --registry maven              # Maven Central
+```
+
+**The query is passed through verbatim.** Each registry gets its own syntax and
+ghfind does not translate: npm understands `scope:`, `keywords:`, `not:` and
+`is:insecure`; crates.io understands `category:`; the others take plain text
+only. GitHub qualifiers (`language:`, `stars:`) mean nothing here — they are left
+untouched rather than rewritten.
+
+**A download number is not comparable across registries.** Each publishes a
+different window, and ghfind labels it rather than flattening it:
+
+| Registry      | What the figure measures | Sort modes offered              | Relevance score |
+| ------------- | ------------------------ | ------------------------------- | --------------- |
+| npm           | monthly                  | best-match/score/downloads/name | yes             |
+| crates.io     | last 90 days             | best-match/downloads/name       | no              |
+| RubyGems      | lifetime                 | best-match/downloads/name       | no              |
+| NuGet         | lifetime                 | best-match/downloads/name       | no              |
+| Maven Central | no download data at all  | best-match/name                 | no              |
+
+So `12,000/mo` on npm and `12,000 total` on RubyGems are not near-neighbours —
+one is a rate, the other an accumulation. Rows from different registries are
+never merged into one list.
+
+**Unknown registries are rejected before any request.** `--registry pypi` exits
+with `Unknown registry: "pypi" (use npm|crates|rubygems|nuget|maven).` and no
+network call. The aliases `crates.io`, `ruby`, `gems`, `maven-central` and
+`central` resolve, in any case, to the five canonical ids shown above.
+
+**Result ceilings are the registry's own.** npm honours 250, Maven 200, NuGet
+250, crates.io 100, and RubyGems caps at 30 regardless of what you ask for, so
+`--limit 100 --registry rubygems` still returns 30 rows. A `--sort` a registry
+cannot perform is rejected with its real mode list rather than silently ignored.
+
+**In the TUI**, packages mode switches registries with `p` while the query input
+is _not_ focused (or `Esc` → Search → Registry); the standalone browser is fixed
+at launch by `--registry`, and its header shows which registry it is searching.
 
 ---
 
