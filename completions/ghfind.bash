@@ -11,7 +11,7 @@ _ghfind() {
 
   case "${prev}" in
     --sort)
-      COMPREPLY=( $(compgen -W "best-match stars updated forks" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "best-match stars updated forks score downloads name" -- "${cur}") )
       return 0
       ;;
     --since)

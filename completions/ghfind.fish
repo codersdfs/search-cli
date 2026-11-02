@@ -6,7 +6,7 @@ complete -c ghfind -l csv -d "CSV output"
 complete -c ghfind -l markdown -d "Markdown table output"
 complete -c ghfind -l count -d "Only result count"
 complete -c ghfind -l limit -d "Max results" -r
-complete -c ghfind -l sort -d "Sort strategy" -r -f -a "best-match stars updated forks"
+complete -c ghfind -l sort -d "Sort strategy" -r -f -a "best-match stars updated forks score downloads name"
 complete -c ghfind -l token -d "GitHub token" -r
 complete -c ghfind -l trending -d "Trending mode"
 complete -c ghfind -l language -d "Trending language filter" -r -f -a "rust python typescript javascript go c c++ c# java ruby php swift kotlin zig"

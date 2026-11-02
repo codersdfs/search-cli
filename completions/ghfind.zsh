@@ -9,7 +9,7 @@ _ghfind() {
     '--markdown[Markdown table output]'
     '--count[Only result count]'
     '--limit[Max results]:limit:'
-    '--sort[Sort strategy]:(best-match stars updated forks)'
+    '--sort[Sort strategy]:(best-match stars updated forks score downloads name)'
     '--token[GitHub token]:token:'
     '--trending[Trending mode]'
     '--language[Trending language filter]:language:'
