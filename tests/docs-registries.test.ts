@@ -2,7 +2,6 @@
 // and agents look, and the README's test count must match the real suite. Both
 // have drifted before (the `--interval` and Ctrl+E incidents in the CHANGELOG).
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REGISTRY_IDS } from "../src/registries/catalog.ts";
