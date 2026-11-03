@@ -307,7 +307,7 @@ function parseArgs(args: string[]): CLIFlags {
         const sort = args[++i];
         if (!sort || !SORT_VALUES.includes(sort)) {
           console.error(
-            `Invalid sort: ${sort ?? "(missing)"} (use best-match|stars|updated|forks).`,
+            `Invalid sort: ${sort ?? "(missing)"} (use ${SORT_VALUES.join("|")}).`,
           );
           process.exit(1);
         }

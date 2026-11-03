@@ -171,8 +171,8 @@ prints `30+` — a ceiling on what the endpoint returned, never a claim that onl
 30 gems match. The registries that do report a total print the bare number.
 
 **In the TUI**, packages mode switches registries with `p` while the query input
-is _not_ focused (or `Esc` → Search → Registry); the standalone browser is fixed
-at launch by `--registry`, and its header shows which registry it is searching.
+is _not_ focused (or `Esc` → Search → Registry); the standalone browser picks
+its registry at launch from `ghfind pkg --registry`, and its header shows it.
 `--limit` and a `--sort` that registry supports are applied to the browser's
 searches too; an unsupported one is rejected before it opens.
 
