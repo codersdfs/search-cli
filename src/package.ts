@@ -40,7 +40,7 @@ export function createPackageSearch(
 
 /**
  * Sort fetched packages. "best-match" is a no-op: it preserves the registry's
- * relevance order, which is the canonical npm ranking.
+ * own relevance order, which is the ranking it asked for.
  */
 export function sortPackages(
   pkgs: Package[],
@@ -89,7 +89,7 @@ export function formatDownloads(
 ): string {
   const meta = registryMeta(p.registry);
   if (meta.downloadsWindow === "none") return "n/a";
-  return `${p.downloads.toLocaleString()}${DOWNLOAD_SUFFIX[meta.downloadsWindow]}`;
+  return `${p.downloads.toLocaleString("en-US")}${DOWNLOAD_SUFFIX[meta.downloadsWindow]}`;
 }
 
 /** npm's relevance score, or an em dash for registries that publish none. */

@@ -339,6 +339,9 @@ export async function launchBrowser(
     | "landing" = "none";
   let currentPage = 1;
   let totalCount = 0;
+  // False when the active package registry reported no total and totalCount is
+  // only a ceiling (RubyGems). The toolbar prints "30+" rather than "30".
+  let packageTotalIsExact = true;
   let deepDiveActive = false;
   const compareList: Repo[] = [];
   const _quitArmed = false;
@@ -2380,6 +2383,7 @@ export async function launchBrowser(
       currentLimit,
       totalCount,
       isPackages ? registryLabel() : undefined,
+      isPackages ? packageTotalIsExact : undefined,
     );
     renderer.requestRender();
   }
@@ -2769,6 +2773,7 @@ export async function launchBrowser(
       // response belongs to the previous registry and must not paint.
       if (epoch !== packageSearchEpoch) return;
       totalCount = result.totalCount;
+      packageTotalIsExact = result.totalIsExact !== false;
       packageResultsRaw = result.packages;
       packages = sortPackages(packageResultsRaw, currentPackageSort);
       setToolbar();
@@ -2931,6 +2936,7 @@ export async function launchBrowser(
     packages = [];
     packageResultsRaw = [];
     totalCount = 0;
+    packageTotalIsExact = true;
     resultsSelect.options = [
       {
         name: "",
@@ -3729,10 +3735,14 @@ function formatToolbar(
   limit: number,
   totalCount: number,
   registry?: string,
+  totalExact?: boolean,
 ): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
   const registryPart = registry ? `registry: ${registry}   ` : "";
-  return ` ${registryPart}sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}`;
+  // false = the registry never reported a total and this number is a ceiling;
+  // "+" keeps it from reading like an exact count. Omitted = exact.
+  const bound = totalExact === false ? "+" : "";
+  return ` ${registryPart}sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}${bound}`;
 }
 
 function cleanup(): void {

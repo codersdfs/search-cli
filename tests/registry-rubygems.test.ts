@@ -97,6 +97,34 @@ describe("rubygemsProvider.search", () => {
     expect(res.packages).toEqual([]);
   });
 
+  it("treats a 200 whose body is not JSON as a failure, not zero results", async () => {
+    globalThis.fetch = (async () =>
+      new Response("<html><body>proxy</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })) as unknown as typeof fetch;
+    await expect(rubygemsProvider.search("gem", 20)).rejects.toThrow(
+      "RubyGems search failed: unparseable response",
+    );
+  });
+
+  it("still resolves an empty JSON array without throwing", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse([])) as unknown as typeof fetch;
+    const res = await rubygemsProvider.search("nothing", 20);
+    expect(res.packages).toEqual([]);
+    expect(res.totalCount).toBe(0);
+  });
+
+  it("marks its totalCount as a bound because the API publishes no total", async () => {
+    const rows = Array.from({ length: 35 }, (_, i) => ({ name: `gem-${i}` }));
+    globalThis.fetch = (async () =>
+      jsonResponse(rows)) as unknown as typeof fetch;
+    const res = await rubygemsProvider.search("gem", 50);
+    expect(res.totalCount).toBe(30);
+    expect(res.totalIsExact).toBe(false);
+  });
+
   it("throws an error naming the registry on a failed request", async () => {
     globalThis.fetch = (async () =>
       new Response("boom", { status: 502 })) as unknown as typeof fetch;

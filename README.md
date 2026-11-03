@@ -95,7 +95,7 @@ ghfind --releases            # new releases for bookmarked repos
 ghfind --compare a/b c/d     # side-by-side comparison
 ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
 ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
-ghfind pkg "query" --json    # npm package search as JSON
+ghfind pkg "query" --json    # npm package search as JSON (default registry)
 ghfind pkg clap --registry crates --json          # crates.io
 ghfind pkg Newtonsoft --registry nuget --limit 5  # NuGet, --registry npm|crates|rubygems|nuget|maven
 ghfind pkg pdf --registry rubygems                # RubyGems
@@ -363,14 +363,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 814 tests
+bun test         # 837 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 814 tests
+npm test         # 837 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,

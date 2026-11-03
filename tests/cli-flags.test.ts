@@ -274,6 +274,43 @@ describe("--registry", () => {
     expect(out).not.toContain("others TBD");
   });
 
+  test("--registry on a non-pkg search is rejected, not silently ignored", () => {
+    // `ghfind rust --registry crates` used to exit 0 with GitHub repos: the
+    // registry was validated, then thrown away.
+    for (const args of [
+      ["rust", "--registry", "crates", "--count"],
+      ["--registry", "nuget", "--json", "serilog"],
+    ]) {
+      const { code, err } = runCli(...args);
+      expect(code, `expected fail for ${args.join(" ")}`).toBe(1);
+      expect(err).toContain("--registry applies only to ghfind pkg.");
+    }
+  });
+
+  test("the interactive pkg path validates --sort before opening the browser", () => {
+    // No output flag, so this is the interactive branch: it must fail rather
+    // than launch a browser that ignores the sort (and stays offline).
+    const { code, err } = runCli(
+      "pkg",
+      "--registry",
+      "maven",
+      "--sort",
+      "downloads",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain("Invalid sort for maven");
+    expect(err).toContain("best-match|name");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("a bound count is printed with its +", () => {
+    // RubyGems publishes no total, so its --count must not present 30 as the
+    // number of matching gems. The live `30+` needs the network, so this guards
+    // the renderer's shape; the real output is in the fix report.
+    const src = readSrc("src/cli.ts");
+    expect(src).toMatch(/totalIsExact === false \? `\$\{totalCount\}\+`/);
+  });
+
   test("completions advertise every id", () => {
     expect(readSrc("completions/ghfind.bash")).toContain(
       'compgen -W "npm crates rubygems nuget maven"',

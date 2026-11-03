@@ -474,7 +474,7 @@ const TOOLS: ToolDefinition[] = [
         registry: {
           type: "string",
           description:
-            "Registry to search (default npm). Aliases like crates.io are accepted.",
+            "Registry to search (default npm). The enum is the contract.",
           enum: [...REGISTRY_IDS],
         },
         limit: {
@@ -487,7 +487,7 @@ const TOOLS: ToolDefinition[] = [
         sort: {
           type: "string",
           description:
-            "Sort strategy. Registries differ: npm allows all four; crates/rubygems/nuget have no score; maven has no downloads. Invalid values for the chosen registry raise a tool error.",
+            "Sort strategy. Only the modes the chosen registry supports are allowed: the subset is enforced at call time, so a value valid for npm but unknown to that registry raises a tool error rather than silently reordering by a number the registry never published.",
           enum: [...PKG_SORTS],
         },
       },
@@ -524,9 +524,11 @@ const TOOLS: ToolDefinition[] = [
       }
       const sort = (requestedSort || "best-match") as PackageSortMode;
 
-      const { totalCount, packages } = await createPackageSearch(
-        registry,
-      ).searchPackage(query, limit);
+      const result = await createPackageSearch(registry).searchPackage(
+        query,
+        limit,
+      );
+      const { totalCount, packages } = result;
       const sorted = sortPackages(packages, sort);
       const meta = registryMeta(registry);
       const text =
@@ -539,6 +541,9 @@ const TOOLS: ToolDefinition[] = [
           registry,
           downloadsWindow: meta.downloadsWindow,
           totalCount,
+          // RubyGems publishes no total, so its totalCount is a ceiling; agents
+          // reading the payload must be able to tell the two apart.
+          totalIsExact: result.totalIsExact !== false,
           packages: sorted,
         },
       };

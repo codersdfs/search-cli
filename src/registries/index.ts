@@ -21,7 +21,9 @@ const PROVIDERS: Partial<Record<RegistryId, PackageProvider>> = {
 
 /** The provider for `id`. Throws if the catalog advertises an unbuilt registry. */
 export function getProvider(id: RegistryId): PackageProvider {
-  const provider = PROVIDERS[id];
+  // Own-property lookup only: a typed-but-wrong id ("constructor") must never
+  // resolve through Object.prototype and come back wearing PackageProvider.
+  const provider = Object.hasOwn(PROVIDERS, id) ? PROVIDERS[id] : undefined;
   if (!provider) {
     throw new Error(`Registry "${id}" has no search provider.`);
   }

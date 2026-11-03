@@ -10,6 +10,7 @@
 import type { Package } from "../types";
 import { getVersion } from "../version";
 import { clampRegistryLimit } from "./catalog";
+import { readJson } from "./parse";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -74,7 +75,7 @@ export async function searchCrates(
     },
   });
   if (!res.ok) throw new Error(await readErrorMessage(res));
-  const data = (await res.json()) as {
+  const data = (await readJson(res, "crates.io")) as {
     crates?: RawCrate[];
     meta?: { total?: number };
   };

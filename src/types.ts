@@ -60,9 +60,11 @@ export interface Package {
   name: string;
   version: string;
   description: string | null;
-  url: string; // registry page (npm)
-  downloads: number; // monthly downloads (npm)
-  score: number; // registry relevance (npm score.final)
+  url: string; // registry page
+  /** Downloads over the window this registry publishes — see src/registries/catalog.ts. */
+  downloads: number;
+  /** npm's relevance score; 0 where the registry publishes none. */
+  score: number;
   publisher: string | null;
   keywords: string[];
   /** The registry the row came from. Its download window and score availability

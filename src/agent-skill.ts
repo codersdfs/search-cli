@@ -65,6 +65,8 @@ Query text goes to that registry's native search unchanged — each registry's o
 syntax applies, ghfind does not translate it. Downloads carry each registry's own window:
 npm monthly, crates.io 90 days, RubyGems/NuGet lifetime, Maven Central publishes
 none. --sort is validated per registry; score exists on npm only.
+--registry is only accepted by pkg, and a count printed as 30+ is a ceiling
+(RubyGems publishes no total), not the number of matching packages.
 
 ## Org & user profiles
 

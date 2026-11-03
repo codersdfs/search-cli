@@ -166,9 +166,15 @@ network call. The aliases `crates.io`, `ruby`, `gems`, `maven-central` and
 `--limit 100 --registry rubygems` still returns 30 rows. A `--sort` a registry
 cannot perform is rejected with its real mode list rather than silently ignored.
 
+**A count says what it is.** RubyGems' API publishes no total, so its `--count`
+prints `30+` — a ceiling on what the endpoint returned, never a claim that only
+30 gems match. The registries that do report a total print the bare number.
+
 **In the TUI**, packages mode switches registries with `p` while the query input
 is _not_ focused (or `Esc` → Search → Registry); the standalone browser is fixed
 at launch by `--registry`, and its header shows which registry it is searching.
+`--limit` and a `--sort` that registry supports are applied to the browser's
+searches too; an unsupported one is rejected before it opens.
 
 ---
 

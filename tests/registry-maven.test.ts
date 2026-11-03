@@ -102,6 +102,17 @@ describe("mavenProvider.search", () => {
     expect(res.totalCount).toBe(0);
   });
 
+  it("treats a 200 whose body is not JSON as a failure, not zero results", async () => {
+    globalThis.fetch = (async () =>
+      new Response("<html><body>Forbidden</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })) as unknown as typeof fetch;
+    await expect(mavenProvider.search("cli", 20)).rejects.toThrow(
+      "Maven Central search failed: unparseable response",
+    );
+  });
+
   it("clamps a too-large limit to 200 before fetching", async () => {
     let seenUrl = "";
     globalThis.fetch = (async (url: string | URL | Request) => {

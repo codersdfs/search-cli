@@ -8,6 +8,7 @@
  */
 import type { Package } from "../types";
 import { clampRegistryLimit } from "./catalog";
+import { readJson } from "./parse";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -59,13 +60,15 @@ export async function searchRubygems(
   if (!res.ok) {
     throw new Error(`RubyGems search failed: HTTP ${res.status}`);
   }
-  const data = await res.json().catch(() => null);
+  const data = await readJson(res, "RubyGems");
   // Bare array on success, and an object-shaped error body on some failures.
   const rows = Array.isArray(data) ? (data as RawGem[]) : [];
   const packages = rows.slice(0, want).map(normalizeGem);
   return {
     totalCount: Math.min(rows.length, RUBYGEMS_SERVER_CAP, want),
     packages,
+    // The API publishes no total: our count is a ceiling, never an exact tally.
+    totalIsExact: false,
   };
 }
 

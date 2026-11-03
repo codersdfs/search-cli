@@ -11,6 +11,10 @@ export type ProviderFetch = typeof fetch;
 export interface PackageSearchResult {
   /** Total matches the registry reports, not the page we fetched. */
   totalCount: number;
+  /** False when the registry never reported a total and `totalCount` is only a
+   *  bound on what it sent back (RubyGems caps at 30 rows and says nothing more).
+   *  Absent/true = exact, so a number may be printed bare. */
+  totalIsExact?: boolean;
   packages: Package[];
 }
 

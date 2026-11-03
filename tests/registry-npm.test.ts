@@ -113,4 +113,32 @@ describe("npmProvider.search", () => {
     expect(res.packages).toEqual([]);
     expect(res.totalCount).toBe(0);
   });
+
+  it("treats a 200 whose body is not JSON as a failure, not zero results", async () => {
+    // Captive portals and CDN error pages answer 200 with HTML. Reading that
+    // as "no matches" would print a number with no meaning.
+    globalThis.fetch = (async () =>
+      new Response("<html><body>oops</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })) as unknown as typeof fetch;
+    await expect(npmProvider.search("cli", 20)).rejects.toThrow(
+      "npm search failed: unparseable response",
+    );
+  });
+
+  it("still resolves an empty JSON payload without throwing", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({})) as unknown as typeof fetch;
+    const res = await npmProvider.search("nothing", 20);
+    expect(res.packages).toEqual([]);
+    expect(res.totalCount).toBe(0);
+  });
+
+  it("reports exact totals (only RubyGems leaves the count a bound)", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse(PAYLOAD)) as unknown as typeof fetch;
+    const res = await npmProvider.search("cli", 20);
+    expect(res.totalIsExact).toBeUndefined();
+  });
 });

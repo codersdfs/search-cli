@@ -119,6 +119,28 @@ describe("registryHelp", () => {
   });
 });
 
+describe("prototype-name ids are refused, not resolved", () => {
+  it("registryMeta throws instead of returning an Object.prototype member", () => {
+    // A typed-but-wrong id reaching the lookup table must not come back as a
+    // RegistryMeta; the guard is the catalog's invariant, not a call-site habit.
+    expect(() => registryMeta("constructor" as RegistryId)).toThrow(
+      /Unknown registry id/,
+    );
+    expect(() => registryMeta("__proto__" as RegistryId)).toThrow(
+      /Unknown registry id/,
+    );
+  });
+
+  it("getProvider throws for the same ids", () => {
+    expect(() => getProvider("constructor" as never)).toThrow(
+      /has no search provider/,
+    );
+    expect(() => getProvider("__proto__" as never)).toThrow(
+      /has no search provider/,
+    );
+  });
+});
+
 describe("Package.registry accepts every catalog id", () => {
   it("the entity's registry field is the catalog union, not the npm literal", () => {
     // Compile-level guard: this array only typechecks if Package.registry is

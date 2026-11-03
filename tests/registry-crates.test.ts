@@ -152,4 +152,15 @@ describe("cratesProvider.search", () => {
     expect(res.packages).toEqual([]);
     expect(res.totalCount).toBe(0);
   });
+
+  it("treats a 200 whose body is not JSON as a failure, not zero results", async () => {
+    globalThis.fetch = (async () =>
+      new Response("<html><body>blocked</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })) as unknown as typeof fetch;
+    await expect(cratesProvider.search("cli", 20)).rejects.toThrow(
+      "crates.io search failed: unparseable response",
+    );
+  });
 });

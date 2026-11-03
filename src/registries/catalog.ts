@@ -109,6 +109,11 @@ const REGISTRY_ALIASES: Record<string, RegistryId> = {
 };
 
 export function registryMeta(id: RegistryId): RegistryMeta {
+  // Own-property check, so a typed-but-wrong id ("constructor") can never
+  // return an Object.prototype member wearing RegistryMeta's type.
+  if (!Object.hasOwn(REGISTRIES, id)) {
+    throw new Error(`Unknown registry id: ${String(id)}`);
+  }
   return REGISTRIES[id];
 }
 

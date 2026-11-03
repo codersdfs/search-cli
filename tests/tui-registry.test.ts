@@ -64,7 +64,7 @@ describe("src/package-browser.ts registry awareness", () => {
 
   it("takes the registry from its caller", () => {
     expect(src).toMatch(
-      /export async function launchPackageBrowser\(\s*registry: RegistryId = "npm",?\s*\)/,
+      /export async function launchPackageBrowser\(\s*registry: RegistryId = "npm",\s*options: PackageBrowserOptions = \{\},?\s*\)/,
     );
     expect(src).toMatch(/createPackageSearch\(registry\)/);
   });
@@ -73,13 +73,49 @@ describe("src/package-browser.ts registry awareness", () => {
     expect(src).toMatch(/formatDownloads\(pack\)/);
     expect(src).not.toMatch(/score \$\{pack\.score\.toFixed\(2\)\}/);
   });
+
+  it("fetches at the caller's limit and renders in the caller's sort", () => {
+    // The browser used to hardcode 25 rows in registry order, so --limit and
+    // --sort were silently dropped whenever pkg went interactive.
+    expect(src).toMatch(/searchPackage\(q, limit\)/);
+    expect(src).toMatch(/sortPackages\(res\.packages, sort\)/);
+  });
+
+  it("marks an inexact total with + in the footer", () => {
+    expect(src).toMatch(/res\.totalIsExact === false \? "\+" : ""/);
+  });
 });
 
 describe("the CLI passes the flag through to the browser", () => {
   it("launches the browser with the resolved registry", () => {
     expect(readSource("src/cli.ts")).toMatch(
-      /launchPackageBrowser\(flags\.registry\)/,
+      /launchPackageBrowser\(flags\.registry,\s*\{\s*limit: flags\.limit,\s*sort: flags\.sort as PackageSortMode,\s*\},?\s*\)/,
     );
+  });
+
+  it("validates the sort once, for both pkg paths", () => {
+    const src = readSource("src/cli.ts");
+    // One helper owns the message, so the interactive and one-shot paths
+    // cannot drift apart.
+    expect(src).toMatch(
+      /function assertPkgSort\(registry: RegistryId, sort: string\)/,
+    );
+    expect(src.match(/assertPkgSort\(/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("src/tui.ts toolbar total honesty", () => {
+  const src = readSource("src/tui.ts");
+
+  it("renders an inexact package total as a bound", () => {
+    expect(src).toMatch(/totalExact\?: boolean/);
+    expect(src).toMatch(/totalExact === false \? "\+" : ""/);
+  });
+
+  it("keeps repo and trending totals exact", () => {
+    // Only the packages branch of setToolbar passes the flag.
+    expect(src).toMatch(/isPackages \? packageTotalIsExact : undefined/);
+    expect(src).toMatch(/packageTotalIsExact = result\.totalIsExact !== false/);
   });
 });
 

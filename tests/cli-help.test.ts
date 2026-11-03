@@ -91,4 +91,31 @@ describe("cli --help usage block", () => {
     }
     expect([...columns]).toEqual([DESCRIPTION_COLUMN]);
   });
+
+  test("the --sort row lists every strategy parseArgs accepts", () => {
+    // Help promised four of seven modes, so `--sort score` looked unsupported
+    // on the page that documents it. Keep the row and SORT_VALUES in sync.
+    const src = readCli();
+    const row = src
+      .split(/\r?\n/)
+      .find((line) => line.trimStart().startsWith("--sort <strategy>"));
+    expect(row, "no --sort row in the help block").toBeTruthy();
+    const listed = row!.match(/Sort: (.*)$/)?.[1].split("|") ?? [];
+    const acceptedBody = src.match(/const SORT_VALUES = \[([\s\S]*?)\];/)?.[1];
+    expect(acceptedBody, "SORT_VALUES not found").toBeTruthy();
+    const accepted = [...acceptedBody!.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(listed).toEqual(accepted);
+    // Widening the row must not knock its description out of column: it starts
+    // at the same column as --limit's and --since's.
+    const columnOf = (prefix: string): number => {
+      const line = src
+        .split(/\r?\n/)
+        .find((l) => l.trimStart().startsWith(prefix));
+      expect(line, `no help row for ${prefix}`).toBeTruthy();
+      const match = line!.match(/^( {2}\S+(?: <\S+>)?)( {2,})/) ?? [];
+      return (match[1]?.length ?? 0) + (match[2]?.length ?? 0);
+    };
+    expect(columnOf("--sort <strategy>")).toBe(columnOf("--limit <n>"));
+    expect(columnOf("--sort <strategy>")).toBe(columnOf("--since <period>"));
+  });
 });

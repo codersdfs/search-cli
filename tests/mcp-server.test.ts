@@ -782,7 +782,7 @@ describe("ghfind_package_search", () => {
     ]);
   });
 
-  it("defaults to npm and keeps ghfind_npm_packages working identically", async () => {
+  it("defaults to npm and keeps ghfind_npm_packages' name, schema and pinning", async () => {
     globalThis.fetch = (async () =>
       jsonResponse({
         total: 1,
@@ -804,8 +804,21 @@ describe("ghfind_package_search", () => {
       { query: "zod" },
       state,
     );
-    expect(modern.text).toBe(legacy.text);
+    // Not "identical": both npm-pinned tools share the one formatter, and that
+    // formatter now prints the relevance score, so npm rows gained ` · score`.
+    // The alias keeps its name, its schema and its npm pinning.
+    for (const out of [modern, legacy]) {
+      expect(out.text).toContain("zod@3.25.0");
+      expect(out.text).toContain("/mo");
+      expect(out.text).toContain(" · score ");
+    }
     expect((modern.data as Record<string, unknown>).registry).toBe("npm");
+    // The legacy payload shape is unchanged: the score lives in the rows, not
+    // in new envelope keys.
+    expect(Object.keys(legacy.data as Record<string, unknown>).sort()).toEqual([
+      "packages",
+      "totalCount",
+    ]);
   });
 
   it("queries crates.io and labels the download window", async () => {
@@ -851,6 +864,54 @@ describe("ghfind_package_search", () => {
     await expect(call).rejects.toThrow(McpToolError);
     // The agent must be told which registries exist.
     await expect(call).rejects.toThrow("npm|crates|rubygems|nuget|maven");
+  });
+
+  it("describes only what the schema actually accepts", async () => {
+    const state = freshState();
+    await init(state);
+    const res = await rpc("tools/list", undefined, state);
+    const tools = (res.result as Record<string, unknown>).tools as Array<
+      Record<string, unknown>
+    >;
+    const schema = tools.find((t) => t.name === "ghfind_package_search")!
+      .inputSchema as {
+      properties: Record<string, { description?: string }>;
+    };
+    // Aliases are a CLI convenience; promising them here would be a lie the
+    // enum does not support.
+    expect(schema.properties.registry.description).not.toMatch(/alias/i);
+    // The per-registry subset is enforced at call time, and the agent must know.
+    expect(schema.properties.sort.description).toMatch(/chosen registry/i);
+  });
+
+  it("threads RubyGems' inexact total into the tool data", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse(
+        Array.from({ length: 35 }, (_, i) => ({ name: `gem-${i}` })),
+      )) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "gem", registry: "rubygems" },
+      freshState(),
+    );
+    const data = out.data as Record<string, unknown>;
+    expect(data.totalCount).toBe(20); // the tool's default limit
+    expect(data.totalIsExact).toBe(false);
+  });
+
+  it("reports npm's total as exact", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "zod", registry: "npm" },
+      freshState(),
+    );
+    const data = out.data as Record<string, unknown>;
+    expect(data.totalIsExact).toBe(true);
   });
 
   it("rejects a sort the chosen registry cannot do", async () => {

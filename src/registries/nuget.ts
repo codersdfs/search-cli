@@ -8,6 +8,7 @@
  */
 import type { Package } from "../types";
 import { clampRegistryLimit } from "./catalog";
+import { readJson } from "./parse";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -64,7 +65,7 @@ async function searchNuget(
   if (!res.ok) {
     throw new Error(`NuGet search failed: HTTP ${res.status}`);
   }
-  const data = (await res.json().catch(() => null)) as {
+  const data = (await readJson(res, "NuGet")) as {
     totalHits?: number;
     data?: RawNugetPackage[];
   } | null;

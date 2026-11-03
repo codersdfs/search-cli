@@ -14,7 +14,13 @@ import {
 import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
-import { createPackageSearch, formatDownloads, formatScore } from "./package";
+import {
+  createPackageSearch,
+  formatDownloads,
+  formatScore,
+  sortPackages,
+  type PackageSortMode,
+} from "./package";
 import { registryMeta, type RegistryId } from "./registries/catalog";
 import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 const C = {
@@ -59,9 +65,20 @@ function formatPackageLine(pack: Package): StyledText {
   return new StyledText(chunks);
 }
 // ─── Main TUI entry ───────────────────────────────────────────────────
+/** Flags the CLI already validated; the browser has no sort-cycle UI. */
+export interface PackageBrowserOptions {
+  /** Rows to fetch per search (the registry clamps it to its own ceiling). */
+  limit?: number;
+  /** Order to render the fetched rows in. Defaults to registry order. */
+  sort?: PackageSortMode;
+}
+
 export async function launchPackageBrowser(
   registry: RegistryId = "npm",
+  options: PackageBrowserOptions = {},
 ): Promise<void> {
+  const limit = options.limit ?? 25;
+  const sort = options.sort ?? "best-match";
   // Match the app backdrop to the terminal's own background (OSC 11), before
   // the renderer takes over stdin. Falls back to the local palette default.
   // Surface and border layers are blended toward that background as well.
@@ -224,12 +241,15 @@ export async function launchPackageBrowser(
     renderer.requestRender();
     try {
       const searcher = createPackageSearch(registry);
-      const res = await searcher.searchPackage(q, 25);
-      packages = res.packages;
+      const res = await searcher.searchPackage(q, limit);
+      packages = sortPackages(res.packages, sort);
       selectedIdx = 0;
       rebuildList();
+      // A bound is not a total: when the registry never reported one, the "+"
+      // tells the reader the number is a ceiling, not a count.
+      const total = `${fmtCount(res.totalCount)}${res.totalIsExact === false ? "+" : ""}`;
       setStatus({
-        content: t`${fg(C.muted)(`  ${packages.length} of ${fmtCount(res.totalCount)} results for `)}${fg(C.cyan)(`"${q}"`)}`,
+        content: t`${fg(C.muted)(`  ${packages.length} of ${total} results for `)}${fg(C.cyan)(`"${q}"`)}`,
       });
     } catch (err) {
       packages = [];

@@ -176,6 +176,22 @@ const SORT_VALUES = [
 /** Valid `--since` values — the periods github.com/trending accepts. */
 const SINCE_VALUES: readonly string[] = ["daily", "weekly", "monthly"];
 
+/**
+ * Exit 1 unless `sort` is one the registry can honestly provide. Both `pkg`
+ * paths — the one-shot search and the interactive browser — call this, so the
+ * message they print cannot drift and the browser can never be launched with a
+ * sort its registry does not support.
+ */
+function assertPkgSort(registry: RegistryId, sort: string): void {
+  const allowed = sortableModesFor(registry);
+  if (!allowed.includes(sort as PackageSortMode)) {
+    console.error(
+      `Invalid sort for ${registry}: "${sort}" (use ${allowed.join("|")}).`,
+    );
+    process.exit(1);
+  }
+}
+
 function parseArgs(args: string[]): CLIFlags {
   const flags: CLIFlags = {
     query: "",
@@ -214,6 +230,9 @@ function parseArgs(args: string[]): CLIFlags {
   };
 
   const queryParts: string[] = [];
+  // `--registry` is only meaningful for `pkg`, but `pkg` is not discovered until
+  // after this loop (it arrives as a bare word), so the scope check is deferred.
+  let registryExplicit = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
@@ -357,6 +376,7 @@ function parseArgs(args: string[]): CLIFlags {
           process.exit(1);
         }
         flags.registry = resolved;
+        registryExplicit = true;
         break;
       }
       case "--theme":
@@ -508,6 +528,13 @@ function parseArgs(args: string[]): CLIFlags {
     flags.pkg = true;
     queryParts.shift();
   }
+  // The scope check can only run here: `pkg` is a bare word, so it is not known
+  // until the loop has finished. Without it, `ghfind rust --registry crates`
+  // silently searched GitHub and ignored the registry the user named.
+  if (registryExplicit && !flags.pkg) {
+    console.error("--registry applies only to ghfind pkg.");
+    process.exit(1);
+  }
   flags.query = queryParts.join(" ");
   return flags;
 }
@@ -572,7 +599,7 @@ Usage:
 Options:
   --json, --csv, --markdown, --count   Output format
   --limit <n>                          Max results (default: 50)
-  --sort <strategy>                    Sort: best-match|stars|updated|forks
+  --sort <strategy>                    Sort: best-match|stars|updated|forks|score|downloads|name
   --theme <name>                     Theme: tokyo-night|premium-dark (default: tokyo-night)
   --trending                           Trending mode
   --language <lang>                    Trending language filter (e.g. rust)
@@ -672,8 +699,11 @@ Options:
     await runClone(flags);
     return;
   }
-  // Package search (prototype, ticket 002-008)
+  // Package search (`ghfind pkg <query>`, registry chosen with --registry)
   if (flags.pkg) {
+    // Validated before anything branches, so the interactive browser cannot
+    // open on a sort its registry cannot honour and silently ignore --limit.
+    assertPkgSort(flags.registry, flags.sort);
     const interactive =
       !flags.query &&
       !flags.json &&
@@ -682,7 +712,10 @@ Options:
       !flags.count &&
       !flags.format;
     if (interactive) {
-      await launchPackageBrowser(flags.registry);
+      await launchPackageBrowser(flags.registry, {
+        limit: flags.limit,
+        sort: flags.sort as PackageSortMode,
+      });
     } else {
       await runPackageSearch(flags);
     }
@@ -1188,14 +1221,8 @@ async function runClone(flags: CLIFlags): Promise<void> {
 /** `ghfind pkg "<query>"` — registry package search. Pass-through query to the registry. */
 async function runPackageSearch(flags: CLIFlags): Promise<void> {
   const registry = flags.registry;
-  const allowedSorts = sortableModesFor(registry);
   const pkgSort = flags.sort as PackageSortMode;
-  if (!allowedSorts.includes(pkgSort)) {
-    console.error(
-      `Invalid sort for ${registry}: "${flags.sort}" (use ${allowedSorts.join("|")}).`,
-    );
-    process.exit(1);
-  }
+  assertPkgSort(registry, pkgSort);
   const search = createPackageSearch(registry);
   const query = flags.query.trim();
   if (!query) {
@@ -1205,13 +1232,15 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
     process.exit(1);
   }
   try {
-    const { totalCount, packages } = await search.searchPackage(
+    const { totalCount, packages, totalIsExact } = await search.searchPackage(
       query,
       flags.limit,
     );
     const sorted = sortPackages(packages, pkgSort);
     if (flags.count) {
-      console.log(totalCount);
+      // A bound is not a total: RubyGems caps at 30 rows and reports nothing,
+      // so the "+" says what the number means.
+      console.log(totalIsExact === false ? `${totalCount}+` : totalCount);
     } else if (flags.json) {
       console.log(formatPackagesJson(sorted));
     } else if (flags.csv) {

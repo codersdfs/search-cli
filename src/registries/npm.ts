@@ -7,6 +7,7 @@
  */
 import type { Package } from "../types";
 import { clampRegistryLimit } from "./catalog";
+import { readJson } from "./parse";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -66,7 +67,7 @@ export async function searchNpm(
   if (!res.ok) {
     throw new Error(`npm search failed: HTTP ${res.status}`);
   }
-  const data = (await res.json()) as {
+  const data = (await readJson(res, "npm")) as {
     objects?: NpmSearchObject[];
     total?: number;
   };

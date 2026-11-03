@@ -10,6 +10,7 @@
  */
 import type { Package } from "../types";
 import { clampRegistryLimit } from "./catalog";
+import { readJson } from "./parse";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -65,7 +66,7 @@ async function searchMaven(
   if (!res.ok) {
     throw new Error(`Maven Central search failed: HTTP ${res.status}`);
   }
-  const data = (await res.json().catch(() => null)) as {
+  const data = (await readJson(res, "Maven Central")) as {
     response?: { numFound?: number; docs?: RawMavenDoc[] };
   } | null;
   const packages = (data?.response?.docs ?? []).map(normalizeMavenDoc);
