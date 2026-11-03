@@ -6,6 +6,7 @@ coverage
 .pi
 .pi-subagents
 .issues
+.wayfinder
 bun.lock
 package-lock.json
 *.svg
