@@ -213,3 +213,43 @@ describe("clone usage guards", () => {
     expect(out).toContain("--ssh");
   });
 });
+
+describe("release workflow dispatch", () => {
+  // Every case below fails before any dispatch is attempted, so it stays offline.
+
+  test("bare `release` prints usage and exits 1", () => {
+    const { code, err } = runCli("release");
+    expect(code).toBe(1);
+    expect(err).toContain("Usage: ghfind release run --tag");
+  });
+
+  test("`release run` without --tag is a usage error", () => {
+    const { code, err } = runCli("release", "run");
+    expect(code).toBe(1);
+    expect(err).toContain("Missing --tag");
+  });
+
+  test("an invalid --tag is rejected before any dispatch", () => {
+    const { code, err } = runCli("release", "run", "--tag", "not-a-tag");
+    expect(code).toBe(1);
+    expect(err).toContain("Invalid tag");
+  });
+
+  test("`release run --tag v9.12.0 --dry-run` succeeds offline", () => {
+    const { code, out } = runCli(
+      "release",
+      "run",
+      "--tag",
+      "v9.12.0",
+      "--dry-run",
+    );
+    expect(code).toBe(0);
+    expect(out).toContain("Dry run");
+  });
+
+  test("`release` is documented in --help", () => {
+    const { out } = runCli("--help");
+    expect(out).toContain("ghfind release run --tag");
+    expect(out).toContain("--dry-run");
+  });
+});

@@ -68,6 +68,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./tui";
 import { cloneRepo, GIT_MISSING_MESSAGE, type CloneResult } from "./clone";
+import { isReleaseTag, runReleaseWorkflow } from "./release-cmd";
 import { getVersion } from "./version";
 import { runMcpServer } from "./mcp-server";
 import {
@@ -140,6 +141,9 @@ interface CLIFlags {
   clone?: string; // clone a repo to disk (ghfind clone <owner/repo>)
   cloneDir?: string; // --dir <path> for clone (the repo gets a <name> subdir)
   cloneSsh: boolean; // --ssh for clone (git@github.com form instead of HTTPS)
+  release?: string; // release workflow dispatch (ghfind release run --tag <v>)
+  releaseTag?: string; // --tag <v> for the release workflow dispatch
+  releaseDryRun?: boolean; // --dry-run for the release workflow dispatch
   skillSearch?: string; // skill search query (ghfind skill search <query>)
   sharedAs?: string; // --as <format> for share
   remote: boolean; // skill search: hit skills.sh instead of this machine
@@ -370,6 +374,12 @@ function parseArgs(args: string[]): CLIFlags {
       case "--as":
         flags.sharedAs = args[++i];
         break;
+      case "--tag":
+        flags.releaseTag = args[++i];
+        break;
+      case "--dry-run":
+        flags.releaseDryRun = true;
+        break;
       case "mcp":
         flags.mcp = true;
         break;
@@ -415,6 +425,17 @@ function parseArgs(args: string[]): CLIFlags {
           i++;
         } else {
           flags.clone = "";
+        }
+        break;
+      }
+      case "release": {
+        // `release run --tag vX.Y.Z` — subcommand form; a following flag means none was given.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.release = next;
+          i++;
+        } else {
+          flags.release = "";
         }
         break;
       }
@@ -537,6 +558,7 @@ Usage:
   ghfind saved                     Named searches saved in the TUI
   ghfind readme <owner/repo>       Print a repository README
   ghfind clone <owner/repo>        Clone a repo to disk (HTTPS; --ssh = git@github.com)
+  ghfind release run --tag <tag>   Dispatch the Release workflow
   ghfind share a/b --as gh-cli     Share snippet (--copy to clipboard)
   ghfind skill search <query>      Find skills locally, or --remote
   ghfind --watch <query>           Watch mode (poll every Ns)
@@ -570,6 +592,8 @@ Options:
   --raw                                readme: print the raw markdown with no header
   --dir <path>                         clone: directory to clone into (default: cwd)
   --ssh                                clone: clone over SSH (git@github.com)
+  --tag <v>                            Release workflow tag to dispatch (vX.Y.Z)
+  --dry-run                            Print the release dispatch without sending it
 `);
     return;
   }
@@ -648,6 +672,11 @@ Options:
   // Clone a repo to disk (parity with the TUI's Repo → Clone action)
   if (flags.clone !== undefined) {
     await runClone(flags);
+    return;
+  }
+  // Release workflow dispatch (ghfind release run --tag <v> [--dry-run])
+  if (flags.release !== undefined) {
+    await runRelease(flags);
     return;
   }
   // Package search (prototype, ticket 002-008)
@@ -1161,6 +1190,44 @@ async function runClone(flags: CLIFlags): Promise<void> {
     console.error(`Cloned to ${result.dir}`);
   }
   process.exit(result.code ?? 1);
+}
+
+/**
+ * `ghfind release run --tag <v> [--dry-run]` — dispatch the Release workflow
+ * (CI gate -> binaries -> GitHub Release -> npm publish). Mirrors
+ * `gh workflow run release --ref <v>` for the maintainer who would rather type a
+ * command than open the Actions tab.
+ */
+async function runRelease(flags: CLIFlags): Promise<void> {
+  const usage = "Usage: ghfind release run --tag <v> [--dry-run]";
+  const sub = flags.release ?? "";
+  if (sub !== "run") {
+    console.error(sub ? `Unknown release subcommand: ${sub}\n${usage}` : usage);
+    process.exit(1);
+  }
+  const tag = flags.releaseTag ?? "";
+  if (!tag) {
+    console.error(`Missing --tag <v>. ${usage}`);
+    process.exit(1);
+  }
+  if (!isReleaseTag(tag)) {
+    console.error(`Invalid tag: "${tag}" (use vX.Y.Z, e.g. v9.12.0).`);
+    process.exit(1);
+  }
+  if (flags.releaseDryRun) {
+    console.log(
+      `Dry run — would dispatch workflow "Release" on codersdfs/search-cli at ${tag}.`,
+    );
+    return;
+  }
+  const result = await runReleaseWorkflow({ tag, token: flags.token });
+  if (!result.ok) {
+    console.error(`Release workflow dispatch failed: ${result.error}`);
+    process.exit(1);
+  }
+  console.log(
+    `Dispatched Release workflow on codersdfs/search-cli at ${tag}${result.runUrl ? ` → ${result.runUrl}` : "."}`,
+  );
 }
 
 /** `ghfind pkg "<query>"` — npm package search. Pass-through query to the registry. */

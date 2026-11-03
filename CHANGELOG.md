@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`ghfind release run --tag <v>`** — dispatch the GitHub Actions Release
+  workflow from the CLI, the way `gh workflow run release --ref <v>` does. After
+  the tag exists, the command kicks the Release workflow that re-runs the CI
+  gate, builds the standalone binaries, attaches them to the GitHub Release and
+  publishes to npm; `--dry-run` prints the dispatch without calling the API.
+
 ## [9.11.0] — 2026-10-14 (released)
 
 ### Added

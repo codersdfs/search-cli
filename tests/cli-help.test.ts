@@ -45,6 +45,7 @@ describe("cli --help usage block", () => {
       "ghfind readme",
       "ghfind share",
       "ghfind skill search",
+      "ghfind release run --tag <tag>",
     ]) {
       expect(rows, `missing usage row for: ${invocation}`).toContain(
         invocation,

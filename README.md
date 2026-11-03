@@ -88,6 +88,7 @@ ghfind "query" --format urls # one URL per line
 ghfind "query" --pipe open   # open in browser
 ghfind "query" --pipe clone  # clone commands
 ghfind clone facebook/react # clone the repo into ./react (--dir, --ssh)
+ghfind release run --tag v9.12.0 --dry-run # dispatch the Release workflow (tag must exist)
 ghfind --trending --json     # trending as JSON
 ghfind trending rust --json  # trending, filtered by language
 ghfind --watch "query"       # poll every 300s
