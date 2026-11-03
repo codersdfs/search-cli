@@ -11,7 +11,7 @@ _ghfind() {
 
   case "${prev}" in
     --sort)
-      COMPREPLY=( $(compgen -W "best-match stars updated forks" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "best-match stars updated forks score downloads name" -- "${cur}") )
       return 0
       ;;
     --since)
@@ -35,7 +35,7 @@ _ghfind() {
       return 0
       ;;
     --registry)
-      COMPREPLY=( $(compgen -W "npm" -- "${cur}") )
+      COMPREPLY=( $(compgen -W "npm crates rubygems nuget maven" -- "${cur}") )
       return 0
       ;;
     --language)

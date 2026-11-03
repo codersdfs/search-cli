@@ -71,12 +71,13 @@ export function buildHelpSections(): HelpSection[] {
       title: " Packages Mode ",
       titleColor: "cyan",
       rows: [
-        { keys: "/", action: "Search npm packages" },
+        { keys: "/", action: "Search packages" },
+        { keys: "p", action: "Cycle package registry" },
         { keys: "↑ ↓ / j k", action: "Move selection" },
         { keys: "Enter", action: "View package details" },
         { keys: "Esc", action: "Open command menu" },
       ],
-      note: "Search by name, description, or tags. Sort by downloads or score.",
+      note: "Registries: npm, crates.io, RubyGems, NuGet, Maven Central.",
     },
     {
       title: " Command Menu (Esc)",
@@ -92,7 +93,7 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Bookmark", action: "Save / unsave selected repo" },
         { keys: "Compare", action: "Add to / remove from comparison" },
         { keys: "Trending", action: "Switch to trending browser" },
-        { keys: "Packages", action: "Switch to npm packages" },
+        { keys: "Packages", action: "Switch to package registries" },
         { keys: "Export", action: "Export results to file" },
         { keys: "Share", action: "Share repo as text" },
         {

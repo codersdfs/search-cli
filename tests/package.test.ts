@@ -1,10 +1,11 @@
 // Tests for package search normalize + sort semantics
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
-  normalizeNpmObject,
+  createPackageSearch,
   sortPackages,
   type PackageSortMode,
-} from "../src/package";
+} from "../src/package.ts";
+import { normalizeNpmObject } from "../src/registries/npm.ts";
 import type { Package } from "../src/types";
 
 function pkg(partial: Partial<Package> & { name: string }): Package {
@@ -126,5 +127,86 @@ describe("normalizeNpmObject", () => {
     expect(out.url).toBe("https://www.npmjs.com/package/ghfind");
     expect(out.description).toBeNull();
     expect(out.downloads).toBe(0);
+  });
+});
+
+describe("createPackageSearch facade", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  /**
+   * Stub the registry and hand back a reader for the URL it was called with.
+   * The stub must be installed BEFORE createPackageSearch() runs: the facade's
+   * `fetchImpl` default binds at factory-call time, so a later swap would be
+   * invisible to the provider it just captured.
+   */
+  function stubNpmSearch(body: unknown): () => string {
+    let seenUrl = "";
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    return () => seenUrl;
+  }
+
+  const ZOD_ROW = {
+    package: {
+      name: "zod",
+      version: "3.25.0",
+      description: "TypeScript-first schema validation",
+      links: { npm: "https://www.npmjs.com/package/zod" },
+      publisher: { username: "colinhacks" },
+    },
+    downloads: { monthly: 1234567 },
+    score: { final: 2396 },
+  };
+
+  it("routes searchPackage to the npm provider with the requested size", async () => {
+    const seenUrl = stubNpmSearch({ total: 1, objects: [ZOD_ROW] });
+    const search = createPackageSearch();
+    const res = await search.searchPackage("zod", 20);
+    expect(seenUrl()).toContain("/-/v1/search");
+    expect(seenUrl()).toContain("text=zod");
+    expect(seenUrl()).toContain("size=20");
+    expect(res.packages).toHaveLength(1);
+    expect(res.packages[0]).toMatchObject({ name: "zod", registry: "npm" });
+  });
+
+  it("returns the registry total through the facade", async () => {
+    stubNpmSearch({ total: 447322, objects: [ZOD_ROW] });
+    const search = createPackageSearch();
+    const res = await search.searchPackage("cli", 50);
+    expect(res.totalCount).toBe(447322);
+  });
+
+  it("passes the injected fetchImpl through to searchNpm", async () => {
+    // The seam that kills "facade drops fetchImpl": the injected stub must be
+    // the one that gets called. globalThis.fetch is a tripwire, not a fallback,
+    // so a dropped argument fails this test offline instead of quietly issuing
+    // a live npm request through the provider's own default parameter.
+    let seenUrl = "";
+    const stub = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify({ total: 1, objects: [ZOD_ROW] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    globalThis.fetch = (async () => {
+      throw new Error(
+        "searchNpm reached for globalThis.fetch instead of the injected fetchImpl",
+      );
+    }) as unknown as typeof fetch;
+    const search = createPackageSearch("npm", stub);
+    const res = await search.searchPackage("zod", 20);
+    expect(seenUrl).toContain("/-/v1/search");
+    expect(seenUrl).toContain("text=zod");
+    expect(res.packages).toHaveLength(1);
+    expect(res.packages[0]).toMatchObject({ name: "zod", registry: "npm" });
   });
 });

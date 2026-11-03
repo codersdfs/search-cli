@@ -253,3 +253,113 @@ describe("release workflow dispatch", () => {
     expect(out).toContain("--dry-run");
   });
 });
+
+describe("--registry", () => {
+  test("rejects an unknown registry before touching the network", () => {
+    const { code, err } = runCli(
+      "pkg",
+      "express",
+      "--registry",
+      "pypi",
+      "--json",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain('Unknown registry: "pypi"');
+    expect(err).toContain("npm|crates|rubygems|nuget|maven");
+    expect(err).not.toContain("search failed");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("a missing value is reported as a missing value", () => {
+    const { code, err } = runCli("pkg", "express", "--registry", "--json");
+    expect(code).toBe(1);
+    expect(err).toContain("Missing value for --registry");
+  });
+
+  test("accepts each canonical id", () => {
+    for (const id of ["npm", "crates", "rubygems", "nuget", "maven"]) {
+      // --help short-circuits before any search, so this proves acceptance
+      // without a network round trip.
+      const { code, err } = runCli("pkg", "cli", "--registry", id, "--help");
+      expect(code, `--registry ${id} rejected: ${err}`).toBe(0);
+    }
+  });
+
+  test("accepts the crates.io spelling", () => {
+    const { code } = runCli("pkg", "cli", "--registry", "crates.io", "--help");
+    expect(code).toBe(0);
+  });
+
+  test("rejects a sort the chosen registry cannot do, naming its modes", () => {
+    const { code, err } = runCli(
+      "pkg",
+      "json",
+      "--registry",
+      "maven",
+      "--sort",
+      "downloads",
+      "--count",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain("Invalid sort for maven");
+    expect(err).toContain("best-match|name");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("the flag row in --help names the real registries", () => {
+    const { out } = runCli("--help");
+    expect(out).toContain(
+      "Registry for pkg: npm (default)|crates|rubygems|nuget|maven",
+    );
+    expect(out).not.toContain("others TBD");
+  });
+
+  test("--registry on a non-pkg search is rejected, not silently ignored", () => {
+    // `ghfind rust --registry crates` used to exit 0 with GitHub repos: the
+    // registry was validated, then thrown away.
+    for (const args of [
+      ["rust", "--registry", "crates", "--count"],
+      ["--registry", "nuget", "--json", "serilog"],
+    ]) {
+      const { code, err } = runCli(...args);
+      expect(code, `expected fail for ${args.join(" ")}`).toBe(1);
+      expect(err).toContain("--registry applies only to ghfind pkg.");
+    }
+  });
+
+  test("the interactive pkg path validates --sort before opening the browser", () => {
+    // No output flag, so this is the interactive branch: it must fail rather
+    // than launch a browser that ignores the sort (and stays offline).
+    const { code, err } = runCli(
+      "pkg",
+      "--registry",
+      "maven",
+      "--sort",
+      "downloads",
+    );
+    expect(code).toBe(1);
+    expect(err).toContain("Invalid sort for maven");
+    expect(err).toContain("best-match|name");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("a bound count is printed with its +", () => {
+    // RubyGems publishes no total, so its --count must not present 30 as the
+    // number of matching gems. The live `30+` needs the network, so this guards
+    // the renderer's shape; the real output is in the fix report.
+    const src = readSrc("src/cli.ts");
+    expect(src).toMatch(/totalIsExact === false \? `\$\{totalCount\}\+`/);
+  });
+
+  test("completions advertise every id", () => {
+    expect(readSrc("completions/ghfind.bash")).toContain(
+      'compgen -W "npm crates rubygems nuget maven"',
+    );
+    expect(readSrc("completions/ghfind.zsh")).toContain(
+      "'--registry[Registry for pkg]:(npm crates rubygems nuget maven)'",
+    );
+    expect(readSrc("completions/ghfind.fish")).toContain(
+      '-a "npm crates rubygems nuget maven"',
+    );
+  });
+});

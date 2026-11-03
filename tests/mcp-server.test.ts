@@ -172,6 +172,7 @@ describe("protocol", () => {
     expect(names).toContain("ghfind_search_repos");
     expect(names).toContain("ghfind_trending");
     expect(names).toContain("ghfind_npm_packages");
+    expect(names).toContain("ghfind_package_search");
     expect(names).toContain("ghfind_org_profile");
     expect(names).toContain("ghfind_user_profile");
     expect(names).toContain("ghfind_compare_repos");
@@ -734,5 +735,209 @@ describe("toolSummaries", () => {
         "title",
       ]);
     }
+  });
+});
+
+describe("ghfind_package_search", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "ghfind-mcp-"));
+    process.env.XDG_STATE_HOME = tmp;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  const NPM_ROW = {
+    package: {
+      name: "zod",
+      version: "3.25.0",
+      description: "TypeScript schema validation",
+      links: { npm: "https://www.npmjs.com/package/zod" },
+      publisher: { username: "colinhacks" },
+    },
+    downloads: { monthly: 4000000 },
+    score: { final: 2396.5 },
+  };
+
+  it("is listed with a registry enum covering the five ids", async () => {
+    const state = freshState();
+    await init(state);
+    const res = await rpc("tools/list", undefined, state);
+    const tools = (res.result as Record<string, unknown>).tools as Array<
+      Record<string, unknown>
+    >;
+    const tool = tools.find((t) => t.name === "ghfind_package_search");
+    expect(tool, "ghfind_package_search missing from tools/list").toBeTruthy();
+    const schema = tool?.inputSchema as {
+      properties: Record<string, { enum?: string[] }>;
+    };
+    expect(schema.properties.registry.enum).toEqual([
+      "npm",
+      "crates",
+      "rubygems",
+      "nuget",
+      "maven",
+    ]);
+  });
+
+  it("defaults to npm and keeps ghfind_npm_packages' name, schema and pinning", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const state = freshState();
+    const legacy = await callTool(
+      "ghfind_npm_packages",
+      { query: "zod" },
+      state,
+    );
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const modern = await callTool(
+      "ghfind_package_search",
+      { query: "zod" },
+      state,
+    );
+    // Not "identical": both npm-pinned tools share the one formatter, and that
+    // formatter now prints the relevance score, so npm rows gained ` · score`.
+    // The alias keeps its name, its schema and its npm pinning.
+    for (const out of [modern, legacy]) {
+      expect(out.text).toContain("zod@3.25.0");
+      expect(out.text).toContain("/mo");
+      expect(out.text).toContain(" · score ");
+    }
+    expect((modern.data as Record<string, unknown>).registry).toBe("npm");
+    // The legacy payload shape is unchanged: the score lives in the rows, not
+    // in new envelope keys.
+    expect(Object.keys(legacy.data as Record<string, unknown>).sort()).toEqual([
+      "packages",
+      "totalCount",
+    ]);
+  });
+
+  it("queries crates.io and labels the download window", async () => {
+    let seenUrl = "";
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      seenUrl = String(url);
+      return jsonResponse({
+        crates: [
+          {
+            name: "clap",
+            max_stable_version: "4.5.4",
+            description: "A command line argument parser",
+            recent_downloads: 8200000,
+          },
+        ],
+        meta: { total: 65530 },
+      });
+    }) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "cli", registry: "crates" },
+      freshState(),
+    );
+    expect(seenUrl).toContain("crates.io/api/v1/crates");
+    expect(out.text).toContain("clap@4.5.4");
+    expect(out.text).toContain("/90d");
+    // No relevance score exists on crates.io, so none is invented.
+    expect(out.text).not.toMatch(/score \d/);
+    const data = out.data as Record<string, unknown>;
+    expect(data.registry).toBe("crates");
+    expect(data.downloadsWindow).toBe("quarterly");
+    expect((data.packages as Array<Record<string, unknown>>)[0].registry).toBe(
+      "crates",
+    );
+  });
+
+  it("rejects an unknown registry with a tool error, not a crash", async () => {
+    const call = callTool(
+      "ghfind_package_search",
+      { query: "x", registry: "pypi" },
+      freshState(),
+    );
+    await expect(call).rejects.toThrow(McpToolError);
+    // The agent must be told which registries exist.
+    await expect(call).rejects.toThrow("npm|crates|rubygems|nuget|maven");
+  });
+
+  it("describes only what the schema actually accepts", async () => {
+    const state = freshState();
+    await init(state);
+    const res = await rpc("tools/list", undefined, state);
+    const tools = (res.result as Record<string, unknown>).tools as Array<
+      Record<string, unknown>
+    >;
+    const schema = tools.find((t) => t.name === "ghfind_package_search")!
+      .inputSchema as {
+      properties: Record<string, { description?: string }>;
+    };
+    // Aliases are a CLI convenience; promising them here would be a lie the
+    // enum does not support.
+    expect(schema.properties.registry.description).not.toMatch(/alias/i);
+    // The per-registry subset is enforced at call time, and the agent must know.
+    expect(schema.properties.sort.description).toMatch(/chosen registry/i);
+  });
+
+  it("threads RubyGems' inexact total into the tool data", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse(
+        Array.from({ length: 35 }, (_, i) => ({ name: `gem-${i}` })),
+      )) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "gem", registry: "rubygems" },
+      freshState(),
+    );
+    const data = out.data as Record<string, unknown>;
+    expect(data.totalCount).toBe(20); // the tool's default limit
+    expect(data.totalIsExact).toBe(false);
+  });
+
+  it("reports npm's total as exact", async () => {
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "zod", registry: "npm" },
+      freshState(),
+    );
+    const data = out.data as Record<string, unknown>;
+    expect(data.totalIsExact).toBe(true);
+  });
+
+  it("rejects a sort the chosen registry cannot do", async () => {
+    const call = callTool(
+      "ghfind_package_search",
+      { query: "x", registry: "maven", sort: "downloads" },
+      freshState(),
+    );
+    await expect(call).rejects.toThrow(McpToolError);
+    // Maven Central has no download data, so only these modes are honest.
+    await expect(call).rejects.toThrow("best-match|name");
+  });
+
+  it("treats a null sort as unset, like a missing sort", async () => {
+    // Agent clients send null for "not set"; it must not become the string
+    // "null" and fail the per-registry sort validation.
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        total: 1,
+        objects: [NPM_ROW],
+      })) as unknown as typeof fetch;
+    const out = await callTool(
+      "ghfind_package_search",
+      { query: "zod", registry: "npm", sort: null },
+      freshState(),
+    );
+    expect(out.text).toContain("zod");
   });
 });

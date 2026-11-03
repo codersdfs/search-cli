@@ -1,5 +1,7 @@
 /** Core domain types shared across the CLI. */
 
+import type { RegistryId } from "./registries/catalog";
+
 /** A single parsed search qualifier (e.g. `language:Rust`). */
 export interface Qualifier {
   /** The qualifier key, e.g. "language", "stars", "topic". */
@@ -58,12 +60,16 @@ export interface Package {
   name: string;
   version: string;
   description: string | null;
-  url: string; // registry page (npm)
-  downloads: number; // monthly downloads (npm)
-  score: number; // registry relevance (npm score.final)
+  url: string; // registry page
+  /** Downloads over the window this registry publishes — see src/registries/catalog.ts. */
+  downloads: number;
+  /** npm's relevance score; 0 where the registry publishes none. */
+  score: number;
   publisher: string | null;
   keywords: string[];
-  registry: "npm"; // registry this package came from (npm-only for MVP)
+  /** The registry the row came from. Its download window and score availability
+   *  live in src/registries/catalog.ts, keyed on this id. */
+  registry: RegistryId;
 }
 
 /** Ranking strategies supported by the ranking layer. */
@@ -140,6 +146,8 @@ export interface SessionState {
   limit: number;
   /** Active trending tab (restored when mode is "trending"). */
   trendingTab?: string;
+  /** Active package registry (restored when mode is "packages"). */
+  registry?: RegistryId;
   theme?: string;
 }
 

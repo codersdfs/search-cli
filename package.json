@@ -1,7 +1,7 @@
 {
   "name": "github-search-cli",
   "version": "9.11.0",
-  "description": "Search GitHub from your terminal — repo search, trending repos, npm package search, bookmarks, deep-dive, compare, export. Keyboard + mouse TUI + pipeable CLI.",
+  "description": "Search GitHub from your terminal — repo search, trending repos, package registry search (npm, crates.io, RubyGems, NuGet, Maven Central), bookmarks, deep-dive, compare, export. Keyboard + mouse TUI + pipeable CLI.",
   "type": "module",
   "packageManager": "bun@1",
   "volta": {
@@ -21,7 +21,8 @@
     "src/",
     "scripts/",
     "completions/",
-    "docs/",
+    "docs/*.md",
+    "!docs/superpowers",
     "demo.svg",
     "LICENSE",
     "CHANGELOG.md",

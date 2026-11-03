@@ -15,6 +15,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
   the tag exists, the command kicks the Release workflow that re-runs the CI
   gate, builds the standalone binaries, attaches them to the GitHub Release and
   publishes to npm; `--dry-run` prints the dispatch without calling the API.
+- **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven`
+  selects which one, npm stays the default, and each registry's query is passed
+  through to its own native search untouched.
+  Downloads are labelled with the window each registry actually publishes
+  (`1,234,567/mo` on npm, `/90d` on crates.io, `total` on RubyGems and NuGet,
+  `n/a` on Maven Central, which has no download data), `--sort` is validated
+  against the chosen registry, and the TUI cycles registries with `p` or
+  `Esc` → Search → Registry. Agents get `ghfind_package_search` over MCP;
+  `ghfind_npm_packages` keeps its name, schema and npm pinning; its result lines
+  gained the score field.
+
+### Fixed
+
+- **`--registry` only means something to `ghfind pkg`, and now says so.**
+  `ghfind rust --registry crates` exited 0 with GitHub repositories: the registry
+  was validated, then discarded. It is rejected with
+  `--registry applies only to ghfind pkg.`
+- **`ghfind pkg` validates `--sort` on every path.** Going interactive
+  (`ghfind pkg --registry maven --sort downloads`, no output flag) skipped the
+  check and opened the browser anyway, and the browser then ignored `--limit`
+  and `--sort` too. The validated flags now reach the browser's searches.
+- **A registry answer ghfind cannot parse is an error, not zero results.** A 200
+  whose body is HTML (captive portal, CDN error page) was read as "no matches"
+  by npm, crates.io, RubyGems, NuGet and Maven Central. It now fails with
+  `<registry> search failed: unparseable response`.
+- **RubyGems counts are labelled as bounds.** The API publishes no total, so its
+  30-row ceiling was printed as if it were the number of matching gems:
+  `ghfind pkg rails --registry rubygems --count` prints `30+`, and the packages
+  toolbar and browser footer say the same.
+- **`--help` lists every sort `--sort` accepts.** The row named four strategies
+  while the parser took seven (`score`, `downloads`, `name` were undocumented).
+- **A mistyped registry id can no longer resolve to an `Object.prototype`
+  member.** `registryMeta("constructor")` returned the `constructor` function
+  wearing `RegistryMeta`'s type; the catalog's lookup tables are now
+  own-property tables and refuse the id.
 
 ## [9.11.0] — 2026-10-14 (released)
 

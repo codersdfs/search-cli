@@ -105,9 +105,16 @@ import {
 import {
   createPackageSearch,
   sortPackages,
-  PACKAGE_SORT_MODES,
+  formatDownloads,
+  formatScore,
   type PackageSortMode,
 } from "./package";
+import {
+  REGISTRY_IDS,
+  registryMeta,
+  sortableModesFor,
+  type RegistryId,
+} from "./registries/catalog";
 import { type StatusManager, createStatusManager } from "./status";
 import {
   getNotifications,
@@ -302,6 +309,13 @@ export async function launchBrowser(
   let packages: Package[] = [];
   let currentPackageSort: PackageSortMode = "best-match";
   let packageResultsRaw: Package[] = [];
+  // Bumped whenever a package search is superseded, so a cycle during an
+  // in-flight search cannot let the stale response repaint the list under the
+  // new registry's label.
+  let packageSearchEpoch = 0;
+  // Active package registry. npm is the default (ticket 002-005); the Esc menu
+  // and `p` cycle it, and a sort unsupported by the new registry is dropped.
+  let currentRegistry: RegistryId = session?.registry ?? "npm";
   let trendingTab: (typeof TAB_NAMES)[number] =
     (session?.trendingTab as (typeof TAB_NAMES)[number]) ?? "This Week";
   let trendingPeriod = "this week";
@@ -325,6 +339,9 @@ export async function launchBrowser(
     | "landing" = "none";
   let currentPage = 1;
   let totalCount = 0;
+  // False when the active package registry reported no total and totalCount is
+  // only a ceiling (RubyGems). The toolbar prints "30+" rather than "30".
+  let packageTotalIsExact = true;
   let deepDiveActive = false;
   const compareList: Repo[] = [];
   const _quitArmed = false;
@@ -527,7 +544,7 @@ export async function launchBrowser(
     {
       icon: "\u{1F4E6}",
       title: "Package Search",
-      desc: "Search npm packages by name, description, or tags",
+      desc: "Search packages across npm, crates.io, RubyGems, NuGet, Maven Central",
       action: () => {
         currentMode = "packages";
         showLanding(false);
@@ -1530,6 +1547,12 @@ export async function launchBrowser(
       searchItems.push(
         {
           type: "action",
+          name: "Registry",
+          description: `Switch registry (current: ${registryLabel()})`,
+          action: () => cycleRegistry(),
+        },
+        {
+          type: "action",
           name: "Sort",
           description: `Cycle package sort (current: ${currentPackageSort})`,
           action: () => changePackageSort(),
@@ -1652,7 +1675,7 @@ export async function launchBrowser(
       {
         type: "action",
         name: "Packages",
-        description: "Search npm packages",
+        description: "Search package registries",
         action: () => {
           showOverlay("none");
           showPackagesMode();
@@ -2348,12 +2371,20 @@ export async function launchBrowser(
       sort: currentSort,
       limit: currentLimit,
       trendingTab,
+      registry: currentRegistry,
     };
   }
 
   function setToolbar() {
-    const sort = currentMode === "packages" ? currentPackageSort : currentSort;
-    toolbarText.content = formatToolbar(sort, currentLimit, totalCount);
+    const isPackages = currentMode === "packages";
+    const sort = isPackages ? currentPackageSort : currentSort;
+    toolbarText.content = formatToolbar(
+      sort,
+      currentLimit,
+      totalCount,
+      isPackages ? registryLabel() : undefined,
+      isPackages ? packageTotalIsExact : undefined,
+    );
     renderer.requestRender();
   }
 
@@ -2707,8 +2738,7 @@ export async function launchBrowser(
     searchBox.visible = true;
     toolbarText.visible = true;
     body.visible = true;
-    searchInput.placeholder =
-      "Search npm packages (e.g. react, vue, typescript)";
+    searchInput.placeholder = `Search ${registryLabel()} packages`;
     searchInput.focus();
     packages = [];
     resultsSelect.options = [
@@ -2724,6 +2754,9 @@ export async function launchBrowser(
   async function doPackageSearch(queryText: string) {
     const q = queryText.trim();
     if (q === "" || isLoading) return;
+    // Every fresh search takes precedence: a response whose epoch has moved on
+    // is retired (see packageSearchEpoch) instead of repainting the list.
+    const epoch = ++packageSearchEpoch;
     currentQueryInput = q;
     isLoading = true;
     errorHint = null; // npm errors never carry GitHub auth hints
@@ -2731,12 +2764,16 @@ export async function launchBrowser(
       { name: "  Searching packages...", description: "", value: null },
     ];
     detailText.content = "";
-    statusMgr.set("searching", `Searching npm for "${q}"`);
+    statusMgr.set("searching", `Searching ${registryLabel()} for "${q}"`);
     renderer.requestRender();
     try {
-      const search = createPackageSearch();
+      const search = createPackageSearch(currentRegistry);
       const result = await search.searchPackage(q, currentLimit);
+      // A registry cycle (or a newer search) owns the list from here on; this
+      // response belongs to the previous registry and must not paint.
+      if (epoch !== packageSearchEpoch) return;
       totalCount = result.totalCount;
+      packageTotalIsExact = result.totalIsExact !== false;
       packageResultsRaw = result.packages;
       packages = sortPackages(packageResultsRaw, currentPackageSort);
       setToolbar();
@@ -2752,14 +2789,18 @@ export async function launchBrowser(
         throw new NoResultsError(q);
       }
     } catch (err) {
+      if (epoch !== packageSearchEpoch) return;
       const msg = err instanceof Error ? err.message : String(err);
       resultsSelect.options = [
         { name: " (error)", description: "", value: null },
       ];
       statusMgr.set("error", msg.slice(0, 60));
+    } finally {
+      // Runs on the retired path too, so a discarded response can never leave
+      // the flag stuck true (a stale search no longer owns the screen).
+      isLoading = false;
+      renderer.requestRender();
     }
-    isLoading = false;
-    renderer.requestRender();
   }
   async function doSearch(queryText: string, append = false) {
     const q = queryText.trim();
@@ -2863,12 +2904,57 @@ export async function launchBrowser(
     }
   }
 
-  function changePackageSort() {
-    const idx = PACKAGE_SORT_MODES.findIndex(
-      (m) => m.key === currentPackageSort,
+  /** Short registry name for the toolbar, e.g. "crates.io". */
+  function registryLabel(): string {
+    return registryMeta(currentRegistry).label;
+  }
+
+  /** Advance to the next registry, then re-run the search if one is on screen. */
+  function cycleRegistry() {
+    const idx = REGISTRY_IDS.indexOf(currentRegistry);
+    currentRegistry = REGISTRY_IDS[(idx + 1) % REGISTRY_IDS.length];
+    // A sort the new registry cannot provide (score, downloads) falls back to
+    // the registry's own relevance order rather than printing a meaningless 0.
+    const allowed = sortableModesFor(currentRegistry);
+    if (!allowed.includes(currentPackageSort)) {
+      currentPackageSort = "best-match";
+    }
+    // The input's placeholder names the active registry; refresh it even when
+    // there is no query yet, so the copy can't keep claiming npm.
+    if (currentMode === "packages") {
+      searchInput.placeholder = `Search ${registryLabel()} packages`;
+    }
+    if (currentQueryInput && !isLoading) {
+      setToolbar();
+      doPackageSearch(currentQueryInput);
+      return;
+    }
+    // No re-run is coming (empty query, or a search still in flight): retire
+    // whatever is on screen — bump the epoch so a pending response cannot paint
+    // registry-A rows under the new registry's label — and say so.
+    packageSearchEpoch++;
+    packages = [];
+    packageResultsRaw = [];
+    totalCount = 0;
+    packageTotalIsExact = true;
+    resultsSelect.options = [
+      {
+        name: "",
+        description: "Type a query and press Enter to search",
+        value: null,
+      },
+    ];
+    detailText.content = "";
+    setToolbar();
+    setStatus(
+      `Registry switched to ${registryLabel()} — press Enter to re-search`,
     );
-    const next = PACKAGE_SORT_MODES[(idx + 1) % PACKAGE_SORT_MODES.length];
-    currentPackageSort = next.key;
+  }
+
+  function changePackageSort() {
+    const allowed = sortableModesFor(currentRegistry);
+    const idx = allowed.indexOf(currentPackageSort);
+    currentPackageSort = allowed[(idx + 1) % allowed.length] ?? "best-match";
     setToolbar();
     if (packageResultsRaw.length > 0) {
       packages = sortPackages(packageResultsRaw, currentPackageSort);
@@ -2927,9 +3013,9 @@ export async function launchBrowser(
     if (currentMode === "packages") {
       const pack = opt?.value as Package | undefined;
       if (pack) {
-        detailText.content = `Package: ${pack.name}@${pack.version}
-Downloads: ${pack.downloads.toLocaleString()}
-Score: ${pack.score.toFixed(2)}
+        detailText.content = `Package: ${pack.name}@${pack.version}  [${registryMeta(pack.registry).label}]
+Downloads: ${formatDownloads(pack)}
+Score: ${formatScore(pack)}
 ${pack.description ?? ""}`;
       }
     } else {
@@ -3503,6 +3589,16 @@ ${pack.description ?? ""}`;
       return;
     }
 
+    // 'p' cycles the package registry (only outside the query input)
+    if (
+      key.name === "p" &&
+      !searchInput.focused &&
+      currentMode === "packages"
+    ) {
+      cycleRegistry();
+      return;
+    }
+
     // '?' / Ctrl+H toggle help overlay (fast path)
     if (key.name === "?" || (key.name === "h" && key.ctrl)) {
       showOverlay("help");
@@ -3638,9 +3734,15 @@ function formatToolbar(
   sort: SortStrategy | PackageSortMode,
   limit: number,
   totalCount: number,
+  registry?: string,
+  totalExact?: boolean,
 ): string {
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
-  return ` sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}`;
+  const registryPart = registry ? `registry: ${registry}   ` : "";
+  // false = the registry never reported a total and this number is a ceiling;
+  // "+" keeps it from reading like an exact count. Omitted = exact.
+  const bound = totalExact === false ? "+" : "";
+  return ` ${registryPart}sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}${bound}`;
 }
 
 function cleanup(): void {

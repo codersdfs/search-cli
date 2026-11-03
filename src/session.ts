@@ -2,6 +2,7 @@
  * Session restore — save/restore UI state between restarts.
  */
 import type { SessionState } from "./types";
+import { isRegistryId } from "./registries/catalog";
 import { readJSON, writeJSON } from "./storage";
 
 const SESSION_FILE = "session.json";
@@ -51,12 +52,16 @@ export function sanitizeSession(
       ? state.limit
       : 50;
   const sort = typeof state.sort === "string" ? state.sort : "best-match";
+  // Same whitelist shape as `mode` above: an unbuilt or hand-edited registry id
+  // must never come back as the active registry.
+  const registry = isRegistryId(state.registry) ? state.registry : undefined;
   return {
     mode,
     query: sanitizeQuery(state.query) ?? "",
     sort,
     limit,
     trendingTab,
+    registry,
   };
 }
 

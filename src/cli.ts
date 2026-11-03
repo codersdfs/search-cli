@@ -16,9 +16,17 @@ import {
   formatPackagesMarkdown,
   formatPackagesUrls,
   formatPackagesNames,
+  formatDownloads,
+  formatScore,
   sortPackages,
   type PackageSortMode,
 } from "./package";
+import {
+  registryHelp,
+  resolveRegistry,
+  sortableModesFor,
+  type RegistryId,
+} from "./registries/catalog";
 import { launchPackageBrowser } from "./package-browser";
 import { runDoctor } from "./doctor";
 import { reportError } from "./error-report";
@@ -122,7 +130,8 @@ interface CLIFlags {
   help: boolean;
   pkg: boolean;
   theme?: string;
-  registry: string;
+  /** Registry id for `pkg`. Validated at parse time, so it is always canonical. */
+  registry: RegistryId;
   compare: string[]; // repo fullNames to compare
   doctor: boolean;
   org?: string; // org profile lookup (ghfind org <name>)
@@ -171,6 +180,22 @@ const SORT_VALUES = [
 /** Valid `--since` values — the periods github.com/trending accepts. */
 const SINCE_VALUES: readonly string[] = ["daily", "weekly", "monthly"];
 
+/**
+ * Exit 1 unless `sort` is one the registry can honestly provide. Both `pkg`
+ * paths — the one-shot search and the interactive browser — call this, so the
+ * message they print cannot drift and the browser can never be launched with a
+ * sort its registry does not support.
+ */
+function assertPkgSort(registry: RegistryId, sort: string): void {
+  const allowed = sortableModesFor(registry);
+  if (!allowed.includes(sort as PackageSortMode)) {
+    console.error(
+      `Invalid sort for ${registry}: "${sort}" (use ${allowed.join("|")}).`,
+    );
+    process.exit(1);
+  }
+}
+
 function parseArgs(args: string[]): CLIFlags {
   const flags: CLIFlags = {
     query: "",
@@ -209,6 +234,9 @@ function parseArgs(args: string[]): CLIFlags {
   };
 
   const queryParts: string[] = [];
+  // `--registry` is only meaningful for `pkg`, but `pkg` is not discovered until
+  // after this loop (it arrives as a bare word), so the scope check is deferred.
+  let registryExplicit = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     switch (arg) {
@@ -283,7 +311,7 @@ function parseArgs(args: string[]): CLIFlags {
         const sort = args[++i];
         if (!sort || !SORT_VALUES.includes(sort)) {
           console.error(
-            `Invalid sort: ${sort ?? "(missing)"} (use best-match|stars|updated|forks).`,
+            `Invalid sort: ${sort ?? "(missing)"} (use ${SORT_VALUES.join("|")}).`,
           );
           process.exit(1);
         }
@@ -338,9 +366,23 @@ function parseArgs(args: string[]): CLIFlags {
         flags.format = fmt;
         break;
       }
-      case "--registry":
-        flags.registry = args[++i] ?? "npm";
+      case "--registry": {
+        const raw = args[++i];
+        if (!raw || raw.startsWith("-")) {
+          console.error(
+            `Missing value for --registry (use ${registryHelp()}).`,
+          );
+          process.exit(1);
+        }
+        const resolved = resolveRegistry(raw);
+        if (!resolved) {
+          console.error(`Unknown registry: "${raw}" (use ${registryHelp()}).`);
+          process.exit(1);
+        }
+        flags.registry = resolved;
+        registryExplicit = true;
         break;
+      }
       case "--theme":
         flags.theme = args[++i] ?? "tokyo-night";
         break;
@@ -507,6 +549,13 @@ function parseArgs(args: string[]): CLIFlags {
     flags.pkg = true;
     queryParts.shift();
   }
+  // The scope check can only run here: `pkg` is a bare word, so it is not known
+  // until the loop has finished. Without it, `ghfind rust --registry crates`
+  // silently searched GitHub and ignored the registry the user named.
+  if (registryExplicit && !flags.pkg) {
+    console.error("--registry applies only to ghfind pkg.");
+    process.exit(1);
+  }
   flags.query = queryParts.join(" ");
   return flags;
 }
@@ -548,8 +597,8 @@ Usage:
   ghfind deep-dive a/b --json      Deep-dive as JSON
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
-  ghfind pkg <query> --json        Search npm packages, output JSON
-  ghfind pkg <query>               Search npm packages, text list
+  ghfind pkg <query> --json        Search registries, output JSON
+  ghfind pkg <query>               Search registries, text list
   ghfind mcp                       Run the MCP server for AI agents (stdio)
   ghfind skill [name]              Print the agent skill guide (or catalog)
   ghfind bookmarks [query]         Saved repos, newest first
@@ -572,14 +621,14 @@ Usage:
 Options:
   --json, --csv, --markdown, --count   Output format
   --limit <n>                          Max results (default: 50)
-  --sort <strategy>                    Sort: best-match|stars|updated|forks
+  --sort <strategy>                    Sort: best-match|stars|updated|forks|score|downloads|name
   --theme <name>                     Theme: tokyo-night|premium-dark (default: tokyo-night)
   --trending                           Trending mode
   --language <lang>                    Trending language filter (e.g. rust)
   --since <period>                     Trending period: daily|weekly|monthly
   --pipe <target>                      Pipe target: clone|open
   --format <fmt>                       Line format: urls|names|ssh-urls|...
-  --registry <name>                  Registry for pkg: npm (default) | others TBD
+  --registry <name>                  Registry for pkg: npm (default)|crates|rubygems|nuget|maven
 
   --watch                              Watch mode (re-run periodically)
   --releases                           New-release feed for bookmarks
@@ -679,8 +728,11 @@ Options:
     await runRelease(flags);
     return;
   }
-  // Package search (prototype, ticket 002-008)
+  // Package search (`ghfind pkg <query>`, registry chosen with --registry)
   if (flags.pkg) {
+    // Validated before anything branches, so the interactive browser cannot
+    // open on a sort its registry cannot honour and silently ignore --limit.
+    assertPkgSort(flags.registry, flags.sort);
     const interactive =
       !flags.query &&
       !flags.json &&
@@ -689,7 +741,10 @@ Options:
       !flags.count &&
       !flags.format;
     if (interactive) {
-      await launchPackageBrowser();
+      await launchPackageBrowser(flags.registry, {
+        limit: flags.limit,
+        sort: flags.sort as PackageSortMode,
+      });
     } else {
       await runPackageSearch(flags);
     }
@@ -1230,41 +1285,29 @@ async function runRelease(flags: CLIFlags): Promise<void> {
   );
 }
 
-/** `ghfind pkg "<query>"` — npm package search. Pass-through query to the registry. */
+/** `ghfind pkg "<query>"` — registry package search. Pass-through query to the registry. */
 async function runPackageSearch(flags: CLIFlags): Promise<void> {
-  if (flags.registry !== "npm") {
-    console.error(`Registry "${flags.registry}" not yet supported (only npm).`);
-    process.exit(1);
-  }
-  const PKG_SORTS: PackageSortMode[] = [
-    "best-match",
-    "score",
-    "downloads",
-    "name",
-  ];
+  const registry = flags.registry;
   const pkgSort = flags.sort as PackageSortMode;
-  if (!PKG_SORTS.includes(pkgSort)) {
-    console.error(
-      `Invalid sort for pkg: "${flags.sort}" (use best-match|score|downloads|name).`,
-    );
-    process.exit(1);
-  }
-  const search = createPackageSearch();
+  assertPkgSort(registry, pkgSort);
+  const search = createPackageSearch(registry);
   const query = flags.query.trim();
   if (!query) {
     console.error(
-      "Usage: ghfind pkg <query> [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]",
+      "Usage: ghfind pkg <query> [--registry npm|crates|rubygems|nuget|maven] [--json|--csv|--markdown|--count|--format urls|names] [--limit <n>]",
     );
     process.exit(1);
   }
   try {
-    const { totalCount, packages } = await search.searchPackage(
+    const { totalCount, packages, totalIsExact } = await search.searchPackage(
       query,
       flags.limit,
     );
     const sorted = sortPackages(packages, pkgSort);
     if (flags.count) {
-      console.log(totalCount);
+      // A bound is not a total: RubyGems caps at 30 rows and reports nothing,
+      // so the "+" says what the number means.
+      console.log(totalIsExact === false ? `${totalCount}+` : totalCount);
     } else if (flags.json) {
       console.log(formatPackagesJson(sorted));
     } else if (flags.csv) {
@@ -1278,7 +1321,7 @@ async function runPackageSearch(flags: CLIFlags): Promise<void> {
     } else {
       for (const p of sorted) {
         console.log(
-          `${p.name}@${p.version}  ↓ ${p.downloads.toLocaleString()}  ${p.score.toFixed(2)}  ${p.description ?? ""}`,
+          `${p.name}@${p.version}  ↓ ${formatDownloads(p)}  ${formatScore(p)}  ${p.description ?? ""}`,
         );
       }
     }

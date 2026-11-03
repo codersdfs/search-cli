@@ -14,7 +14,14 @@ import {
 import type { TextChunk, CliRenderer } from "@opentui/core";
 import type { Package } from "./types";
 import { openUrl } from "./open-url";
-import { createPackageSearch } from "./package";
+import {
+  createPackageSearch,
+  formatDownloads,
+  formatScore,
+  sortPackages,
+  type PackageSortMode,
+} from "./package";
+import { registryMeta, type RegistryId } from "./registries/catalog";
 import { detectTerminalBackground, deriveSurfaceLayers } from "./themes";
 const C = {
   bg: "#1a1b26",
@@ -45,8 +52,8 @@ function fmtCount(n: number): string {
 /** Format one package as a 2-line StyledText (name line + description line). */
 function formatPackageLine(pack: Package): StyledText {
   const nameStr = `${pack.name}@${pack.version}`.padEnd(28).slice(0, 28);
-  const dlStr = `↓ ${fmtCount(pack.downloads)}`.padEnd(20).slice(0, 20);
-  const scoreStr = `score ${pack.score.toFixed(2)}`.padEnd(12).slice(0, 12);
+  const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(24);
+  const scoreStr = `score ${formatScore(pack)}`.padEnd(14);
   const desc =
     (pack.description ?? "").length > 60
       ? `${(pack.description ?? "").slice(0, 57)}...`
@@ -58,7 +65,20 @@ function formatPackageLine(pack: Package): StyledText {
   return new StyledText(chunks);
 }
 // ─── Main TUI entry ───────────────────────────────────────────────────
-export async function launchPackageBrowser(): Promise<void> {
+/** Flags the CLI already validated; the browser has no sort-cycle UI. */
+export interface PackageBrowserOptions {
+  /** Rows to fetch per search (the registry clamps it to its own ceiling). */
+  limit?: number;
+  /** Order to render the fetched rows in. Defaults to registry order. */
+  sort?: PackageSortMode;
+}
+
+export async function launchPackageBrowser(
+  registry: RegistryId = "npm",
+  options: PackageBrowserOptions = {},
+): Promise<void> {
+  const limit = options.limit ?? 25;
+  const sort = options.sort ?? "best-match";
   // Match the app backdrop to the terminal's own background (OSC 11), before
   // the renderer takes over stdin. Falls back to the local palette default.
   // Surface and border layers are blended toward that background as well.
@@ -104,7 +124,7 @@ export async function launchPackageBrowser(): Promise<void> {
     paddingX: 1,
   });
   const headerText = new TextRenderable(renderer, {
-    content: t`${bold(fg(C.purple)("⟠ tulipsearch"))}${fg(C.muted)(" — Packages")}`,
+    content: t`${bold(fg(C.purple)("⟠ tulipsearch"))}${fg(C.muted)(` — Packages · ${registryMeta(registry).label}`)}`,
     fg: C.purple,
     bg: C.bg,
     height: 1,
@@ -220,13 +240,16 @@ export async function launchPackageBrowser(): Promise<void> {
     });
     renderer.requestRender();
     try {
-      const searcher = createPackageSearch();
-      const res = await searcher.searchPackage(q, 25);
-      packages = res.packages;
+      const searcher = createPackageSearch(registry);
+      const res = await searcher.searchPackage(q, limit);
+      packages = sortPackages(res.packages, sort);
       selectedIdx = 0;
       rebuildList();
+      // A bound is not a total: when the registry never reported one, the "+"
+      // tells the reader the number is a ceiling, not a count.
+      const total = `${fmtCount(res.totalCount)}${res.totalIsExact === false ? "+" : ""}`;
       setStatus({
-        content: t`${fg(C.muted)(`  ${packages.length} of ${fmtCount(res.totalCount)} results for `)}${fg(C.cyan)(`"${q}"`)}`,
+        content: t`${fg(C.muted)(`  ${packages.length} of ${total} results for `)}${fg(C.cyan)(`"${q}"`)}`,
       });
     } catch (err) {
       packages = [];

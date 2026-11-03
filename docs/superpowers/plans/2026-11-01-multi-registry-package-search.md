@@ -94,7 +94,7 @@
 **Interfaces:**
 
 - Consumes: nothing (this module imports no other module — that is deliberate, `src/types.ts` depends on it).
-- Produces: `PackageSortMode`, `PACKAGE_SORT_MODES`, `RegistryId`, `REGISTRY_IDS`, `DownloadWindow`, `RegistryMeta`, `registryMeta(id)`, `isRegistryId(value)`, `resolveRegistry(raw)`, `registryHelp()`, `sortableModesFor(id)`, `clampLimit(limit, id)`. Task 2+ imports these; `src/types.ts` imports `RegistryId` as a type so `Package.registry` can name every registry.
+- Produces: `PackageSortMode`, `PACKAGE_SORT_MODES`, `RegistryId`, `REGISTRY_IDS`, `DownloadWindow`, `RegistryMeta`, `registryMeta(id)`, `isRegistryId(value)`, `resolveRegistry(raw)`, `registryHelp()`, `sortableModesFor(id)`, `clampRegistryLimit(limit, id)`. Task 2+ imports these; `src/types.ts` imports `RegistryId` as a type so `Package.registry` can name every registry.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -107,7 +107,7 @@ import { describe, it, expect } from "vitest";
 import type { Package } from "../src/types.ts";
 import {
   REGISTRY_IDS,
-  clampLimit,
+  clampRegistryLimit,
   isRegistryId,
   registryHelp,
   registryMeta,
@@ -151,18 +151,18 @@ describe("registry ceilings", () => {
     expect(registryMeta("maven").maxResults).toBe(200);
   });
 
-  it("clampLimit keeps npm's existing behaviour exactly", () => {
-    expect(clampLimit(0, "npm")).toBe(50); // falsy → default 50
-    expect(clampLimit(Number.NaN, "npm")).toBe(50);
-    expect(clampLimit(-5, "npm")).toBe(1);
-    expect(clampLimit(1000, "npm")).toBe(250);
-    expect(clampLimit(30.7, "npm")).toBe(30); // truncates
+  it("clampRegistryLimit keeps npm's existing behaviour exactly", () => {
+    expect(clampRegistryLimit(0, "npm")).toBe(50); // falsy → default 50
+    expect(clampRegistryLimit(Number.NaN, "npm")).toBe(50);
+    expect(clampRegistryLimit(-5, "npm")).toBe(1);
+    expect(clampRegistryLimit(1000, "npm")).toBe(250);
+    expect(clampRegistryLimit(30.7, "npm")).toBe(30); // truncates
   });
 
-  it("clampLimit clamps to each registry's own ceiling", () => {
-    expect(clampLimit(50, "rubygems")).toBe(30);
-    expect(clampLimit(200, "crates")).toBe(100);
-    expect(clampLimit(250, "maven")).toBe(200);
+  it("clampRegistryLimit clamps to each registry's own ceiling", () => {
+    expect(clampRegistryLimit(50, "rubygems")).toBe(30);
+    expect(clampRegistryLimit(200, "crates")).toBe(100);
+    expect(clampRegistryLimit(250, "maven")).toBe(200);
   });
 });
 
@@ -203,6 +203,9 @@ describe("resolveRegistry", () => {
     expect(resolveRegistry("pypi")).toBeNull();
     expect(resolveRegistry("")).toBeNull();
     expect(resolveRegistry("npm;rm -rf")).toBeNull();
+    // Prototype names must not resolve through the object-literal table.
+    expect(resolveRegistry("constructor")).toBeNull();
+    expect(resolveRegistry("__proto__")).toBeNull();
   });
 
   it("isRegistryId agrees with resolveRegistry", () => {
@@ -264,7 +267,7 @@ Create `src/registries/catalog.ts`:
 /** Sort strategies a registry's results can be re-ordered by, client-side. */
 export type PackageSortMode = "best-match" | "score" | "downloads" | "name";
 
-/** Sort modes in cycle order for the TUI Sort menu (npm, the default view). */
+/** Sort modes in cycle order for the TUI Sort menu (npm offers all four). */
 export const PACKAGE_SORT_MODES: { key: PackageSortMode; label: string }[] = [
   { key: "best-match", label: "best-match" },
   { key: "downloads", label: "downloads" },
@@ -380,7 +383,9 @@ export function resolveRegistry(raw: string): RegistryId | null {
     .trim()
     .toLowerCase();
   if (!key) return null;
-  return REGISTRY_ALIASES[key] ?? null;
+  // Own-property check: `constructor` / `__proto__` must resolve to null,
+  // not leak Object.prototype values typed as RegistryId.
+  return Object.hasOwn(REGISTRY_ALIASES, key) ? REGISTRY_ALIASES[key] : null;
 }
 
 /** Canonical id list for error messages: "npm|crates|rubygems|nuget|maven". */
@@ -396,7 +401,7 @@ export function sortableModesFor(id: RegistryId): PackageSortMode[] {
  * Clamp a requested limit to what the registry accepts. The falsy branch
  * preserves the npm facade's long-standing "no limit → 50" behaviour.
  */
-export function clampLimit(limit: number, id: RegistryId): number {
+export function clampRegistryLimit(limit: number, id: RegistryId): number {
   const { maxResults } = registryMeta(id);
   return Math.min(Math.max(Math.trunc(limit) || 50, 1), maxResults);
 }
@@ -461,7 +466,7 @@ git commit -m "feat(pkg): add the registry catalog table"
 
 **Interfaces:**
 
-- Consumes: `RegistryId`, `PackageSearchResult` shape, `clampLimit`, `registryMeta` from Task 1.
+- Consumes: `RegistryId`, `PackageSearchResult` shape, `clampRegistryLimit`, `registryMeta` from Task 1.
 - Produces: `ProviderFetch`, `PackageProvider` (`{ id, search(rawQuery, limit, fetchImpl?) }`), `normalizeNpmObject(obj): Package`, `npmProvider`, `npmSearchUrl(rawQuery, size)`, `getProvider(id): PackageProvider`. `createPackageSearch(registry?, fetchImpl?)` returns `{ searchPackage(rawQuery, limit): Promise<PackageSearchResult> }` — the same shape `src/cli.ts:1259`, `src/tui.ts:2737` and `src/package-browser.ts:223` already call, so none of them change in this task.
 
 - [ ] **Step 1: Write the failing test**
@@ -634,7 +639,7 @@ Create `src/registries/npm.ts` — move `NpmSearchObject`, `normalizeNpmObject` 
  * Extracted from src/package.ts unchanged when the registry seam was introduced.
  */
 import type { Package } from "../types";
-import { clampLimit } from "./catalog";
+import { clampRegistryLimit } from "./catalog";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -687,7 +692,7 @@ export async function searchNpm(
   limit: number,
   fetchImpl: ProviderFetch = fetch,
 ): Promise<PackageSearchResult> {
-  const size = clampLimit(limit, "npm");
+  const size = clampRegistryLimit(limit, "npm");
   const res = await fetchImpl(npmSearchUrl(rawQuery, size), {
     headers: { "User-Agent": "ghfind", Accept: "application/json" },
   });
@@ -829,7 +834,7 @@ git commit -m "refactor(pkg): move npm search behind the registry provider seam"
 
 **Interfaces:**
 
-- Consumes: `PackageProvider`, `ProviderFetch`, `PackageSearchResult` from Task 2; `clampLimit`, `registryMeta` from Task 1; `getVersion()` from `src/version.ts`.
+- Consumes: `PackageProvider`, `ProviderFetch`, `PackageSearchResult` from Task 2; `clampRegistryLimit`, `registryMeta` from Task 1; `getVersion()` from `src/version.ts`.
 - Produces: `normalizeCrate(raw): Package`, `cratesSearchUrl(query, perPage)`, `cratesUserAgent()`, `cratesProvider` (`id: "crates"`). `Package.downloads` for crates is the **90-day** figure (`recent_downloads`), `score` is always `0` because crates.io returns no relevance score.
 
 - [ ] **Step 1: Write the failing test**
@@ -894,7 +899,7 @@ describe("cratesSearchUrl", () => {
   });
 
   it("requests at most crates' 100-item ceiling", () => {
-    // The clamp lives in searchCrates (via clampLimit), not the URL builder, so
+    // The clamp lives in searchCrates (via clampRegistryLimit), not the URL builder, so
     // this asserts the URL the provider actually fetches.
     expect(cratesSearchUrl("cli", 100)).toContain("per_page=100");
   });
@@ -1015,7 +1020,7 @@ Create `src/registries/crates.ts`:
  */
 import type { Package } from "../types";
 import { getVersion } from "../version";
-import { clampLimit } from "./catalog";
+import { clampRegistryLimit } from "./catalog";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -1072,7 +1077,7 @@ export async function searchCrates(
   limit: number,
   fetchImpl: ProviderFetch = fetch,
 ): Promise<PackageSearchResult> {
-  const perPage = clampLimit(limit, "crates");
+  const perPage = clampRegistryLimit(limit, "crates");
   const res = await fetchImpl(cratesSearchUrl(rawQuery, perPage), {
     headers: {
       "User-Agent": cratesUserAgent(),
@@ -1137,7 +1142,7 @@ git commit -m "feat(pkg): add the crates.io search provider"
 
 **Interfaces:**
 
-- Consumes: Task 1/2 types; `clampLimit`.
+- Consumes: Task 1/2 types; `clampRegistryLimit`.
 - Produces: `normalizeGem(raw): Package`, `rubygemsSearchUrl(query)`, `rubygemsProvider` (`id: "rubygems"`). The payload is a **top-level JSON array** with no total field, so `totalCount` is the row count. Downloads are **lifetime**; `score` is always `0`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1273,7 +1278,7 @@ Create `src/registries/rubygems.ts`:
  * download tally is a lifetime figure, so the label comes from the catalog.
  */
 import type { Package } from "../types";
-import { clampLimit } from "./catalog";
+import { clampRegistryLimit } from "./catalog";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -1318,7 +1323,7 @@ export async function searchRubygems(
   limit: number,
   fetchImpl: ProviderFetch = fetch,
 ): Promise<PackageSearchResult> {
-  const want = clampLimit(limit, "rubygems");
+  const want = clampRegistryLimit(limit, "rubygems");
   const res = await fetchImpl(rubygemsSearchUrl(rawQuery), {
     headers: { Accept: "application/json" },
   });
@@ -1385,7 +1390,7 @@ git commit -m "feat(pkg): add the RubyGems search provider"
 
 **Interfaces:**
 
-- Consumes: Task 1/2 types; `clampLimit`.
+- Consumes: Task 1/2 types; `clampRegistryLimit`.
 - Produces: `normalizeNugetPackage(raw): Package`, `nugetSearchUrl(query, take)`, `nugetProvider` (`id: "nuget"`). Downloads are **lifetime** (`totalDownloads`); `score` is always `0`. The only working host is `azuresearch-usnc.nuget.org` — `api.nuget.org/v3/search/query` answers 404 (verified live).
 
 - [ ] **Step 1: Write the failing test**
@@ -1543,7 +1548,7 @@ Create `src/registries/nuget.ts`:
  * as an array while `summary` is often an empty string rather than absent.
  */
 import type { Package } from "../types";
-import { clampLimit } from "./catalog";
+import { clampRegistryLimit } from "./catalog";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -1593,7 +1598,7 @@ async function searchNuget(
   limit: number,
   fetchImpl: ProviderFetch = fetch,
 ): Promise<PackageSearchResult> {
-  const take = clampLimit(limit, "nuget");
+  const take = clampRegistryLimit(limit, "nuget");
   const res = await fetchImpl(nugetSearchUrl(rawQuery, take), {
     headers: { Accept: "application/json" },
   });
@@ -1659,7 +1664,7 @@ git commit -m "feat(pkg): add the NuGet search provider"
 
 **Interfaces:**
 
-- Consumes: Task 1/2 types; `clampLimit`.
+- Consumes: Task 1/2 types; `clampRegistryLimit`.
 - Produces: `normalizeMavenDoc(raw): Package`, `mavenSearchUrl(query, rows)`, `mavenProvider` (`id: "maven"`). Maven's Solr endpoint returns **no download data at all**, so `downloads` is always `0` and the catalog window is `none`; rows have no `version`, so the version comes from `latestVersion`. `Package.url` must be `central.sonatype.com` — `search.maven.org/artifact/...` answers 403 to non-browser clients (verified live).
 
 - [ ] **Step 1: Write the failing test**
@@ -1812,7 +1817,7 @@ Create `src/registries/maven.ts`:
  * refuses non-browser clients with 403.
  */
 import type { Package } from "../types";
-import { clampLimit } from "./catalog";
+import { clampRegistryLimit } from "./catalog";
 import type {
   PackageSearchResult,
   PackageProvider,
@@ -1861,7 +1866,7 @@ async function searchMaven(
   limit: number,
   fetchImpl: ProviderFetch = fetch,
 ): Promise<PackageSearchResult> {
-  const rows = clampLimit(limit, "maven");
+  const rows = clampRegistryLimit(limit, "maven");
   const res = await fetchImpl(mavenSearchUrl(rawQuery, rows), {
     headers: { Accept: "application/json" },
   });
@@ -2146,8 +2151,8 @@ for (const p of sorted) {
 In `src/package-browser.ts:47-49`, `formatPackageLine` hardcodes the `↓` tally and `score ${pack.score.toFixed(2)}`. Replace those two lines so the browser shows the same honesty:
 
 ```ts
-const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(20).slice(0, 20);
-const scoreStr = `score ${formatScore(pack)}`.padEnd(12).slice(0, 12);
+const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(24);
+const scoreStr = `score ${formatScore(pack)}`.padEnd(14);
 ```
 
 Add `import { formatDownloads, formatScore } from "./package";` next to the existing `createPackageSearch` import (`src/package-browser.ts:17`).
@@ -2355,7 +2360,7 @@ console.error(
 );
 ```
 
-and the per-registry ceiling message — a `--limit` above what the registry accepts is clamped by `clampLimit` inside the provider, which is the right behaviour, so no new error is needed. The provider clamps it (Task 1's `clampLimit`), which is the right behaviour, so no new error is needed - Step 5's completions and the HOW-TO section (Task 11) document the ceilings instead of hiding them.
+and the per-registry ceiling message — a `--limit` above what the registry accepts is clamped by `clampRegistryLimit` inside the provider, which is the right behaviour, so no new error is needed. The provider clamps it (Task 1's `clampRegistryLimit`), which is the right behaviour, so no new error is needed - Step 5's completions and the HOW-TO section (Task 11) document the ceilings instead of hiding them.
 
 - [ ] **Step 5: Update the `--help` row**
 
@@ -2814,8 +2819,8 @@ import { formatDownloads, formatScore } from "./package";
 `src/package-browser.ts:47-49` — replace the two hardcoded columns inside `formatPackageLine`:
 
 ```ts
-const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(20).slice(0, 20);
-const scoreStr = `score ${formatScore(pack)}`.padEnd(12).slice(0, 12);
+const dlStr = `↓ ${formatDownloads(pack)}`.padEnd(24);
+const scoreStr = `score ${formatScore(pack)}`.padEnd(14);
 ```
 
 In the header at `src/package-browser.ts:107`, replace the literal `" — Packages"` suffix so the screen states what it searched. The brand string on that line is `⟠ tulipsearch` — a pre-existing wrong name in this view (the app is `ghfind`); leave it exactly as shown below. It is out of scope for this plan, and no test here depends on it:
@@ -3230,7 +3235,6 @@ Create `tests/docs-registries.test.ts`, following the doc-claim guard precedent 
 // and agents look, and the README's test count must match the real suite. Both
 // have drifted before (the `--interval` and Ctrl+E incidents in the CHANGELOG).
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REGISTRY_IDS } from "../src/registries/catalog.ts";
@@ -3534,7 +3538,7 @@ git commit -m "docs(plan): multi-registry package search implementation plan"
 
 **2. Placeholder scan** — no TBD/TODO/"appropriate error handling" steps. Two strings in this plan are deliberately quoted from the current source as _things to remove_ (`others TBD` at `src/cli.ts:582` in Task 8 Step 1, and ` tulipsearch` left in place in Task 9 Step 7) — they are assertions and instructions, not unfinished work.
 
-**3. Type consistency** — checked across tasks: `RegistryId` (catalog) is the type of `CLIFlags.registry` (8), `currentRegistry` (9), `SessionState.registry` (9), and `Package.registry` (1). `PackageSortMode` is defined once in `src/registries/catalog.ts` and re-exported by `src/package.ts` (2), so `src/cli.ts:20`, `src/tui.ts:109`, `src/mcp-server.ts:38`, `tests/package.test.ts:6` and `tests/registry-*` all keep resolving. `createPackageSearch(registry?, fetchImpl?)` (2) is the only search entry point used by 8, 9 and 10. `formatDownloads`/`formatScore` (7) are the only formatters that print a tally or a score, used by CLI text (7), the browser (7, 9), the TUI detail pane (9) and MCP (10). `clampLimit` (1) is the single ceiling rule, called by every provider.
+**3. Type consistency** — checked across tasks: `RegistryId` (catalog) is the type of `CLIFlags.registry` (8), `currentRegistry` (9), `SessionState.registry` (9), and `Package.registry` (1). `PackageSortMode` is defined once in `src/registries/catalog.ts` and re-exported by `src/package.ts` (2), so `src/cli.ts:20`, `src/tui.ts:109`, `src/mcp-server.ts:38`, `tests/package.test.ts:6` and `tests/registry-*` all keep resolving. `createPackageSearch(registry?, fetchImpl?)` (2) is the only search entry point used by 8, 9 and 10. `formatDownloads`/`formatScore` (7) are the only formatters that print a tally or a score, used by CLI text (7), the browser (7, 9), the TUI detail pane (9) and MCP (10). `clampRegistryLimit` (1) is the single ceiling rule, called by every provider.
 
 **Known accepted gaps** (not placeholders, recorded so an executor does not "fix" them):
 
