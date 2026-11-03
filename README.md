@@ -364,14 +364,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 837 tests
+bun test         # 851 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 837 tests
+npm test         # 851 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -405,6 +405,12 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.12.0
+
+- **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven` selects one (npm default), every download figure is labelled with the window its registry actually publishes (`/mo`, `/90d`, ` total`, `n/a`), and an unparseable 200 is an error instead of zero results
+- **`ghfind release run --tag <v>` dispatches the Release workflow** — the CLI equivalent of `gh workflow run release --ref <v>`, with `--dry-run` to rehearse
+- **`--registry` now belongs to `ghfind pkg` alone** — elsewhere it is rejected instead of silently ignored, and `--sort` is validated against the chosen registry on every path including the browser
+
 ### v9.11.0
 
 - **`ghfind clone <owner/repo>` clones to disk** — until now cloning was only a command you copy (`--pipe clone` printed `git clone …` lines); the new subcommand runs it, into `<dir>/<name>` (default: the cwd), over HTTPS or `--ssh` for the `git@github.com` form, and with no GitHub API call, so a spent unauthenticated budget can never block a clone
@@ -414,10 +420,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 ### v9.10.3
 
 - **The help overlay lists `Ctrl+E`** — the utility-keys section documented `t`, `Ctrl+X` and `Ctrl+C` but not the export shortcut the startup tip and the README already advertised
-
-### v9.10.2
-
-- **`Ctrl+E` opens the export chooser** — the startup tip advertised "Press Ctrl+E to export results as CSV or Markdown", but nothing bound the chord: it was ignored on the results screen and, while the query input had focus, its emacs binding read it as "move to line end"; it now opens the export overlay (JSON / CSV / Markdown / plain text), or reports that there is nothing to export yet
 
 ## License
 

@@ -43,11 +43,14 @@ describe("registry documentation", () => {
     expect(guide).toContain("--registry");
   });
 
-  it("CHANGELOG records the feature under Unreleased", () => {
+  it("CHANGELOG records the feature in its newest section", () => {
+    // The top section is [Unreleased] before a release and the new version
+    // after one — the guard holds across the cycle either way.
     const log = read("CHANGELOG.md");
-    const unreleased = log.split("## [Unreleased]")[1].split("## [")[0];
-    expect(unreleased).toContain("registry");
-    expect(unreleased).toContain("ghfind pkg");
+    const top = log.match(/^## \[[^\]]+\][\s\S]*?(?=^## \[)/m);
+    expect(top, "no CHANGELOG section found").not.toBeNull();
+    expect(top![0]).toContain("registry");
+    expect(top![0]).toContain("ghfind pkg");
   });
 
   it("README advertises one test count, stated identically twice", () => {
