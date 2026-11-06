@@ -1,14 +1,10 @@
 // Prevent tui.ts auto-launch when imported from cli.ts
 process.env.GHFIND_CLI_RUN = "1";
 import {
-  parseQuery,
-  applyFlagFilters,
-  rankRepos,
-  createGitHubSearch,
-  createTrendingSearch,
-  trendingQuery,
-  validateQuery,
-} from "./search";
+  runRepoSearch,
+  runTrendingSearch,
+  zeroResultSuggestions,
+} from "./run-search";
 import {
   createPackageSearch,
   formatPackagesJson,
@@ -809,24 +805,6 @@ Options:
   );
 }
 
-interface SearchContext {
-  query: string;
-  parsed: ReturnType<typeof parseQuery> & { raw: string };
-  provider: ReturnType<typeof createGitHubSearch>;
-}
-
-function buildSearchContext(flags: CLIFlags): SearchContext {
-  const parsed = applyFlagFilters(parseQuery(flags.query), {});
-  // Validate before the context is built so every handler (search, pipe,
-  // format, watch) inherits the same gate — previously only the TUI checked.
-  validateQuery(parsed);
-  return {
-    query: flags.query,
-    parsed,
-    provider: createGitHubSearch(undefined, flags.token ? [flags.token] : []),
-  };
-}
-
 /** `ghfind skill [name]` — print the agent skill catalog or one skill's content. */
 function printAgentSkill(name: string): void {
   ensureBuiltinSkill();
@@ -1369,15 +1347,14 @@ async function runReleases(
 
 async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
   // Dispatch table: each handler receives shared context + flags, returns void.
-  const handlers: Record<string, (ctx: SearchContext) => Promise<void>> = {
-    trending: async (_ctx) => {
+  const handlers: Record<string, () => Promise<void>> = {
+    trending: async () => {
       const since =
         flags.since === "weekly"
           ? "weekly"
           : flags.since === "monthly"
             ? "monthly"
             : "daily";
-      const trendingSearch = createTrendingSearch();
       // Language filter: validated against github.com/trending's accepted
       // set (same validation as the MCP ghfind_trending tool).
       let language: string | undefined;
@@ -1392,13 +1369,11 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         console.error(err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
-      const response = await trendingSearch.search(trendingQuery(), {
-        limit: 25,
+      const { response } = await runTrendingSearch({
         sort: "stars",
-        json: false,
-        verbose: false,
-        trendingSince: since,
-        ...(language ? { trendingLanguage: language } : {}),
+        limit: 25,
+        since,
+        ...(language ? { language } : {}),
       });
       if (outputFormat) {
         console.log(formatOutput(response.repos, outputFormat));
@@ -1420,11 +1395,11 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         }
       }
     },
-    watch: async (ctx) => {
+    watch: async () => {
       let tick = 0;
       await runWatch(
         {
-          query: ctx.query,
+          query: flags.query,
           sort: flags.sort,
           limit: flags.limit,
           token: flags.token,
@@ -1448,46 +1423,44 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
         (err) => console.error(`[Watch error] ${err.message}`),
       );
     },
-    pipe: async (ctx) => {
-      const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit,
+    pipe: async () => {
+      const { repos } = await runRepoSearch({
+        query: flags.query,
         sort: flags.sort,
-        json: false,
-        verbose: false,
+        limit: flags.limit,
         token: flags.token,
       });
-      const repos = rankRepos(response.repos, flags.sort);
       if (flags.pipe) await pipeExec(repos, flags.pipe);
     },
-    format: async (ctx) => {
-      const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit,
+    format: async () => {
+      const { repos } = await runRepoSearch({
+        query: flags.query,
         sort: flags.sort,
-        json: false,
-        verbose: false,
+        limit: flags.limit,
         token: flags.token,
       });
-      const repos = rankRepos(response.repos, flags.sort);
       console.log(formatOutput(repos, flags.format as Format));
     },
-    search: async (ctx) => {
-      const response = await ctx.provider.search(ctx.parsed, {
-        limit: flags.limit,
+    search: async () => {
+      const { response, repos } = await runRepoSearch({
+        query: flags.query,
         sort: flags.sort,
-        json: false,
-        verbose: false,
+        limit: flags.limit,
         token: flags.token,
       });
-      const repos = rankRepos(response.repos, flags.sort);
       if (flags.count) {
         console.log(response.totalCount);
         return;
       }
       if (outputFormat) {
         console.log(formatOutput(repos, outputFormat));
+      } else if (repos.length === 0) {
+        const hints = zeroResultSuggestions(flags.query);
+        console.error("No repositories found.");
+        for (const h of hints) console.error(`  Try: ghfind "${h}"`);
       }
     },
-    compare: async (_ctx) => {
+    compare: async () => {
       const repos: Repo[] = [];
       const missing: string[] = [];
       for (const fullName of flags.compare) {
@@ -1551,8 +1524,7 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
     process.exit(1);
   }
 
-  const ctx = buildSearchContext(flags);
-  await handlers[key](ctx);
+  await handlers[key]();
 }
 
 main().catch((err) => {

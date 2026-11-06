@@ -1,14 +1,8 @@
 /** Repo deep-dive — fetch and format rich repo details. */
 import type { Repo } from "./types";
 import { fetchReadme } from "./readme";
-
-const USER_AGENT = "ghfind/1.0";
-
-function buildHeaders(token?: string): Record<string, string> {
-  const headers: Record<string, string> = { "User-Agent": USER_AGENT };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-}
+import { githubFetch, githubHeaders } from "./github-client";
+import { SearchCliError } from "./errors";
 
 // ─── Repo ref parsing (shared by the CLI deep-dive and the MCP server) ─
 
@@ -90,18 +84,19 @@ export async function resolveRepoFromRef(
 
   let res: Response;
   try {
-    res = await fetch(`https://api.github.com/repos/${canonical}`, {
-      headers: buildHeaders(token),
+    res = await githubFetch(`https://api.github.com/repos/${canonical}`, {
+      token,
+      passthroughStatuses: [404],
     });
-  } catch {
+  } catch (err) {
+    // Classified HTTP failures (401/403/5xx) propagate with their reason;
+    // only connectivity failures degrade to the name-only stub.
+    if (err instanceof SearchCliError) throw err;
     return repoFromRef(canonical);
   }
 
   if (res.status === 404) {
     throw new Error(`Repo not found: ${canonical}`);
-  }
-  if (!res.ok) {
-    throw new Error(`GitHub API error ${res.status} for ${canonical}`);
   }
 
   let api: GitHubRepoApi;
@@ -175,7 +170,7 @@ export async function fetchDeepDiveRaw(
   repo: Repo,
   token?: string,
 ): Promise<DeepDiveJson> {
-  const headers = buildHeaders(token);
+  const headers = githubHeaders(token);
 
   const [languagesRes, contributorsRes] = await Promise.all([
     fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/languages`, {

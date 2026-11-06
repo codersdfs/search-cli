@@ -35,7 +35,6 @@ import { appendFileSync } from "node:fs";
 import type { CliRenderer } from "@opentui/core";
 import type {
   Repo,
-  SearchOptions,
   SortStrategy,
   Package,
   SessionState,
@@ -44,18 +43,15 @@ import type {
 } from "./types";
 import { fetchOrgProfile, type OrgProfile } from "./org";
 import {
-  parseQuery,
-  applyFlagFilters,
-  validateQuery,
   suggestFor,
-  suggestRelaxations,
   trendingQuery,
   rankRepos,
-  createGitHubSearch,
   SearchModule,
   TrendingAdapter,
   type Logger,
 } from "./search";
+import { runRepoSearch, zeroResultSuggestions } from "./run-search";
+import { githubHeaders } from "./github-client";
 import { tabSince, TAB_NAMES, fmtStars } from "./trending";
 import {
   attachClickToSelect,
@@ -107,6 +103,7 @@ import {
   sortPackages,
   formatDownloads,
   formatScore,
+  formatTotalCount,
   type PackageSortMode,
 } from "./package";
 import {
@@ -2535,8 +2532,7 @@ export async function launchBrowser(
     detailText.content = "  Loading chart...";
     renderer.requestRender();
     try {
-      const headers: Record<string, string> = { "User-Agent": "ghfind/1.0" };
-      if (githubToken) headers.Authorization = `Bearer ${githubToken}`;
+      const headers = githubHeaders(githubToken);
       const [chartRes, repoRes] = await Promise.all([
         fetch(
           `https://api.github.com/repos/${repo.owner}/${repo.name}/stats/participation`,
@@ -2821,20 +2817,15 @@ export async function launchBrowser(
     statusMgr.set("searching", `Searching for "${q}"`);
 
     try {
-      const parsed = applyFlagFilters(parseQuery(q), {});
-      validateQuery(parsed);
-      const provider = createGitHubSearch(logger);
-      const options: SearchOptions = {
-        limit: currentLimit,
+      const { response, repos: newRepos } = await runRepoSearch({
+        query: q,
         sort: currentSort,
-        json: false,
-        verbose: false,
+        limit: currentLimit,
         token: githubToken,
         page: currentPage,
-      };
-      const response = await provider.search(parsed, options);
+        logger,
+      });
       totalCount = response.totalCount;
-      const newRepos = rankRepos(response.repos, options.sort);
 
       if (append) {
         currentRepos.push(...newRepos);
@@ -2845,10 +2836,7 @@ export async function launchBrowser(
       if (currentRepos.length === 0) {
         // A zero-result search usually means one qualifier over-constrained
         // it. Offer the ranked loosenings instead of generic advice.
-        throw new NoResultsError(
-          q,
-          suggestRelaxations(parsed).map((r) => r.suggestion),
-        );
+        throw new NoResultsError(q, zeroResultSuggestions(q));
       } else {
         resultsSelect.options = currentRepos.map((r) => ({
           name: formatResultLine(r),
@@ -3740,9 +3728,9 @@ function formatToolbar(
   const sortLabel = SORT_MODES.find((m) => m.key === sort)?.label ?? sort;
   const registryPart = registry ? `registry: ${registry}   ` : "";
   // false = the registry never reported a total and this number is a ceiling;
-  // "+" keeps it from reading like an exact count. Omitted = exact.
-  const bound = totalExact === false ? "+" : "";
-  return ` ${registryPart}sort: ${sortLabel}   limit: ${limit}   results: ${totalCount.toLocaleString()}${bound}`;
+  // the formatter keeps it from reading like an exact count. Undefined = exact.
+  const results = formatTotalCount({ totalCount, totalIsExact: totalExact });
+  return ` ${registryPart}sort: ${sortLabel}   limit: ${limit}   results: ${results}`;
 }
 
 function cleanup(): void {

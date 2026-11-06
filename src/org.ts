@@ -8,6 +8,7 @@
  * Shape mirrors the package-search module: a pure aggregate function +
  * normalize function that tests can drive with fixtures, and thin formatters.
  */
+import { githubFetch, githubHeaders } from "./github-client";
 
 export interface OrgProfile {
   login: string;
@@ -67,15 +68,6 @@ export interface FetchOrgOptions {
   token?: string;
   /** How many repos to fetch & aggregate (default 100 — one request). */
   limit?: number;
-}
-
-function apiHeaders(token?: string): Record<string, string> {
-  return {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "ghfind",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
 }
 
 export function normalizeOrgRepo(item: GitHubRepoPayload): OrgRepo {
@@ -144,18 +136,12 @@ export async function fetchOrgProfile(
 
   let orgPayload: GitHubOrgPayload;
   try {
-    const res = await fetch(
+    const res = await githubFetch(
       `https://api.github.com/orgs/${encodeURIComponent(name)}`,
-      {
-        headers: apiHeaders(token),
-      },
+      { token, passthroughStatuses: [404] },
     );
     if (res.status === 404) {
       throw new Error(`Organization "${name}" not found.`);
-    }
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`GitHub API error ${res.status}: ${body.slice(0, 200)}`);
     }
     orgPayload = (await res.json()) as GitHubOrgPayload;
   } catch (err) {
@@ -176,7 +162,7 @@ export async function fetchOrgProfile(
         const url =
           `https://api.github.com/orgs/${encodeURIComponent(name)}/repos` +
           `?per_page=${perPage}&sort=pushed&page=${page}`;
-        const res = await fetch(url, { headers: apiHeaders(token) });
+        const res = await fetch(url, { headers: githubHeaders(token) });
         if (!res.ok) {
           // Org metadata succeeded; degraded summary beats a hard failure.
           return [];

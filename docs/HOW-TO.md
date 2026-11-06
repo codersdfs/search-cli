@@ -313,7 +313,7 @@ runs in the background, so the interface stays responsive.
 | `XDG_CONFIG_HOME` | Relocates `~/.config` (config lives at `<dir>/ghfind/`) |
 | `XDG_STATE_HOME`  | Relocates history/bookmarks/session state               |
 
-`GITHUB_TOKEN` takes precedence over a token saved in the config file.
+`GITHUB_TOKEN` takes precedence over a token saved in the config file. The config file also accepts `githubTokens: ["…", "…"]` to rotate through several tokens round-robin when you hit the rate limit; the env var is tried first, then the file's `githubToken`, then the `githubTokens` list.
 
 See [`README.md`](../README.md) for the full flag, subcommand and keybinding
 reference, [`CONTRIBUTING.md`](../CONTRIBUTING.md) for development commands, and

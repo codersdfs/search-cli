@@ -7,13 +7,8 @@
  * as an array while `summary` is often an empty string rather than absent.
  */
 import type { Package } from "../types";
-import { clampRegistryLimit } from "./catalog";
-import { readJson } from "./parse";
-import type {
-  PackageSearchResult,
-  PackageProvider,
-  ProviderFetch,
-} from "./types";
+import { defineSearch } from "./search";
+import type { PackageProvider } from "./types";
 
 interface RawNugetPackage {
   id?: string;
@@ -53,27 +48,10 @@ export function normalizeNugetPackage(raw: RawNugetPackage): Package {
   };
 }
 
-async function searchNuget(
-  rawQuery: string,
-  limit: number,
-  fetchImpl: ProviderFetch = fetch,
-): Promise<PackageSearchResult> {
-  const take = clampRegistryLimit(limit, "nuget");
-  const res = await fetchImpl(nugetSearchUrl(rawQuery, take), {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`NuGet search failed: HTTP ${res.status}`);
-  }
-  const data = (await readJson(res, "NuGet")) as {
-    totalHits?: number;
-    data?: RawNugetPackage[];
-  } | null;
-  const packages = (data?.data ?? []).map(normalizeNugetPackage);
-  return { totalCount: data?.totalHits ?? packages.length, packages };
-}
-
-export const nugetProvider: PackageProvider = {
+export const nugetProvider: PackageProvider = defineSearch<RawNugetPackage>({
   id: "nuget",
-  search: searchNuget,
-};
+  url: (rawQuery, take) => nugetSearchUrl(rawQuery, take),
+  rows: (data) => (data as { data?: RawNugetPackage[] } | null)?.data ?? [],
+  total: (data) => (data as { totalHits?: number } | null)?.totalHits,
+  normalize: normalizeNugetPackage,
+});

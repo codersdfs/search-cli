@@ -3,6 +3,8 @@
  *
  * Selecting a topic triggers a search.
  */
+import { githubFetch } from "./github-client";
+
 export interface TopicItem {
   name: string;
   description: string;
@@ -13,7 +15,7 @@ export interface TopicItem {
  *  Requires the `mercy-preview` media type for the /search/topics endpoint.
  */
 export async function fetchTopics(): Promise<TopicItem[]> {
-  const res = await fetch(
+  const res = await githubFetch(
     "https://api.github.com/search/topics?q=popular&per_page=30",
     {
       headers: {
@@ -22,7 +24,6 @@ export async function fetchTopics(): Promise<TopicItem[]> {
       },
     },
   );
-  if (!res.ok) throw new Error(`Topics API: HTTP ${res.status}`);
   const data = (await res.json()) as {
     items?: Array<{ name: string; description?: string; score?: number }>;
   };

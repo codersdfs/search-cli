@@ -23,16 +23,13 @@
  * Only the tools capability is declared (no prompts/resources yet), so those
  * methods fall through to "Method not found".
  */
-import type { Package, Repo, SearchOptions, SortStrategy } from "./types";
+import type { Package, Repo, SearchResponse, SortStrategy } from "./types";
+import { resolveTrendingLanguage } from "./search";
 import {
-  parseQuery,
-  rankRepos,
-  createGitHubSearch,
-  createTrendingSearch,
-  resolveTrendingLanguage,
-  trendingQuery,
-  validateQuery,
-} from "./search";
+  runRepoSearch,
+  runTrendingSearch,
+  zeroResultSuggestions,
+} from "./run-search";
 import {
   createPackageSearch,
   formatDownloads,
@@ -58,7 +55,7 @@ import { buildComparisonTable } from "./compare";
 import { allCachedReleases } from "./releases";
 import { getBookmarks } from "./bookmarks";
 import { appendHistory } from "./history";
-import { loadConfig } from "./config";
+import { resolveToken as resolveClientToken } from "./github-client";
 import { ensureBuiltinSkill, getSkill } from "./agent-skill";
 import {
   formatSkillSearchText,
@@ -142,11 +139,12 @@ export class McpToolError extends Error {
 }
 
 // ─── Token resolution ──────────────────────────────────────────────────
+// Shared with every other surface: arg > `ghfind mcp --token` > config
+// (GITHUB_TOKEN is folded into config at load time).
 
 function resolveToken(state: ServerState, arg: unknown): string | undefined {
   if (typeof arg === "string" && arg.trim()) return arg.trim();
-  if (state.token) return state.token;
-  return loadConfig().githubToken ?? process.env.GITHUB_TOKEN;
+  return resolveClientToken(state.token);
 }
 
 // ─── Arg coercion helpers ──────────────────────────────────────────────
@@ -222,8 +220,6 @@ function asMcpToolError(err: unknown): McpToolError {
   return new McpToolError(err instanceof Error ? err.message : String(err));
 }
 
-const TRENDING_QUERY = trendingQuery();
-
 // ─── Tool registry ─────────────────────────────────────────────────────
 
 const REPO_SORTS = ["best-match", "stars", "updated", "forks"] as const;
@@ -276,13 +272,16 @@ const TOOLS: ToolDefinition[] = [
       );
       const token = resolveToken(state, args.token);
 
-      const provider = createGitHubSearch(undefined, token ? [token] : []);
-      const parsed = parseQuery(query);
-      // Reject a malformed qualifier here rather than spending an API call:
-      // for an agent, GitHub's opaque 422 reads as breakage, whereas the
-      // specific message names the bad token and the fix.
+      // One pipeline behind every surface (src/run-search.ts). BadQueryError
+      // is thrown before any network I/O — for an agent, GitHub's opaque 422
+      // reads as breakage, whereas the specific message names the bad token
+      // and the fix.
+      let response: SearchResponse;
+      let repos: Repo[];
       try {
-        validateQuery(parsed);
+        const run = await runRepoSearch({ query, sort, limit, token });
+        response = run.response;
+        repos = run.repos;
       } catch (err) {
         if (err instanceof BadQueryError) {
           return {
@@ -290,23 +289,10 @@ const TOOLS: ToolDefinition[] = [
             data: { totalCount: 0, repos: [], invalidQuery: true },
           };
         }
-        throw err;
-      }
-      const options: SearchOptions = {
-        limit,
-        sort,
-        json: false,
-        verbose: false,
-        token,
-      };
-      // The adapter no longer swallows rate limits as empty results — it
-      // throws RateLimitError. Convert it to the structured flag here so
-      // agents still get backoff advice (a tool failure reads as breakage;
-      // the flag reads as retry-later).
-      let response: Awaited<ReturnType<typeof provider.search>>;
-      try {
-        response = await provider.search(parsed, options);
-      } catch (err) {
+        // The adapter no longer swallows rate limits as empty results — it
+        // throws RateLimitError. Convert it to the structured flag here so
+        // agents still get backoff advice (a tool failure reads as breakage;
+        // the flag reads as retry-later).
         if (err instanceof RateLimitError) {
           return {
             text: `GitHub API rate limit exceeded for "${query}". Set a token (GITHUB_TOKEN or the tool's token argument) to raise the limit from 60/hr to 5,000/hr.`,
@@ -315,7 +301,6 @@ const TOOLS: ToolDefinition[] = [
         }
         throw err;
       }
-      const repos = rankRepos(response.repos, sort);
 
       // Make agent searches visible in the user's TUI history (best-effort).
       try {
@@ -329,9 +314,17 @@ const TOOLS: ToolDefinition[] = [
         // non-critical
       }
 
+      // Zero results usually means one qualifier over-constrained the query.
+      // Offer the same ranked loosenings the TUI does, as text and as data.
+      const suggestions =
+        repos.length === 0 ? zeroResultSuggestions(query) : [];
       const text =
         repos.length === 0
-          ? `No repositories found for "${query}" (total_count ${response.totalCount}).`
+          ? `No repositories found for "${query}" (total_count ${response.totalCount}).${
+              suggestions.length
+                ? `\n\nTry: ${suggestions.map((s) => `"${s}"`).join("\n     ")}`
+                : ""
+            }`
           : formatRepoLines(repos) +
             (response.totalCount > repos.length
               ? `\n\n(${fmtInt(response.totalCount)} total matches; showing ${repos.length}.)`
@@ -341,6 +334,7 @@ const TOOLS: ToolDefinition[] = [
         data: {
           totalCount: response.totalCount,
           repos: repos.map(slimRepo),
+          ...(suggestions.length ? { suggestions } : {}),
           ...(response.rateLimited ? { rateLimited: true } : {}),
         },
       };
@@ -370,13 +364,13 @@ const TOOLS: ToolDefinition[] = [
           minimum: 1,
           maximum: 50,
         },
-        token: { type: "string", description: "Optional GitHub token." },
+        // No token parameter: the trending feed is a github.com HTML scrape,
+        // not the authenticated API, so a token could never help.
       },
     },
-    async run(args, state) {
+    async run(args) {
       const since = coerceEnum(args.since, TRENDING_SINCE, "daily");
       const limit = coerceInt(args.limit, 25, 1, 50);
-      const token = resolveToken(state, args.token);
 
       let language: string | undefined;
       try {
@@ -387,18 +381,13 @@ const TOOLS: ToolDefinition[] = [
         throw asMcpToolError(err);
       }
 
-      const trending = createTrendingSearch();
-      const options: SearchOptions = {
-        limit,
+      const { repos: trendingRepos } = await runTrendingSearch({
         sort: "stars",
-        json: false,
-        verbose: false,
-        trendingSince: since,
-        ...(language ? { trendingLanguage: language } : {}),
-        token,
-      };
-      const response = await trending.search(TRENDING_QUERY, options);
-      const repos = response.repos.slice(0, limit);
+        limit,
+        since,
+        ...(language ? { language } : {}),
+      });
+      const repos = trendingRepos.slice(0, limit);
       const text =
         repos.length === 0
           ? `No trending repositories returned (${since}${language ? `, ${language}` : ""}).`

@@ -6,6 +6,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **One-shot CLI search now honors the saved `ghfind login` token.**
+  Token resolution was copy-pasted across surfaces and the CLI read only
+  `GITHUB_TOKEN`, so the documented setup flow silently ran at 60/hr. Every
+  surface now resolves through one module (`src/github-client.ts`):
+  flag > surface state > config, with the env var winning over the config
+  file as documented in HOW-TO.md.
+- **Config `githubTokens` rotation actually works.** The multi-token list was
+  declared but never wired into any surface; every surface now passes it to
+  `GitHubSearchAdapter`, deduped and in order.
+- **GitHub 403s say what GitHub said.** All API call sites classify
+  401 → bad-token, 403 with an exhausted `x-ratelimit-remaining` → rate-limit
+  (with reset seconds), other 403s → forbidden carrying GitHub's own message
+  (SSO, secondary limit), anything else → network error — instead of raw
+  `GitHub API error 403: {...}` dumps.
+- **`ghfind pkg` registries admit when they don't know the total.** npm,
+  crates.io, NuGet and Maven Central substituted the page length when the
+  registry published no total and presented it as exact; they now report a
+  bound (`+`) like RubyGems already did — in `--count`, the TUI toolbar, the
+  package browser and the MCP payload.
+- **MCP `ghfind_search_repos` offers zero-result loosenings.** A structured
+  `suggestions` array in the payload and a `Try:` line in the text, matching
+  the TUI. `ghfind_trending` no longer advertises a `token` argument that
+  could never do anything (the trending feed is an unauthenticated HTML
+  scrape).
+
+### Changed
+
+- **One repo-search pipeline** (`src/run-search.ts`) behind the CLI, MCP
+  server, TUI and watch mode — parse/filter/validate/search/rank and the
+  zero-result relaxations live in one module instead of nine hand-wired
+  copies. The CLI prints ranked `Try:` hints to stderr on zero results.
+- **One registry search pipeline** (`src/registries/search.ts`) — the five
+  package providers are now descriptors behind a shared
+  clamp → fetch → guard → missing-total path; each provider keeps only its
+  URL, envelope and normalizer.
+- **`formatTotalCount()`** — the `30+`-style bound rendering is shared by the
+  TUI toolbar and the package browser instead of reimplemented per surface.
+
 ## [9.12.0] — 2026-11-03 (released)
 
 ### Added

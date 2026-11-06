@@ -7,16 +7,8 @@
  * download tally is a lifetime figure, so the label comes from the catalog.
  */
 import type { Package } from "../types";
-import { clampRegistryLimit } from "./catalog";
-import { readJson } from "./parse";
-import type {
-  PackageSearchResult,
-  PackageProvider,
-  ProviderFetch,
-} from "./types";
-
-/** The server caps this endpoint at 30 rows regardless of the request. */
-const RUBYGEMS_SERVER_CAP = 30;
+import { defineSearch } from "./search";
+import type { PackageProvider } from "./types";
 
 interface RawGem {
   name?: string;
@@ -48,31 +40,12 @@ export function normalizeGem(raw: RawGem): Package {
   };
 }
 
-export async function searchRubygems(
-  rawQuery: string,
-  limit: number,
-  fetchImpl: ProviderFetch = fetch,
-): Promise<PackageSearchResult> {
-  const want = clampRegistryLimit(limit, "rubygems");
-  const res = await fetchImpl(rubygemsSearchUrl(rawQuery), {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`RubyGems search failed: HTTP ${res.status}`);
-  }
-  const data = await readJson(res, "RubyGems");
-  // Bare array on success, and an object-shaped error body on some failures.
-  const rows = Array.isArray(data) ? (data as RawGem[]) : [];
-  const packages = rows.slice(0, want).map(normalizeGem);
-  return {
-    totalCount: Math.min(rows.length, RUBYGEMS_SERVER_CAP, want),
-    packages,
-    // The API publishes no total: our count is a ceiling, never an exact tally.
-    totalIsExact: false,
-  };
-}
-
-export const rubygemsProvider: PackageProvider = {
+export const rubygemsProvider: PackageProvider = defineSearch<RawGem>({
   id: "rubygems",
-  search: searchRubygems,
-};
+  // search.json ignores any size parameter; the ceiling lives in the catalog.
+  url: (rawQuery) => rubygemsSearchUrl(rawQuery),
+  // Bare array on success, and an object-shaped error body on some failures.
+  rows: (data) => (Array.isArray(data) ? (data as RawGem[]) : []),
+  // The API publishes no total: omit it, and the pipeline marks the count a bound.
+  normalize: normalizeGem,
+});

@@ -8,6 +8,7 @@
  * Shape mirrors the org-profile module: a pure aggregate function +
  * normalize function that tests can drive with fixtures, and thin formatters.
  */
+import { githubFetch, githubHeaders } from "./github-client";
 
 export interface UserProfile {
   login: string;
@@ -82,15 +83,6 @@ export interface FetchUserOptions {
   token?: string;
   /** How many repos to fetch & aggregate (default 100 — one request). */
   limit?: number;
-}
-
-function apiHeaders(token?: string): Record<string, string> {
-  return {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "ghfind",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
 }
 
 /** Map a GitHub user `type` to a human-readable profile kind. */
@@ -185,18 +177,12 @@ export async function fetchUserProfile(
 
   let userPayload: GitHubUserPayload;
   try {
-    const res = await fetch(
+    const res = await githubFetch(
       `https://api.github.com/users/${encodeURIComponent(name)}`,
-      {
-        headers: apiHeaders(token),
-      },
+      { token, passthroughStatuses: [404] },
     );
     if (res.status === 404) {
       throw new Error(`User "${name}" not found.`);
-    }
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`GitHub API error ${res.status}: ${body.slice(0, 200)}`);
     }
     userPayload = (await res.json()) as GitHubUserPayload;
   } catch (err) {
@@ -217,7 +203,7 @@ export async function fetchUserProfile(
         const url =
           `https://api.github.com/users/${encodeURIComponent(name)}/repos` +
           `?per_page=${perPage}&sort=pushed&page=${page}`;
-        const res = await fetch(url, { headers: apiHeaders(token) });
+        const res = await fetch(url, { headers: githubHeaders(token) });
         if (!res.ok) {
           // User metadata succeeded; degraded summary beats a hard failure.
           return [];

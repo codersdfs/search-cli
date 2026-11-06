@@ -18,6 +18,7 @@ import {
   createPackageSearch,
   formatDownloads,
   formatScore,
+  formatTotalCount,
   sortPackages,
   type PackageSortMode,
 } from "./package";
@@ -42,12 +43,7 @@ const C = {
   descText: "#6c7086", // lighter muted for descriptions
   nameText: "#c0caf5", // bright for package names
 };
-// ─── Number formatting ────────────────────────────────────────────────
-const INT_FMT = new Intl.NumberFormat("en-US");
-/** 523219736 → "523,219,736" (full downloads tally, no compaction) */
-function fmtCount(n: number): string {
-  return INT_FMT.format(Math.trunc(n));
-}
+
 // ─── Row formatting ───────────────────────────────────────────────────
 /** Format one package as a 2-line StyledText (name line + description line). */
 function formatPackageLine(pack: Package): StyledText {
@@ -247,7 +243,7 @@ export async function launchPackageBrowser(
       rebuildList();
       // A bound is not a total: when the registry never reported one, the "+"
       // tells the reader the number is a ceiling, not a count.
-      const total = `${fmtCount(res.totalCount)}${res.totalIsExact === false ? "+" : ""}`;
+      const total = formatTotalCount(res);
       setStatus({
         content: t`${fg(C.muted)(`  ${packages.length} of ${total} results for `)}${fg(C.cyan)(`"${q}"`)}`,
       });

@@ -9,13 +9,8 @@
  * refuses non-browser clients with 403.
  */
 import type { Package } from "../types";
-import { clampRegistryLimit } from "./catalog";
-import { readJson } from "./parse";
-import type {
-  PackageSearchResult,
-  PackageProvider,
-  ProviderFetch,
-} from "./types";
+import { defineSearch } from "./search";
+import type { PackageProvider } from "./types";
 
 interface RawMavenDoc {
   id?: string;
@@ -54,29 +49,13 @@ export function normalizeMavenDoc(raw: RawMavenDoc): Package {
   };
 }
 
-async function searchMaven(
-  rawQuery: string,
-  limit: number,
-  fetchImpl: ProviderFetch = fetch,
-): Promise<PackageSearchResult> {
-  const rows = clampRegistryLimit(limit, "maven");
-  const res = await fetchImpl(mavenSearchUrl(rawQuery, rows), {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`Maven Central search failed: HTTP ${res.status}`);
-  }
-  const data = (await readJson(res, "Maven Central")) as {
-    response?: { numFound?: number; docs?: RawMavenDoc[] };
-  } | null;
-  const packages = (data?.response?.docs ?? []).map(normalizeMavenDoc);
-  return {
-    totalCount: data?.response?.numFound ?? packages.length,
-    packages,
-  };
-}
-
-export const mavenProvider: PackageProvider = {
+export const mavenProvider: PackageProvider = defineSearch<RawMavenDoc>({
   id: "maven",
-  search: searchMaven,
-};
+  url: (rawQuery, rows) => mavenSearchUrl(rawQuery, rows),
+  rows: (data) =>
+    (data as { response?: { docs?: RawMavenDoc[] } } | null)?.response?.docs ??
+    [],
+  total: (data) =>
+    (data as { response?: { numFound?: number } } | null)?.response?.numFound,
+  normalize: normalizeMavenDoc,
+});

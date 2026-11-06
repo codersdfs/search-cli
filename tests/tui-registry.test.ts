@@ -81,8 +81,9 @@ describe("src/package-browser.ts registry awareness", () => {
     expect(src).toMatch(/sortPackages\(res\.packages, sort\)/);
   });
 
-  it("marks an inexact total with + in the footer", () => {
-    expect(src).toMatch(/res\.totalIsExact === false \? "\+" : ""/);
+  it("marks an inexact total through the shared formatter", () => {
+    // The browser used to hand-roll the "+" suffix; now one module owns it.
+    expect(src).toMatch(/formatTotalCount\(res\)/);
   });
 });
 
@@ -109,7 +110,9 @@ describe("src/tui.ts toolbar total honesty", () => {
 
   it("renders an inexact package total as a bound", () => {
     expect(src).toMatch(/totalExact\?: boolean/);
-    expect(src).toMatch(/totalExact === false \? "\+" : ""/);
+    expect(src).toMatch(
+      /formatTotalCount\(\{ totalCount, totalIsExact: totalExact \}\)/,
+    );
   });
 
   it("keeps repo and trending totals exact", () => {

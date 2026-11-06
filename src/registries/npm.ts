@@ -6,13 +6,8 @@
  * Extracted from src/package.ts unchanged when the registry seam was introduced.
  */
 import type { Package } from "../types";
-import { clampRegistryLimit } from "./catalog";
-import { readJson } from "./parse";
-import type {
-  PackageSearchResult,
-  PackageProvider,
-  ProviderFetch,
-} from "./types";
+import { defineSearch } from "./search";
+import type { PackageProvider } from "./types";
 
 /** The npm `/-/v1/search` object shape we actually consume (research 002-001). */
 export interface NpmSearchObject {
@@ -55,27 +50,12 @@ export function npmSearchUrl(rawQuery: string, size: number): string {
   return `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(rawQuery)}&size=${size}`;
 }
 
-export async function searchNpm(
-  rawQuery: string,
-  limit: number,
-  fetchImpl: ProviderFetch = fetch,
-): Promise<PackageSearchResult> {
-  const size = clampRegistryLimit(limit, "npm");
-  const res = await fetchImpl(npmSearchUrl(rawQuery, size), {
-    headers: { "User-Agent": "ghfind", Accept: "application/json" },
-  });
-  if (!res.ok) {
-    throw new Error(`npm search failed: HTTP ${res.status}`);
-  }
-  const data = (await readJson(res, "npm")) as {
-    objects?: NpmSearchObject[];
-    total?: number;
-  };
-  const packages = (data.objects ?? []).map(normalizeNpmObject);
-  return { totalCount: data.total ?? packages.length, packages };
-}
-
-export const npmProvider: PackageProvider = {
+export const npmProvider: PackageProvider = defineSearch<NpmSearchObject>({
   id: "npm",
-  search: searchNpm,
-};
+  url: (rawQuery, size) => npmSearchUrl(rawQuery, size),
+  headers: () => ({ "User-Agent": "ghfind", Accept: "application/json" }),
+  rows: (data) =>
+    (data as { objects?: NpmSearchObject[] } | null)?.objects ?? [],
+  total: (data) => (data as { total?: number } | null)?.total,
+  normalize: normalizeNpmObject,
+});

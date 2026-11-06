@@ -1,7 +1,7 @@
 import { readJSON, writeJSON } from "./storage";
 import { getBookmarks, getLastSeen, markSeen } from "./bookmarks";
 import { addNotification } from "./notifications";
-import { loadConfig } from "./config";
+import { githubHeaders, resolveToken } from "./github-client";
 
 const RELEASES_FILE = "release-cache.json";
 const PER_REPO = 5;
@@ -53,14 +53,14 @@ async function fetchReleases(
   etag: string | undefined,
   token: string | undefined,
 ): Promise<{ status: number; etag?: string; releases?: TrackedRelease[] }> {
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github+json",
-  };
-  if (etag) headers["If-None-Match"] = etag;
-  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(
     `https://api.github.com/repos/${fullName}/releases?per_page=${PER_REPO}`,
-    { headers },
+    {
+      headers: githubHeaders(
+        token,
+        etag ? { "If-None-Match": etag } : undefined,
+      ),
+    },
   );
   if (res.status === 304 || !res.ok) return { status: res.status };
   return {
@@ -81,8 +81,7 @@ export async function checkReleases(
 > {
   const bookmarks = getBookmarks();
   const cache = loadCache();
-  const config = loadConfig();
-  const token = opts.token ?? config.githubToken ?? process.env.GITHUB_TOKEN;
+  const token = resolveToken(opts.token);
   const results: Array<{
     fullName: string;
     newReleases: TrackedRelease[];

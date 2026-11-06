@@ -92,6 +92,14 @@ export function formatDownloads(
   return `${p.downloads.toLocaleString("en-US")}${DOWNLOAD_SUFFIX[meta.downloadsWindow]}`;
 }
 
+/** `30+` when a registry never reported a total; otherwise a grouped exact count. */
+export function formatTotalCount(
+  result: Pick<PackageSearchResult, "totalCount" | "totalIsExact">,
+): string {
+  const n = Math.trunc(result.totalCount).toLocaleString("en-US");
+  return result.totalIsExact === false ? `${n}+` : n;
+}
+
 /** npm's relevance score, or an em dash for registries that publish none. */
 export function formatScore(p: Pick<Package, "registry" | "score">): string {
   return registryMeta(p.registry).hasScore ? p.score.toFixed(2) : "—";

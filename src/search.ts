@@ -20,10 +20,14 @@ import {
   NetworkError,
   RateLimitError,
   ParseError,
-  AuthError,
-  ForbiddenError,
   BadQueryError,
 } from "./errors";
+import {
+  githubHeaders,
+  isRateLimit403,
+  redactToken,
+  throwIfGitHubError,
+} from "./github-client";
 import { parseTrendingHtml, type RawTrendingRepo } from "./trending-parser";
 
 export interface Logger {
@@ -372,15 +376,6 @@ const DATE_QUALIFIERS = new Set(["created", "pushed", "updated"]);
 
 /** Every comparison operator GitHub's search syntax accepts on a value. */
 const COMPARISON_OPERATORS = [">=", "<=", ">", "<"] as const;
-
-/**
- * Strip a token out of a URL before logging. Guarded against the empty
- * string: `url.replace("", …)` inserts the replacement between every
- * character, which would mangle the whole URL whenever no token is in play.
- */
-function redactToken(url: string, token: string | undefined): string {
-  return token ? url.replace(token, "<token>") : url;
-}
 
 /** Strip a leading comparison operator, returning it alongside the rest. */
 function splitComparison(value: string): { op: string; rest: string } {
@@ -1075,12 +1070,7 @@ export class GitHubSearchAdapter implements SearchAdapter {
         const token = this.tokens.length > 0 ? this.nextToken() : options.token;
         try {
           const res = await fetch(pagedUrl, {
-            headers: {
-              Accept: "application/vnd.github+json",
-              "X-GitHub-Api-Version": "2022-11-28",
-              "User-Agent": "ghfind",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+            headers: githubHeaders(token),
           });
 
           const remainingStr = res.headers.get("x-ratelimit-remaining");
@@ -1093,55 +1083,18 @@ export class GitHubSearchAdapter implements SearchAdapter {
             );
           }
 
-          if (res.status === 403) {
-            if (remainingStr === "0" || remainingStr === null) {
-              if (this.tokens.length > 0 && attempt < this.tokens.length) {
-                continue;
-              }
-              this.logger.warn("[github] rate limit exceeded");
-              rateLimited = true;
-              throw new RateLimitError(!!token);
+          if (res.status === 403 && isRateLimit403(res)) {
+            if (this.tokens.length > 0 && attempt < this.tokens.length) {
+              continue;
             }
-            const body = await res.text().catch(() => "");
-            // These three 403s are indistinguishable from the status code
-            // alone, and each needs a different fix: SSO enforcement, a
-            // secondary/abuse rate limit, or a token blocked by org policy.
-            // Log the headers that tell them apart.
-            this.logger.error(
-              `[github] non-rate-limit 403: remaining=${remainingStr} ` +
-                `retry-after=${res.headers.get("retry-after") ?? "none"} ` +
-                `x-ratelimit-reset=${res.headers.get("x-ratelimit-reset") ?? "none"} ` +
-                `authed=${token ? "yes" : "no"} url=${redactToken(pagedUrl, token)}`,
-            );
-            this.logger.error(`[github] 403 body: ${body.slice(0, 400)}`);
-            // Surface GitHub's own explanation ("Resource not accessible by
-            // integration", "secondary rate limit", …) rather than asserting
-            // a cause we cannot actually know.
-            let reason = "no reason given";
-            try {
-              const parsed = JSON.parse(body) as { message?: unknown };
-              if (typeof parsed.message === "string" && parsed.message) {
-                reason = parsed.message;
-              }
-            } catch {
-              // Non-JSON body (HTML/CAPTCHA); keep the generic reason.
-            }
-            throw new ForbiddenError(reason);
+            rateLimited = true;
           }
-          if (res.status === 401) {
-            const body = await res.text().catch(() => "");
-            this.logger.error(
-              `[github] auth rejected (401): ${body.slice(0, 200)}`,
-            );
-            throw new AuthError();
-          }
-          if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            this.logger.error(
-              `[github] API error ${res.status}: ${body.slice(0, 200)}`,
-            );
-            throw new NetworkError();
-          }
+          // Throws AuthError / RateLimitError / ForbiddenError / NetworkError.
+          await throwIfGitHubError(res, {
+            token,
+            logger: this.logger,
+            url: pagedUrl,
+          });
 
           const raw = await res.text();
           let parsed: unknown;

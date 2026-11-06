@@ -9,13 +9,8 @@
  */
 import type { Package } from "../types";
 import { getVersion } from "../version";
-import { clampRegistryLimit } from "./catalog";
-import { readJson } from "./parse";
-import type {
-  PackageSearchResult,
-  PackageProvider,
-  ProviderFetch,
-} from "./types";
+import { defineSearch } from "./search";
+import type { PackageProvider } from "./types";
 
 interface RawCrate {
   name?: string;
@@ -62,28 +57,15 @@ async function readErrorMessage(res: Response): Promise<string> {
     : `crates.io search failed: HTTP ${res.status}`;
 }
 
-export async function searchCrates(
-  rawQuery: string,
-  limit: number,
-  fetchImpl: ProviderFetch = fetch,
-): Promise<PackageSearchResult> {
-  const perPage = clampRegistryLimit(limit, "crates");
-  const res = await fetchImpl(cratesSearchUrl(rawQuery, perPage), {
-    headers: {
-      "User-Agent": cratesUserAgent(),
-      Accept: "application/json",
-    },
-  });
-  if (!res.ok) throw new Error(await readErrorMessage(res));
-  const data = (await readJson(res, "crates.io")) as {
-    crates?: RawCrate[];
-    meta?: { total?: number };
-  };
-  const packages = (data.crates ?? []).map(normalizeCrate);
-  return { totalCount: data.meta?.total ?? packages.length, packages };
-}
-
-export const cratesProvider: PackageProvider = {
+export const cratesProvider: PackageProvider = defineSearch<RawCrate>({
   id: "crates",
-  search: searchCrates,
-};
+  url: (rawQuery, perPage) => cratesSearchUrl(rawQuery, perPage),
+  headers: () => ({
+    "User-Agent": cratesUserAgent(),
+    Accept: "application/json",
+  }),
+  rows: (data) => (data as { crates?: RawCrate[] } | null)?.crates ?? [],
+  total: (data) => (data as { meta?: { total?: number } } | null)?.meta?.total,
+  normalize: normalizeCrate,
+  errorDetail: readErrorMessage,
+});

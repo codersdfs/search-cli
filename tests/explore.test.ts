@@ -51,11 +51,12 @@ describe("explore", () => {
     expect(await fetchTopics()).toEqual([]);
   });
 
-  it("fetchTopics throws on a non-ok response", async () => {
+  it("fetchTopics throws a classified error on a non-ok response", async () => {
     globalThis.fetch = (async () =>
       new Response("rate limited", { status: 403 })) as unknown as typeof fetch;
 
     const { fetchTopics } = await import("../src/explore.ts");
-    await expect(fetchTopics()).rejects.toThrow("Topics API: HTTP 403");
+    // 403 with no remaining budget is a rate limit — the typed error says so.
+    await expect(fetchTopics()).rejects.toThrow(/rate limit/i);
   });
 });

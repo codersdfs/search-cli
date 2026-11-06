@@ -2,15 +2,9 @@
  * Watch mode — periodically re-run a search and show changes.
  *
  */
-import type { SearchOptions, Repo } from "./types";
-import {
-  parseQuery,
-  applyFlagFilters,
-  rankRepos,
-  createGitHubSearch,
-  validateQuery,
-} from "./search";
-import { createTrendingSearch, trendingQuery } from "./search";
+import type { Repo, SearchOptions } from "./types";
+import { applyFlagFilters, parseQuery, validateQuery } from "./search";
+import { runRepoSearch, runTrendingSearch } from "./run-search";
 
 export interface WatchOptions {
   query: string;
@@ -62,30 +56,20 @@ export async function runWatch(
       let repos: Repo[];
       if (opts.trending) {
         const since = resolveTrendingSince(opts);
-        const trendingSearch = createTrendingSearch();
-        const response = await trendingSearch.search(trendingQuery(), {
-          limit: opts.limit,
+        const { repos: trendingRepos } = await runTrendingSearch({
           sort: opts.sort,
-          json: false,
-          verbose: false,
-          trendingSince: since,
+          limit: opts.limit,
+          since,
         });
-        repos = response.repos;
+        repos = trendingRepos;
       } else {
-        const parsed = applyFlagFilters(parseQuery(opts.query), {});
-        const provider = createGitHubSearch(
-          undefined,
-          opts.token ? [opts.token] : [],
-        );
-        const options: SearchOptions = {
-          limit: opts.limit,
+        const run = await runRepoSearch({
+          query: opts.query,
           sort: opts.sort,
-          json: false,
-          verbose: false,
+          limit: opts.limit,
           token: opts.token,
-        };
-        const response = await provider.search(parsed, options);
-        repos = rankRepos(response.repos, options.sort);
+        });
+        repos = run.repos;
       }
 
       failCount = 0; // reset on success
