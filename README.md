@@ -351,6 +351,8 @@ See [docs/HOW-TO.md](docs/HOW-TO.md) for a task-oriented walkthrough.
 }
 ```
 
+`githubTokens: ["ghp_one", "ghp_two"]` additionally enables round-robin rotation across multiple tokens when you hit rate limits. The env var `GITHUB_TOKEN` takes precedence over the file.
+
 Env: `GITHUB_TOKEN`, `GHFIND_CONFIG`, `GHFIND_LOG` (path — write TUI diagnostics there; unset by default), `GHFIND_SKILL_ROOTS` (path-separator separated skill directories for `ghfind skill search`), `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `NO_COLOR` (disables colored `--doctor` output, per [no-color.org](https://no-color.org/))
 
 ---
@@ -364,14 +366,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 851 tests
+bun test         # 878 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 851 tests
+npm test         # 878 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -405,6 +407,12 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.12.1
+
+- **One-shot CLI search honors `ghfind login`'s saved token** — every surface now resolves flag > state > config (env wins over the file), and the config file's `githubTokens` rotation list actually works; previously only the env var was read, silently capping at 60/hr
+- **GitHub 403s carry GitHub's own reason** — one seam classifies 401/403/rate-limit/forbidden with the reset time and GitHub's message, replacing nine drifted header builders and raw `error 403` dumps
+- **`ghfind pkg` totals admit when unknown** — npm, crates.io, NuGet and Maven Central print a bound (`30+`) like RubyGems instead of passing off the page length as an exact count
+
 ### v9.12.0
 
 - **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven` selects one (npm default), every download figure is labelled with the window its registry actually publishes (`/mo`, `/90d`, ` total`, `n/a`), and an unparseable 200 is an error instead of zero results
@@ -416,10 +424,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **`ghfind clone <owner/repo>` clones to disk** — until now cloning was only a command you copy (`--pipe clone` printed `git clone …` lines); the new subcommand runs it, into `<dir>/<name>` (default: the cwd), over HTTPS or `--ssh` for the `git@github.com` form, and with no GitHub API call, so a spent unauthenticated budget can never block a clone
 - **`Esc` → Repo → Clone in the TUI** — git runs in the background because the TUI owns the screen: full output goes to `GHFIND_LOG` and the status bar carries git's own diagnosis; `--pipe clone` keeps printing commands for scripts, and git's exit codes are passed through (128 stays 128)
 - **`ghfind --doctor` reports whether git is on PATH** — a warning rather than a failure, since only `clone` needs it
-
-### v9.10.3
-
-- **The help overlay lists `Ctrl+E`** — the utility-keys section documented `t`, `Ctrl+X` and `Ctrl+C` but not the export shortcut the startup tip and the README already advertised
 
 ## License
 
