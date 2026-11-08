@@ -46,6 +46,7 @@ Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https
 | Bookmarks, tags & release tracking          | ✅       | ❌                       | ❌    |
 | Side-by-side repo compare (JSON/CSV/MD)     | ✅       | ❌                       | ❌    |
 | Deep-dive (languages, contributors, README) | ✅       | ❌                       | ❌    |
+| Similar repos (shared topics + language)    | ✅       | ❌                       | ❌    |
 | Package search, 5 registries                | ✅       | ❌                       | ❌    |
 | Org profile                                 | ✅       | ✅                       | ❌    |
 | User profile                                | ✅       | ❌                       | ❌    |
@@ -96,6 +97,7 @@ ghfind --releases            # new releases for bookmarked repos
 ghfind --compare a/b c/d     # side-by-side comparison
 ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
 ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
+ghfind similar facebook/react --limit 10  # repos sharing its topics + language
 ghfind pkg "query" --json    # npm package search as JSON (default registry)
 ghfind pkg clap --registry crates --json          # crates.io
 ghfind pkg Newtonsoft --registry nuget --limit 5  # NuGet, --registry npm|crates|rubygems|nuget|maven
@@ -140,7 +142,8 @@ Exposed tools: `ghfind_search_repos`, `ghfind_trending`,
 `ghfind_package_search` (npm, crates.io, RubyGems, NuGet, Maven Central —
 `registry` selects it, npm by default), `ghfind_npm_packages` (the npm-pinned
 alias), `ghfind_org_profile`, `ghfind_user_profile`, `ghfind_compare_repos`,
-`ghfind_deep_dive`, `ghfind_bookmarked_releases`,
+`ghfind_deep_dive`, `ghfind_similar_repos` (repos sharing a repo's topics and
+language), `ghfind_bookmarked_releases`,
 `ghfind_skill` (a token-efficient CLI usage guide for agents), and
 `ghfind_skill_search` (find agent skills, either installed on this machine or
 in the public skills.sh ecosystem ? read-only, it never installs anything).
@@ -188,6 +191,7 @@ ghfind --completion fish | source
 </tr>
 <tr><td><b>Bookmarks</b></td><td>Menu → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
 <tr><td><b>Deep-dive</b></td><td>Menu → Deep-dive — languages, contributors, README, activity chart</td></tr>
+<tr><td><b>Similar</b></td><td><code>ghfind similar a/b</code> — repos matching its topics and language</td></tr>
 <tr><td><b>Compare</b></td><td>Menu → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
 <tr><td><b>Explore</b></td><td>Menu → Topics — browse popular GitHub topics</td></tr>
 <tr><td><b>History</b></td><td>Menu → History — recall past searches</td></tr>
@@ -366,14 +370,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 878 tests
+bun test         # 895 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 878 tests
+npm test         # 895 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -407,6 +411,11 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.13.0
+
+- **`ghfind similar <owner/repo>` finds repos like one you already know** — topics first, then primary language, merged and de-duplicated across widening queries; forks, archived repos and the source repo itself are excluded, and a star floor scales with the source's popularity
+- **MCP `ghfind_similar_repos` gives agents the same discovery** — rendered list plus a structured `{ repo, count, repos, queries }` payload showing which searches produced the answer
+
 ### v9.12.1
 
 - **One-shot CLI search honors `ghfind login`'s saved token** — every surface now resolves flag > state > config (env wins over the file), and the config file's `githubTokens` rotation list actually works; previously only the env var was read, silently capping at 60/hr
@@ -418,12 +427,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 - **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven` selects one (npm default), every download figure is labelled with the window its registry actually publishes (`/mo`, `/90d`, ` total`, `n/a`), and an unparseable 200 is an error instead of zero results
 - **`ghfind release run --tag <v>` dispatches the Release workflow** — the CLI equivalent of `gh workflow run release --ref <v>`, with `--dry-run` to rehearse
 - **`--registry` now belongs to `ghfind pkg` alone** — elsewhere it is rejected instead of silently ignored, and `--sort` is validated against the chosen registry on every path including the browser
-
-### v9.11.0
-
-- **`ghfind clone <owner/repo>` clones to disk** — until now cloning was only a command you copy (`--pipe clone` printed `git clone …` lines); the new subcommand runs it, into `<dir>/<name>` (default: the cwd), over HTTPS or `--ssh` for the `git@github.com` form, and with no GitHub API call, so a spent unauthenticated budget can never block a clone
-- **`Esc` → Repo → Clone in the TUI** — git runs in the background because the TUI owns the screen: full output goes to `GHFIND_LOG` and the status bar carries git's own diagnosis; `--pipe clone` keeps printing commands for scripts, and git's exit codes are passed through (128 stays 128)
-- **`ghfind --doctor` reports whether git is on PATH** — a warning rather than a failure, since only `clone` needs it
 
 ## License
 

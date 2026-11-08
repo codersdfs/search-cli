@@ -84,6 +84,14 @@ reported in text output and via the error message.
     ghfind deep-dive owner/repo --json
 Text output (no flag) prints the same sections formatted for the terminal.
 
+## Find similar repositories
+
+    ghfind similar owner/repo [--json] [--limit N]
+Matches on the repo's topics first, then its primary language, and never
+returns the source repo itself. --limit defaults to 10 here (max 100). Text output is one line per repo; --json
+returns the same repo objects as a normal search. A repo with no topics and
+no language yields nothing to match on.
+
 ## Clone a repository
 
     ghfind clone owner/repo              # into ./repo, over HTTPS

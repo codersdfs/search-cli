@@ -28,4 +28,4 @@ complete -c ghfind -l raw -d "Readme: print the raw markdown with no header"
 complete -c ghfind -l dir -d "Clone: directory to clone into (default: cwd)" -r
 complete -c ghfind -l ssh -d "Clone: clone over SSH (git@github.com)"
 
-complete -c ghfind -f -a "login init doctor org user bookmarks history topics saved readme share clone pkg mcp skill trending deep-dive compare"
+complete -c ghfind -f -a "login init doctor org user bookmarks history topics saved readme share clone pkg mcp skill trending deep-dive similar compare"

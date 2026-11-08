@@ -6,6 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.13.0] — 2026-11-08 (released)
+
+### Added
+
+- **`ghfind similar <owner/repo>` — find repos like one you already know.**
+  Similarity comes only from public signals GitHub already indexes: the
+  source repo's topics and its primary language. Topics are the tightest
+  signal, so topic + language is queried first, then each later query widens
+  the net (second topic, primary topic alone, language alone); results from
+  all queries are merged, de-duplicated and sorted by stars. Forks, archived
+  repos and the source repo itself are always excluded, and a star floor of
+  one twentieth of the source's stars keeps a 2,000-star repo from being
+  matched against every repo under the same topic. Text output is one line per
+  repo; `--json`, `--csv`, `--markdown` and `--count` match the rest of the
+  CLI, and `--limit` defaults to 10 here (max 100).
+- **MCP tool `ghfind_similar_repos`.** Agents get the same discovery
+  (`repo`, optional `limit`/`token`) with the rendered list plus a structured
+  `{ repo, count, repos, queries }` payload that shows which queries produced
+  the answer. The `initialize` instructions and README tool list mention it.
+
+### Fixed
+
+- **Multi-word languages stay one qualifier.** `language:Jupyter Notebook`
+  became `language:Jupyter` plus the stray keyword `Notebook` when the planned
+  query was re-parsed; such values are now quoted. This affected Windows-era
+  favorites like "Visual Basic .NET" and "Emacs Lisp" too.
+- **An empty similar list no longer blames missing signals.** A repo with
+  topics but no matches used to be told it had "neither topics nor language";
+  that explanation now appears only when there was genuinely nothing to match
+  on, and the no-match case says the queries came up empty.
+
 ## [9.12.1] — 2026-11-05 (released)
 
 ### Fixed

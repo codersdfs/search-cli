@@ -1,6 +1,6 @@
 {
   "name": "github-search-cli",
-  "version": "9.12.1",
+  "version": "9.13.0",
   "description": "Search GitHub from your terminal — repo search, trending repos, package registry search (npm, crates.io, RubyGems, NuGet, Maven Central), bookmarks, deep-dive, compare, export. Keyboard + mouse TUI + pipeable CLI.",
   "type": "module",
   "packageManager": "bun@1",

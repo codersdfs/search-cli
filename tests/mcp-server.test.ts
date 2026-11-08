@@ -177,6 +177,7 @@ describe("protocol", () => {
     expect(names).toContain("ghfind_user_profile");
     expect(names).toContain("ghfind_compare_repos");
     expect(names).toContain("ghfind_deep_dive");
+    expect(names).toContain("ghfind_similar_repos");
     expect(names).toContain("ghfind_bookmarked_releases");
     expect(names).toContain("ghfind_skill");
     for (const t of tools) {
@@ -585,6 +586,67 @@ describe("callTool: ghfind_deep_dive", () => {
     );
     expect(outcome.text).toContain("Summary");
     expect(outcome.text).toContain("TypeScript");
+  });
+});
+
+describe("callTool: ghfind_similar_repos", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), "ghfind-mcp-"));
+    process.env.XDG_STATE_HOME = tmp;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("validates the repo name format", async () => {
+    await expect(
+      callTool("ghfind_similar_repos", { repo: "not-a-repo" }, freshState()),
+    ).rejects.toThrow(/owner\/name/);
+  });
+
+  it("drops the source repo and returns structured candidates", async () => {
+    const source = {
+      id: 1,
+      name: "bun",
+      full_name: "oven-sh/bun",
+      owner: { login: "oven-sh" },
+      description: "Incredibly fast JavaScript runtime",
+      html_url: "https://github.com/oven-sh/bun",
+      stargazers_count: 70000,
+      forks_count: 2000,
+      subscribers_count: 70000,
+      language: "Zig",
+      topics: ["runtime"],
+      archived: false,
+      fork: false,
+      private: false,
+      created_at: "2021-01-01T00:00:00Z",
+      updated_at: "2026-09-01T00:00:00Z",
+      pushed_at: "2026-09-10T00:00:00Z",
+    };
+    globalThis.fetch = (async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes("/search/repositories"))
+        return jsonResponse(searchEnvelope);
+      return jsonResponse(source);
+    }) as unknown as typeof fetch;
+
+    const outcome = await callTool(
+      "ghfind_similar_repos",
+      { repo: "oven-sh/bun", limit: 5 },
+      freshState(),
+    );
+    expect(outcome.text).toContain("Similar to oven-sh/bun");
+    expect(outcome.text).toContain("nodejs/node");
+    const data = outcome.data as Record<string, unknown>;
+    expect(data.count).toBe(1);
+    const repos = data.repos as Array<Record<string, unknown>>;
+    expect(repos).toHaveLength(1);
+    expect(repos[0].fullName).toBe("nodejs/node");
+    expect(Array.isArray(data.queries)).toBe(true);
+    expect((data.queries as string[]).join(" ")).toContain("topic:runtime");
   });
 });
 

@@ -43,14 +43,19 @@ describe("registry documentation", () => {
     expect(guide).toContain("--registry");
   });
 
-  it("CHANGELOG records the feature in its newest section", () => {
-    // The top section is [Unreleased] before a release and the new version
-    // after one — the guard holds across the cycle either way.
+  it("CHANGELOG records the registry feature", () => {
+    // Find the section that introduced ghfind pkg instead of assuming it is
+    // the newest: later releases (like 9.13.0's similar-repo discovery) may
+    // top the file without erasing the registry documentation.
     const log = read("CHANGELOG.md");
-    const top = log.match(/^## \[[^\]]+\][\s\S]*?(?=^## \[)/m);
-    expect(top, "no CHANGELOG section found").not.toBeNull();
-    expect(top![0]).toContain("registry");
-    expect(top![0]).toContain("ghfind pkg");
+    const sections = log.split(/^## \[/m).slice(1);
+    expect(
+      sections.some(
+        (section) =>
+          section.includes("ghfind pkg") && section.includes("registry"),
+      ),
+      "no CHANGELOG section documents ghfind pkg + registry",
+    ).toBe(true);
   });
 
   it("README advertises one test count, stated identically twice", () => {

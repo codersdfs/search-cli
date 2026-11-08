@@ -46,6 +46,7 @@ _ghfind() {
     'pkg[Search packages]:query:'
     'trending[Trending repos, optionally by language]'
     'deep-dive[Repo deep-dive: languages, contributors, README]:owner/repo:'
+    'similar[Repos like this one (shared topics + language)]:owner/repo:'
     'mcp[Run the MCP server for AI agents (stdio)]'
     'skill[Print an agent skill guide, or search with: skill search <query>]:skill name:'
     'compare[Compare repositories]'

@@ -66,6 +66,7 @@ import {
   resolveRepoFromRef,
 } from "./deepdive";
 import { resolveTrendingLanguage } from "./search";
+import { findSimilarRepos, formatSimilarText } from "./similar";
 import type { Repo } from "./types";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -135,6 +136,7 @@ interface CLIFlags {
   mcp: boolean; // run the MCP server (ghfind mcp)
   skill?: string; // agent skill guide (ghfind skill [name])
   deepDive?: string; // repo deep-dive (ghfind deep-dive <owner/repo>)
+  similar?: string; // repos like this one (ghfind similar <owner/repo>)
   language?: string; // trending language filter (--trending rust / ghfind trending rust)
   // ?? Read-only local/skill surface (see README "Non-interactive") ??
   bookmarks: boolean; // list bookmarks (ghfind bookmarks)
@@ -486,6 +488,17 @@ function parseArgs(args: string[]): CLIFlags {
         }
         break;
       }
+      case "similar": {
+        // Single repo ref; a following flag means none was given.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.similar = next;
+          i++;
+        } else {
+          flags.similar = "";
+        }
+        break;
+      }
       case "skill": {
         // `skill search <query>` searches the skill registry; plain `skill`
         // lists the catalog and `skill <name>` prints one skill's guide.
@@ -591,6 +604,7 @@ Usage:
   ghfind --compare a/b c/d --json  Compare as JSON|CSV|Markdown
   ghfind deep-dive <owner/repo>    Deep-dive: languages, contributors, README
   ghfind deep-dive a/b --json      Deep-dive as JSON
+  ghfind similar <owner/repo>      Repos like this one (shared topics + language)
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
   ghfind pkg <query> --json        Search registries, output JSON
@@ -616,7 +630,7 @@ Usage:
 
 Options:
   --json, --csv, --markdown, --count   Output format
-  --limit <n>                          Max results (default: 50)
+  --limit <n>                          Max results (default: 50; similar: 10)
   --sort <strategy>                    Sort: best-match|stars|updated|forks|score|downloads|name
   --theme <name>                     Theme: tokyo-night|premium-dark (default: tokyo-night)
   --trending                           Trending mode
@@ -759,6 +773,12 @@ Options:
   // Repo deep-dive — parity with the MCP ghfind_deep_dive tool
   if (flags.deepDive !== undefined) {
     await runDeepDive(flags, outputFormat);
+    return;
+  }
+
+  // Similar repos — discovery from the repo's own topics and language
+  if (flags.similar !== undefined) {
+    await runSimilar(flags, outputFormat);
     return;
   }
 
@@ -907,6 +927,41 @@ async function runDeepDive(
       console.log(buildDeepDiveJson(raw));
     } else {
       console.log(buildDeepDiveText(buildDeepDiveData(repo, raw)));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/**
+ * `ghfind similar <owner/repo>` — repos that share this repo's topics and
+ * primary language. Read-only and discovery-oriented: it never writes state.
+ */
+async function runSimilar(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
+  const ref = flags.similar ?? "";
+  if (!ref) {
+    console.error(
+      "Usage: ghfind similar <owner/repo> [--limit <n>] [--json|--csv|--markdown|--count]",
+    );
+    process.exit(1);
+  }
+  try {
+    const result = await findSimilarRepos(ref, {
+      token: flags.token,
+      // A similarity list is noisy past ten rows; --limit overrides, and 50
+      // (the search default) would be a wall of repos nobody scanned.
+      limit: flags.limitExplicit ? flags.limit : undefined,
+    });
+    if (flags.count) {
+      console.log(result.repos.length);
+    } else if (outputFormat) {
+      console.log(formatOutput(result.repos, outputFormat));
+    } else {
+      console.log(formatSimilarText(result));
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

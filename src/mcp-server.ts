@@ -16,6 +16,7 @@
  *   ghfind_user_profile         user.ts
  *   ghfind_compare_repos        compare.ts + search.ts
  *   ghfind_deep_dive            deepdive.ts
+ *   ghfind_similar_repos        similar.ts
  *   ghfind_bookmarked_releases  releases.ts + bookmarks.ts (read-only)
  *   ghfind_skill                agent-skill.ts
  *   ghfind_skill_search         skill-finder.ts (local scan | skills.sh HTTP)
@@ -52,6 +53,11 @@ import {
   resolveRepoFromRef,
 } from "./deepdive";
 import { buildComparisonTable } from "./compare";
+import {
+  findSimilarRepos,
+  formatSimilarText,
+  SIMILAR_DEFAULT_LIMIT,
+} from "./similar";
 import { allCachedReleases } from "./releases";
 import { getBookmarks } from "./bookmarks";
 import { appendHistory } from "./history";
@@ -678,6 +684,52 @@ const TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: "ghfind_similar_repos",
+    title: "Find similar GitHub repositories",
+    description:
+      'Find repositories similar to a given repo using its topics and primary language, most-starred first. The source repo is always excluded. Best for "what else is like this?" discovery; use ghfind_search_repos when the user has explicit criteria instead.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: {
+          type: "string",
+          description: 'Source repo fullName, e.g. "facebook/react".',
+        },
+        limit: {
+          type: "number",
+          description: `Max similar repos, 1-100 (default ${SIMILAR_DEFAULT_LIMIT}).`,
+          minimum: 1,
+          maximum: 100,
+        },
+        token: { type: "string", description: "Optional GitHub token." },
+      },
+      required: ["repo"],
+    },
+    async run(args, state) {
+      const repo = String(args.repo ?? "").trim();
+      if (!repo) throw new McpToolError("repo must be a non-empty string.");
+      const limit = coerceInt(args.limit, SIMILAR_DEFAULT_LIMIT, 1, 100);
+      let result: Awaited<ReturnType<typeof findSimilarRepos>>;
+      try {
+        result = await findSimilarRepos(repo, {
+          token: resolveToken(state, args.token),
+          limit,
+        });
+      } catch (err) {
+        throw asMcpToolError(err);
+      }
+      return {
+        text: formatSimilarText(result),
+        data: {
+          repo: slimRepo(result.repo),
+          count: result.repos.length,
+          repos: result.repos.map(slimRepo),
+          queries: result.queries,
+        },
+      };
+    },
+  },
+  {
     name: "ghfind_bookmarked_releases",
     title: "Bookmarked repo releases",
     description:
@@ -908,7 +960,7 @@ export async function processServerLine(
             version: getVersion(),
           },
           instructions:
-            "ghfind gives agents GitHub search: repositories, trending, package registries (npm, crates.io, RubyGems, NuGet, Maven Central), org/user profiles, repo comparison and deep-dives. " +
+            "ghfind gives agents GitHub search: repositories, trending, package registries (npm, crates.io, RubyGems, NuGet, Maven Central), org/user profiles, repo comparison, deep-dives and similar-repo discovery. " +
             "ghfind_skill_search finds agent skills, either installed on this machine or in the public skills.sh ecosystem. " +
             "Call ghfind_skill for the full CLI guide. Unauthenticated requests are rate-limited to 60/hr; pass a token or set GITHUB_TOKEN for 5,000/hr.",
         }),
