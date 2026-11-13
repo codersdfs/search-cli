@@ -6,6 +6,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.14.0] — 2026-11-13 (released)
+
+### Added
+
+- **`ghfind health <owner/repo>` — a four-dimension repo health score.**
+  Maintenance activity (30%), issue responsiveness (25%), release cadence
+  (25%) and community breadth (20%) are scored from public GitHub API
+  endpoints. Every fetch degrades independently and the total re-normalizes
+  over the dimensions that did produce data — a missing signal never silently
+  scores 0. Archived repos are capped at 40 (a frozen mirror is not
+  "healthy"), and full result pages are reported as "100+" instead of exactly 100. PRs are filtered out of the issue counts, and a missing latest release
+  is a real signal (none published), not a fetch failure. `--json`, `--csv`
+  and `--markdown` match the rest of the CLI.
+- **`ghfind --compare a/b c/d --health`.** The comparison table gains a
+  Health row (text) or column (Markdown) and the JSON/CSV exports gain
+  per-repo health fields. A failed score degrades to null for that repo
+  instead of failing the whole comparison.
+- **Deep-dive now includes health.** `ghfind deep-dive` and the MCP
+  `ghfind_deep_dive` tool show the same score alongside languages,
+  contributors and the README. Health signals fetch alongside the README
+  request, and the contributors endpoint is fetched once (`per_page=100`):
+  the top entries feed the contributors section, the array length is the
+  community count.
+- **TUI health score — `Shift+H` or Menu → Health score.** The detail pane
+  shows the total, grade and per-dimension bars with explanations.
+- **A third theme: `dracula`.** The official Dracula palette, with the
+  derived surface layers and interpolated teal the other themes also use.
+  `--theme dracula`, the TUI picker and the init wizard all list it.
+- **TUI theme picker — Menu → Theme.** Lists every registered theme with the
+  persisted current one marked; Enter applies and saves it. `t` still cycles.
+
+### Fixed
+
+- **Help text tells the truth about themes.** The TUI help described the
+  theme key as "light / dark / solarized" — none of those exist; it now
+  points at the picker, and the `--theme` row lists every shipped theme.
+
 ## [9.13.0] — 2026-11-08 (released)
 
 ### Added

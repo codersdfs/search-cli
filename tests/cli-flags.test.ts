@@ -98,6 +98,34 @@ describe("--format / --pipe validation", () => {
   });
 });
 
+describe("health subcommand", () => {
+  test("parseArgs has the health cases", () => {
+    const src = readSrc("src/cli.ts");
+    expect(src).toContain('case "health"');
+    expect(src).toContain('case "--health"');
+  });
+
+  test("a malformed ref fails fast with the owner/name hint", () => {
+    const { code, err } = runCli("health", "not-a-repo");
+    expect(code).toBe(1);
+    expect(err).toContain("owner/name");
+    expect(err).not.toContain("Network error");
+  });
+
+  test("bare health falls through to a query instead of a usage error", () => {
+    // `ghfind health` with no ref is a search for "health" (same convention
+    // as bare `ghfind deep-dive`), so it must not exit before any output.
+    const src = readSrc("src/cli.ts");
+    expect(src).toMatch(/case "health": \{[\s\S]*?flags\.health = next/);
+  });
+
+  test("--health without --compare fails fast with a hint", () => {
+    const { code, err } = runCli("--health");
+    expect(code).toBe(1);
+    expect(err).toContain("--health requires --compare");
+  });
+});
+
 describe("empty query", () => {
   test("fails fast with usage instead of GitHub 422 → Network error", () => {
     const { code, err } = runCli("--count");

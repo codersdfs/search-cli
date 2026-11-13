@@ -3,6 +3,8 @@ import type { Repo } from "./types";
 import { fetchReadme } from "./readme";
 import { githubFetch, githubHeaders } from "./github-client";
 import { SearchCliError } from "./errors";
+import { computeHealth, fetchHealthSignals, formatHealthBody } from "./health";
+import type { HealthScore } from "./health";
 
 // ─── Repo ref parsing (shared by the CLI deep-dive and the MCP server) ─
 
@@ -141,6 +143,7 @@ interface Contributor {
 export interface DeepDiveData {
   summary: string;
   languages: string;
+  health: string;
   contributors: string;
   readme: string;
 }
@@ -161,6 +164,8 @@ export interface DeepDiveJson {
   contributors: { login: string; contributions: number }[];
   /** Raw README markdown (capped at README_MAX_CHARS). */
   readme: string;
+  /** Weighted health score (computed alongside the other sections). */
+  health?: HealthScore | null;
 }
 
 const README_MAX_CHARS = 5_000;
@@ -172,15 +177,29 @@ export async function fetchDeepDiveRaw(
 ): Promise<DeepDiveJson> {
   const headers = githubHeaders(token);
 
+  // Contributors are fetched once at per_page=100: the top entries feed the
+  // contributors section and the array length is the health community count,
+  // so the health fetcher skips its own contributors request.
   const [languagesRes, contributorsRes] = await Promise.all([
     fetch(`https://api.github.com/repos/${repo.owner}/${repo.name}/languages`, {
       headers,
     }),
     fetch(
-      `https://api.github.com/repos/${repo.owner}/${repo.name}/contributors?per_page=5`,
+      `https://api.github.com/repos/${repo.owner}/${repo.name}/contributors?per_page=100`,
       { headers },
     ),
   ]);
+  const contributorsJson = contributorsRes.ok
+    ? ((await contributorsRes.json().catch(() => null)) as Contributor[] | null)
+    : null;
+
+  // Health signals run alongside the README fetch — every endpoint fails
+  // independently, so a slow or missing one degrades only its own dimension.
+  const healthSignalsTask = fetchHealthSignals(repo, token, {
+    contributorsCount: Array.isArray(contributorsJson)
+      ? contributorsJson.length
+      : null,
+  });
 
   // README: main → master → README.rst, probed in parallel by fetchReadme.
   // Public READMEs are served unauthenticated, so the token is only forwarded
@@ -190,6 +209,7 @@ export async function fetchDeepDiveRaw(
     private: repo.private,
   });
   const readmeText = readme?.text ?? "";
+  const healthSignals = await healthSignalsTask;
 
   const langEntries: [string, number][] = languagesRes.ok
     ? Object.entries(
@@ -197,9 +217,7 @@ export async function fetchDeepDiveRaw(
       )
     : [];
   const totalBytes = langEntries.reduce((s, [, v]) => s + v, 0);
-  const contributors: Contributor[] = contributorsRes.ok
-    ? ((await contributorsRes.json().catch(() => [])) as Contributor[])
-    : [];
+  const contributors: Contributor[] = contributorsJson ?? [];
 
   return {
     repo: {
@@ -223,6 +241,7 @@ export async function fetchDeepDiveRaw(
       contributions: c.contributions,
     })),
     readme: readmeText.slice(0, README_MAX_CHARS),
+    health: computeHealth(healthSignals, repo.fullName),
   };
 }
 
@@ -236,6 +255,7 @@ export function buildDeepDiveData(repo: Repo, raw: DeepDiveJson): DeepDiveData {
   return {
     summary: formatSummary(repo),
     languages: formatLanguages(raw.languages),
+    health: raw.health ? formatHealthBody(raw.health) : "(unavailable)",
     contributors: formatContributors(raw.contributors),
     readme: formatReadme(raw.readme),
   };
@@ -309,6 +329,9 @@ export function buildDeepDiveText(data: DeepDiveData): string {
     "",
     "── Languages ────────────────────────────────────",
     data.languages,
+    "",
+    "── Health ───────────────────────────────────────",
+    data.health,
     "",
     "── Top Contributors ─────────────────────────────",
     data.contributors,

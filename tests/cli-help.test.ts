@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { listThemes } from "../src/themes";
 
 // Guard the `--help` usage block in src/cli.ts. 9.5.0 shipped
 // `ghfind user <name> --json` twice inside the template literal, so the
@@ -47,6 +48,7 @@ describe("cli --help usage block", () => {
       "ghfind skill search",
       "ghfind release run --tag <tag>",
       "ghfind similar",
+      "ghfind health",
     ]) {
       expect(rows, `missing usage row for: ${invocation}`).toContain(
         invocation,
@@ -119,5 +121,14 @@ describe("cli --help usage block", () => {
     };
     expect(columnOf("--sort <strategy>")).toBe(columnOf("--limit <n>"));
     expect(columnOf("--sort <strategy>")).toBe(columnOf("--since <period>"));
+  });
+
+  test("the --theme row lists every registered theme", () => {
+    const row = readCli()
+      .split(/\r?\n/)
+      .find((line) => line.trimStart().startsWith("--theme <name>"));
+    expect(row, "no --theme row in the help block").toBeTruthy();
+    const listed = row!.match(/Theme: (.*) \(default/)?.[1].split("|") ?? [];
+    expect(listed).toEqual(listThemes());
   });
 });

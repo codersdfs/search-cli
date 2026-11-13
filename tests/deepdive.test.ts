@@ -10,6 +10,7 @@ describe("deepdive", () => {
       "  TypeScript       ████████████████░░ 78.3%\n  Rust             ██████░░░░░░░░  15.1%",
     contributors:
       "  ▲ user1               247 commits\n  ▲ user2               103 commits",
+    health: " owner/repo — 77/100 [B]",
     readme: "  # Test\n  This is a test README.\n  ## Usage\n  Run the CLI.",
   };
 
@@ -17,6 +18,7 @@ describe("deepdive", () => {
     const text = buildDeepDiveText(sampleData);
     expect(text).toContain("── Summary ───");
     expect(text).toContain("── Languages ───");
+    expect(text).toContain("── Health ──");
     expect(text).toContain("── Top Contributors ───");
     expect(text).toContain("── README ───");
     expect(text).toContain("owner/repo");

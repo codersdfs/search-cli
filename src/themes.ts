@@ -105,6 +105,35 @@ const THEMES: Record<string, Theme> = {
     accentDim: "#c9a87a",
     borderAccent: "#313244",
   },
+  dracula: {
+    name: "dracula",
+    // Official Dracula palette; teal/accentDim are interpolated (no official
+    // equivalents), the same way the other themes derive layered surfaces.
+    bg: "#282a36",
+    surface: "#343746",
+    surfaceAlt: "#3a3d52",
+    text: "#f8f8f2",
+    muted: "#6272a4",
+    blue: "#8be9fd",
+    green: "#50fa7b",
+    yellow: "#f1fa8c",
+    red: "#ff5555",
+    teal: "#6df1bc",
+    purple: "#bd93f9",
+    orange: "#ffb86c",
+    border: "#44475a",
+    borderAlt: "#343746",
+    separator: "#343746",
+    selectionBg: "#44475a",
+    selectionText: "#f8f8f2",
+    success: "#50fa7b",
+    warning: "#f1fa8c",
+    error: "#ff5555",
+    surfaceDim: "#21222c",
+    accent: "#bd93f9",
+    accentDim: "#8f82ce",
+    borderAccent: "#44475a",
+  },
 };
 
 export function loadTheme(name: string): Theme {

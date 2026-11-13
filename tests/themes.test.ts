@@ -4,6 +4,8 @@ import {
   mixHex,
   isDarkHex,
   deriveSurfaceLayers,
+  listThemes,
+  loadTheme,
 } from "../src/themes";
 
 describe("parseOscColor", () => {
@@ -125,5 +127,27 @@ describe("deriveSurfaceLayers", () => {
         "surfaceDim",
       ].sort(),
     );
+  });
+});
+
+describe("theme registry", () => {
+  test("lists the shipped themes in registry order", () => {
+    expect(listThemes()).toEqual(["tokyo-night", "premium-dark", "dracula"]);
+  });
+
+  test("loads dracula with structural parity and valid hexes", () => {
+    const dracula = loadTheme("dracula");
+    expect(dracula.name).toBe("dracula");
+    expect(Object.keys(dracula).sort()).toEqual(
+      Object.keys(loadTheme("tokyo-night")).sort(),
+    );
+    for (const [key, value] of Object.entries(dracula)) {
+      if (key === "name") continue;
+      expect(value).toMatch(/^#[0-9a-f]{6}$/);
+    }
+  });
+
+  test("unknown names still fall back to tokyo-night", () => {
+    expect(loadTheme("nope")).toBe(loadTheme("tokyo-night"));
   });
 });

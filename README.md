@@ -38,20 +38,21 @@ Or grab a **standalone binary** (no Node.js needed) from [GitHub Releases](https
 
 ## Why ghfind?
 
-|                                             | `ghfind` | `gh search` (GitHub CLI) | `hub` |
-| ------------------------------------------- | -------- | ------------------------ | ----- |
-| Repo search + qualifiers                    | ✅       | ✅                       | ❌    |
-| Trending repos (day/week/month/year)        | ✅       | ❌                       | ❌    |
-| Full-screen TUI, keyboard-driven            | ✅       | ❌                       | ❌    |
-| Bookmarks, tags & release tracking          | ✅       | ❌                       | ❌    |
-| Side-by-side repo compare (JSON/CSV/MD)     | ✅       | ❌                       | ❌    |
-| Deep-dive (languages, contributors, README) | ✅       | ❌                       | ❌    |
-| Similar repos (shared topics + language)    | ✅       | ❌                       | ❌    |
-| Package search, 5 registries                | ✅       | ❌                       | ❌    |
-| Org profile                                 | ✅       | ✅                       | ❌    |
-| User profile                                | ✅       | ❌                       | ❌    |
-| Pipeable JSON / CSV / Markdown export       | ✅       | JSON only                | ❌    |
-| No login required                           | ✅       | ❌                       | ❌    |
+|                                                     | `ghfind` | `gh search` (GitHub CLI) | `hub` |
+| --------------------------------------------------- | -------- | ------------------------ | ----- |
+| Repo search + qualifiers                            | ✅       | ✅                       | ❌    |
+| Trending repos (day/week/month/year)                | ✅       | ❌                       | ❌    |
+| Full-screen TUI, keyboard-driven                    | ✅       | ❌                       | ❌    |
+| Bookmarks, tags & release tracking                  | ✅       | ❌                       | ❌    |
+| Side-by-side repo compare (JSON/CSV/MD)             | ✅       | ❌                       | ❌    |
+| Deep-dive (languages, contributors, README, health) | ✅       | ❌                       | ❌    |
+| Repo health score (4-dimension)                     | ✅       | ❌                       | ❌    |
+| Similar repos (shared topics + language)            | ✅       | ❌                       | ❌    |
+| Package search, 5 registries                        | ✅       | ❌                       | ❌    |
+| Org profile                                         | ✅       | ✅                       | ❌    |
+| User profile                                        | ✅       | ❌                       | ❌    |
+| Pipeable JSON / CSV / Markdown export               | ✅       | JSON only                | ❌    |
+| No login required                                   | ✅       | ❌                       | ❌    |
 
 > **No separate runtime needed!** Only requires Node.js 20+. The TUI needs Bun,
 > which is downloaded automatically at install time. Non-interactive modes work
@@ -97,6 +98,9 @@ ghfind --releases            # new releases for bookmarked repos
 ghfind --compare a/b c/d     # side-by-side comparison
 ghfind --compare a/b c/d --json # comparison as JSON|CSV|Markdown
 ghfind deep-dive a/b --json  # deep-dive: languages, contributors, README
+ghfind health a/b            # repo health score (maintenance, issues, releases, community)
+ghfind health a/b --json     # health score as JSON|CSV|Markdown
+ghfind --compare a/b c/d --health  # comparison with health scores
 ghfind similar facebook/react --limit 10  # repos sharing its topics + language
 ghfind pkg "query" --json    # npm package search as JSON (default registry)
 ghfind pkg clap --registry crates --json          # crates.io
@@ -191,12 +195,14 @@ ghfind --completion fish | source
 </tr>
 <tr><td><b>Bookmarks</b></td><td>Menu → Bookmark / Bookmarks panel — save repos, tag them</td></tr>
 <tr><td><b>Deep-dive</b></td><td>Menu → Deep-dive — languages, contributors, README, activity chart</td></tr>
+<tr><td><b>Health score</b></td><td>Menu → Health score or <code>Shift+H</code> — 4-dimension maintenance rating</td></tr>
 <tr><td><b>Similar</b></td><td><code>ghfind similar a/b</code> — repos matching its topics and language</td></tr>
 <tr><td><b>Compare</b></td><td>Menu → Compare select / Compare view — side-by-side, select 2+ repos</td></tr>
 <tr><td><b>Explore</b></td><td>Menu → Topics — browse popular GitHub topics</td></tr>
 <tr><td><b>History</b></td><td>Menu → History — recall past searches</td></tr>
 <tr><td><b>Saved</b></td><td>Menu → Saved searches — load or save queries</td></tr>
 <tr><td><b>Export</b></td><td>Menu → Export — JSON, CSV, Markdown to file</td></tr>
+<tr><td><b>Theme</b></td><td>Menu → Theme — pick a theme (<code>t</code> cycles)</td></tr>
 <tr><td><b>Share</b></td><td>Menu → Share repo — copy repo link to clipboard</td></tr>
 <tr><td><b>Org profile</b></td><td>Menu → Org profile — org summary: repos, stars, top languages (<code>ghfind org <name></code> in CLI)</td></tr>
 <tr><td><b>User profile</b></td><td>User summary like org profile — repos, stars, followers, top languages (<code>ghfind user <name></code>)</td></tr>
@@ -274,6 +280,7 @@ Actions shown depend on current mode (search vs trending) and selection:
 | Refresh         | Re-run current search (or reload trending)              |
 | Toggle trending | Switch between search and trending views                |
 | Deep-dive       | Show languages, contributors, README excerpt            |
+| Health score    | Rate the selected repo's health (Shift+H)               |
 | Readme          | Full markdown README viewer (inline images included)    |
 | Activity graph  | Toggle commit chart fullscreen                          |
 | Bookmark        | Save / unsave selected repo                             |
@@ -370,14 +377,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 895 tests
+bun test         # 933 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 895 tests
+npm test         # 933 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,

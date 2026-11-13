@@ -5,6 +5,8 @@ import {
   comparisonCsv,
   comparisonMarkdown,
 } from "../src/compare.ts";
+import { formatHealthCell } from "../src/health.ts";
+import type { HealthScore } from "../src/health.ts";
 import type { Repo } from "../src/types.ts";
 
 const makeRepo = (
@@ -32,6 +34,22 @@ const makeRepo = (
   pushedAt: "2024-06-15T00:00:00Z",
   score: 0,
 });
+
+const healthA: HealthScore = {
+  repo: "owner/a",
+  total: 78,
+  grade: "B",
+  archived: false,
+  dimensions: [],
+};
+
+const healthB: HealthScore = {
+  repo: "owner/b",
+  total: null,
+  grade: "—",
+  archived: false,
+  dimensions: [],
+};
 
 describe("compare", () => {
   it("returns message when fewer than 2 repos", () => {
@@ -123,5 +141,37 @@ describe("comparison exports", () => {
     );
     expect(md).toContain("[owner/a](https://github.com/owner/a)");
     expect(md).toContain("1,000");
+  });
+
+  it("with healths, the table gains a Health row", () => {
+    const table = buildComparisonTable(repos, [healthA, healthB]);
+    expect(table).toContain("Health");
+    expect(table).toContain("78 B");
+  });
+
+  it("a short healths array degrades the missing cell", () => {
+    expect(formatHealthCell(undefined)).toBe("—");
+  });
+
+  it("with healths, JSON embeds the score per repo", () => {
+    const parsed = JSON.parse(comparisonJson(repos, [healthA, null])) as {
+      health?: { total: number } | null;
+    }[];
+    expect(parsed[0].health?.total).toBe(78);
+    expect(parsed[1].health).toBeNull();
+  });
+
+  it("with healths, CSV appends health columns", () => {
+    const lines = comparisonCsv(repos, [healthA, healthB]).split("\n");
+    expect(lines[0]).toBe(
+      "full_name,stars,forks,language,created,updated,archived,url,health_total,health_grade",
+    );
+    expect(lines[1]).toContain("78,B");
+  });
+
+  it("with healths, Markdown gains a Health column", () => {
+    const md = comparisonMarkdown(repos, [healthA, healthB]);
+    expect(md).toContain(" Health |");
+    expect(md).toContain("78 B |");
   });
 });

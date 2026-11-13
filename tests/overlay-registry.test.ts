@@ -33,6 +33,7 @@ function tuiOverlayIds(src: string): Set<string> {
     "help",
     "topics",
     "export",
+    "themes",
     "compare",
     "notifications",
     "share",

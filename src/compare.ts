@@ -3,6 +3,8 @@
  * exports (shared by the CLI `--compare` formatters and the MCP server).
  */
 import type { Repo } from "./types";
+import { formatHealthCell } from "./health";
+import type { HealthScore } from "./health";
 
 interface CompareRow {
   label: string;
@@ -10,7 +12,10 @@ interface CompareRow {
 }
 
 /** Build a comparison table as an array of text rows. */
-export function buildComparisonTable(repos: Repo[]): string {
+export function buildComparisonTable(
+  repos: Repo[],
+  healths?: (HealthScore | null)[],
+): string {
   if (repos.length < 2)
     return "Select at least 2 repos to compare (press c to add).";
 
@@ -25,6 +30,12 @@ export function buildComparisonTable(repos: Repo[]): string {
     label: "Forks",
     values: repos.map((r) => r.forks.toLocaleString()),
   });
+  if (healths) {
+    rows.push({
+      label: "Health",
+      values: repos.map((_, i) => formatHealthCell(healths[i])),
+    });
+  }
   rows.push({ label: "Language", values: repos.map((r) => r.language ?? "—") });
   rows.push({
     label: "Created",
@@ -100,8 +111,18 @@ function comparisonRepo(r: Repo): ComparisonRepo {
   };
 }
 
-export function comparisonJson(repos: Repo[]): string {
-  return JSON.stringify(repos.map(comparisonRepo), null, 2);
+export function comparisonJson(
+  repos: Repo[],
+  healths?: (HealthScore | null)[],
+): string {
+  return JSON.stringify(
+    repos.map((r, i) => ({
+      ...comparisonRepo(r),
+      ...(healths ? { health: healths[i] ?? null } : {}),
+    })),
+    null,
+    2,
+  );
 }
 
 function csvEscape(val: unknown): string {
@@ -112,9 +133,14 @@ function csvEscape(val: unknown): string {
   return str;
 }
 
-export function comparisonCsv(repos: Repo[]): string {
-  const header = "full_name,stars,forks,language,created,updated,archived,url";
-  const rows = repos.map((r) =>
+export function comparisonCsv(
+  repos: Repo[],
+  healths?: (HealthScore | null)[],
+): string {
+  const header =
+    "full_name,stars,forks,language,created,updated,archived,url" +
+    (healths ? ",health_total,health_grade" : "");
+  const rows = repos.map((r, i) =>
     [
       r.fullName,
       r.stars,
@@ -124,6 +150,7 @@ export function comparisonCsv(repos: Repo[]): string {
       r.updatedAt?.slice(0, 10) ?? "",
       String(r.archived),
       r.url,
+      ...(healths ? healthCellFields(healths[i]) : []),
     ]
       .map(csvEscape)
       .join(","),
@@ -131,14 +158,25 @@ export function comparisonCsv(repos: Repo[]): string {
   return [header, ...rows].join("\n");
 }
 
-export function comparisonMarkdown(repos: Repo[]): string {
+export function comparisonMarkdown(
+  repos: Repo[],
+  healths?: (HealthScore | null)[],
+): string {
   const header =
-    "| Repo | Stars | Forks | Language | Created | Updated | Topics |";
+    "| Repo | Stars | Forks | Language | Created | Updated | Topics |" +
+    (healths ? " Health |" : "");
   const sep =
-    "|------|-------|-------|----------|---------|---------|--------|";
+    "|------|-------|-------|----------|---------|---------|--------|" +
+    (healths ? "--------|" : "");
   const rows = repos.map(
-    (r) =>
-      `| [${r.fullName}](${r.url}) | ${r.stars.toLocaleString()} | ${r.forks.toLocaleString()} | ${r.language ?? "—"} | ${r.createdAt?.slice(0, 7) ?? "—"} | ${r.updatedAt?.slice(0, 10) ?? "—"} | ${(r.topics?.slice(0, 5).join(", ") ?? "") || "—"} |`,
+    (r, i) =>
+      `| [${r.fullName}](${r.url}) | ${r.stars.toLocaleString()} | ${r.forks.toLocaleString()} | ${r.language ?? "—"} | ${r.createdAt?.slice(0, 7) ?? "—"} | ${r.updatedAt?.slice(0, 10) ?? "—"} | ${(r.topics?.slice(0, 5).join(", ") ?? "") || "—"} |${healths ? ` ${formatHealthCell(healths[i])} |` : ""}`,
   );
   return [header, sep, ...rows].join("\n");
+}
+
+/** CSV cells for one repo's health (empty strings = unavailable). */
+function healthCellFields(score: HealthScore | null | undefined): string[] {
+  if (!score) return ["", ""];
+  return [score.total === null ? "" : String(score.total), score.grade];
 }

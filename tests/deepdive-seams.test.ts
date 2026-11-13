@@ -166,6 +166,13 @@ describe("fetchDeepDiveRaw", () => {
       { login: "bob", contributions: 50 },
     ]);
     expect(raw.readme).toBe("# Title\n\nBody text");
+    // Health rides along: its contributor count is reused from the list
+    // fetched for the contributors section (2 → community score 20).
+    expect(raw.health?.repo).toBe("owner/repo");
+    expect(raw.health?.dimensions).toHaveLength(4);
+    expect(
+      raw.health?.dimensions.find((d) => d.key === "community")?.score,
+    ).toBe(20);
   });
 
   it("tolerates failed language/contributor/README fetches", async () => {

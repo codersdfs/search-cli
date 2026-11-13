@@ -658,7 +658,7 @@ const TOOLS: ToolDefinition[] = [
     name: "ghfind_deep_dive",
     title: "GitHub repo deep-dive",
     description:
-      "Rich detail for one repository: language breakdown (bytes), top contributors, and a README excerpt.",
+      "Rich detail for one repository: language breakdown (bytes), top contributors, a README excerpt, and a 4-dimension health score.",
     inputSchema: {
       type: "object",
       properties: {

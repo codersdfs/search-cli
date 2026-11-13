@@ -65,6 +65,13 @@ import {
   buildDeepDiveText,
   resolveRepoFromRef,
 } from "./deepdive";
+import {
+  fetchHealth,
+  buildHealthJson,
+  buildHealthCsv,
+  buildHealthMarkdown,
+  buildHealthText,
+} from "./health";
 import { resolveTrendingLanguage } from "./search";
 import { findSimilarRepos, formatSimilarText } from "./similar";
 import type { Repo } from "./types";
@@ -137,6 +144,8 @@ interface CLIFlags {
   skill?: string; // agent skill guide (ghfind skill [name])
   deepDive?: string; // repo deep-dive (ghfind deep-dive <owner/repo>)
   similar?: string; // repos like this one (ghfind similar <owner/repo>)
+  health?: string; // repo health score (ghfind health <owner/repo>)
+  healthCompare: boolean; // --health modifier: add health scores to --compare
   language?: string; // trending language filter (--trending rust / ghfind trending rust)
   // ?? Read-only local/skill surface (see README "Non-interactive") ??
   bookmarks: boolean; // list bookmarks (ghfind bookmarks)
@@ -217,6 +226,7 @@ function parseArgs(args: string[]): CLIFlags {
     pkg: false,
     registry: "npm",
     compare: [],
+    healthCompare: false,
     doctor: false,
     mcp: false,
     bookmarks: false,
@@ -499,6 +509,19 @@ function parseArgs(args: string[]): CLIFlags {
         }
         break;
       }
+      case "health": {
+        // Single repo ref (owner/name); a following flag means none.
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          flags.health = next;
+          i++;
+        }
+        break;
+      }
+      case "--health":
+        // Modifier for --compare: append a health score per repo.
+        flags.healthCompare = true;
+        break;
       case "skill": {
         // `skill search <query>` searches the skill registry; plain `skill`
         // lists the catalog and `skill <name>` prints one skill's guide.
@@ -604,6 +627,9 @@ Usage:
   ghfind --compare a/b c/d --json  Compare as JSON|CSV|Markdown
   ghfind deep-dive <owner/repo>    Deep-dive: languages, contributors, README
   ghfind deep-dive a/b --json      Deep-dive as JSON
+  ghfind health <owner/repo>       Repo health score (4 dimensions)
+  ghfind health a/b --json         Health score as JSON|CSV|Markdown
+  ghfind --compare r1 r2 --health  Compare with health scores
   ghfind similar <owner/repo>      Repos like this one (shared topics + language)
   ghfind org <name> --json         Org profile: repos, stars, top languages
   ghfind user <name> --json        User profile: repos, stars, top languages
@@ -632,7 +658,7 @@ Options:
   --json, --csv, --markdown, --count   Output format
   --limit <n>                          Max results (default: 50; similar: 10)
   --sort <strategy>                    Sort: best-match|stars|updated|forks|score|downloads|name
-  --theme <name>                     Theme: tokyo-night|premium-dark (default: tokyo-night)
+  --theme <name>                     Theme: tokyo-night|premium-dark|dracula (default: tokyo-night)
   --trending                           Trending mode
   --language <lang>                    Trending language filter (e.g. rust)
   --since <period>                     Trending period: daily|weekly|monthly
@@ -671,6 +697,12 @@ Options:
       process.exit(1);
     }
     return;
+  }
+
+  // `--health` only modifies `--compare` — alone it has nothing to score.
+  if (flags.healthCompare && flags.compare.length === 0) {
+    console.error("--health requires --compare r1 r2 [...] to score.");
+    process.exit(1);
   }
 
   // Init wizard
@@ -776,6 +808,12 @@ Options:
     return;
   }
 
+  // Repo health score — four-dimension maintenance signal
+  if (flags.health !== undefined) {
+    await runHealth(flags, outputFormat);
+    return;
+  }
+
   // Similar repos — discovery from the repo's own topics and language
   if (flags.similar !== undefined) {
     await runSimilar(flags, outputFormat);
@@ -802,6 +840,8 @@ Options:
     flags.pipe ||
     flags.watch ||
     flags.releases ||
+    // `--compare r1 r2 --health` promises a scored table — never the TUI
+    flags.healthCompare ||
     // `ghfind trending rust` / `ghfind --trending rust` print a list —
     // a language filter implies non-interactive output
     (flags.trending && (!!flags.language || !!flags.query));
@@ -962,6 +1002,36 @@ async function runSimilar(
       console.log(formatOutput(result.repos, outputFormat));
     } else {
       console.log(formatSimilarText(result));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+/** `ghfind health <owner/repo>` — four-dimension repo health score. */
+async function runHealth(
+  flags: CLIFlags,
+  outputFormat?: ExportFormat,
+): Promise<void> {
+  const ref = flags.health;
+  if (!ref) {
+    console.error(
+      "Usage: ghfind health <owner/repo> [--json|--csv|--markdown] [--token <t>]",
+    );
+    process.exit(1);
+  }
+  try {
+    const repo = await resolveRepoFromRef(ref, flags.token);
+    const score = await fetchHealth(repo, flags.token);
+    if (outputFormat === "json") {
+      console.log(buildHealthJson(score));
+    } else if (outputFormat === "csv") {
+      console.log(buildHealthCsv(score));
+    } else if (outputFormat === "markdown") {
+      console.log(buildHealthMarkdown(score));
+    } else {
+      console.log(buildHealthText(score));
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
@@ -1534,14 +1604,21 @@ async function runNonInteractive(flags: CLIFlags, outputFormat?: ExportFormat) {
       const notFound = missing.length
         ? `\n\nNot found: ${missing.join(", ")}`
         : "";
+      // --health: score each resolved repo; a failed score degrades to null
+      // for that column instead of failing the whole comparison.
+      const healths = flags.healthCompare
+        ? await Promise.all(
+            repos.map((r) => fetchHealth(r, flags.token).catch(() => null)),
+          )
+        : undefined;
       if (outputFormat === "json") {
-        console.log(comparisonJson(repos));
+        console.log(comparisonJson(repos, healths));
       } else if (outputFormat === "csv") {
-        console.log(comparisonCsv(repos));
+        console.log(comparisonCsv(repos, healths));
       } else if (outputFormat === "markdown") {
-        console.log(comparisonMarkdown(repos));
+        console.log(comparisonMarkdown(repos, healths));
       } else {
-        console.log(buildComparisonTable(repos) + notFound);
+        console.log(buildComparisonTable(repos, healths) + notFound);
       }
     },
   };

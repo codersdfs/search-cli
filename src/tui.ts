@@ -86,6 +86,7 @@ import {
 } from "./saved-searches";
 import { saveSession, restoreSession } from "./session";
 import { fetchDeepDive, buildDeepDiveText } from "./deepdive";
+import { fetchHealth, buildHealthText } from "./health";
 import { buildComparisonTable } from "./compare";
 import { createMarkdownView } from "./markdown-view";
 import { fetchImageBytes } from "./image-loader";
@@ -326,6 +327,7 @@ export async function launchBrowser(
     | "help"
     | "topics"
     | "export"
+    | "themes"
     | "compare"
     | "notifications"
     | "share"
@@ -340,6 +342,9 @@ export async function launchBrowser(
   // only a ceiling (RubyGems). The toolbar prints "30+" rather than "30".
   let packageTotalIsExact = true;
   let deepDiveActive = false;
+  // Monotonic guard: a slower earlier health fetch must never overwrite the
+  // score of a newer one (Shift+H can be pressed repeatedly, fast).
+  let healthEpoch = 0;
   const compareList: Repo[] = [];
   const _quitArmed = false;
 
@@ -707,6 +712,21 @@ export async function launchBrowser(
     body.visible = true;
   }
 
+  /** Apply + persist a theme by name (shared by the `t` cycle and the picker). */
+  function applyTheme(name: string) {
+    Object.assign(colors, loadTheme(name));
+    // Keep the terminal-matched backdrop and blended layers across theme
+    // switches (fall back to the new theme's own layers when no detection).
+    if (terminalBg) {
+      colors.bg = terminalBg;
+      Object.assign(colors, deriveSurfaceLayers(terminalBg));
+    }
+    renderer.setBackgroundColor(colors.bg);
+    config.theme = name;
+    saveConfig(config);
+    renderer.requestRender();
+  }
+
   function showOverlay(type: typeof currentOverlay) {
     helpBox.visible = false;
     historyBox.visible = false;
@@ -714,6 +734,7 @@ export async function launchBrowser(
     savedBox.visible = false;
     topicsBox.visible = false;
     exportBox.visible = false;
+    themesBox.visible = false;
     compareBox.visible = false;
     notifsBox.visible = false;
     shareBox.visible = false;
@@ -764,6 +785,8 @@ export async function launchBrowser(
       topicsBox.visible = true;
     } else if (type === "export") {
       exportBox.visible = true;
+    } else if (type === "themes") {
+      themesBox.visible = true;
     } else if (type === "compare") {
       compareBox.visible = true;
     } else if (type === "notifications") {
@@ -1019,6 +1042,40 @@ export async function launchBrowser(
   });
   exportBox.add(exportSelect);
   root.add(exportBox);
+
+  // ── Theme picker overlay ─────────────────────────────────
+  const themesBox = new BoxRenderable(renderer, {
+    visible: false,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    title: " Theme ",
+    titleColor: colors.purple,
+  });
+  const themesSelect = new SelectRenderable(renderer, {
+    options: [{ name: "(no themes)", description: "", value: null }],
+    showDescription: true,
+    showSelectionIndicator: true,
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    textColor: colors.text,
+    selectedBackgroundColor: colors.selectionBg,
+    selectedTextColor: colors.selectionText,
+    itemSpacing: 0,
+  });
+  themesBox.add(themesSelect);
+  root.add(themesBox);
+
+  /** Re-list themes with the persisted current one marked and selected. */
+  function refreshThemes() {
+    const themes = listThemes();
+    themesSelect.options = themes.map((name) => ({
+      name: `  ${name}${name === config.theme ? "  ✓" : ""}`,
+      description: name === config.theme ? "current" : "Enter to apply",
+      value: name,
+    }));
+    const idx = themes.indexOf(config.theme);
+    themesSelect.setSelectedIndex(Math.max(0, idx));
+  }
 
   // ── Compare overlay ──────────────────────────────────────────
   const compareBox = new BoxRenderable(renderer, {
@@ -1621,6 +1678,15 @@ export async function launchBrowser(
             triggerDeepDive();
           },
         });
+        repoItems.push({
+          type: "action",
+          name: "Health score",
+          description: "4-dimension maintenance score (Shift+H)",
+          action: () => {
+            showOverlay("none");
+            triggerHealth();
+          },
+        });
       }
       repoItems.push(
         {
@@ -1786,6 +1852,15 @@ export async function launchBrowser(
       },
       {
         type: "action",
+        name: "Theme",
+        description: `Pick a theme (current: ${config.theme})`,
+        action: () => {
+          refreshThemes();
+          showOverlay("themes");
+        },
+      },
+      {
+        type: "action",
         name: "Quit",
         description: "Exit ghfind",
         action: () => {
@@ -1797,7 +1872,7 @@ export async function launchBrowser(
     groups.push({
       type: "category",
       name: "System",
-      description: "Help, notifications, compare, quit",
+      description: "Theme, help, notifications, compare, quit",
       icon: "\u2699\uFE0F",
       children: sysItems,
     });
@@ -1989,6 +2064,31 @@ export async function launchBrowser(
       updateDetail(repo);
       renderer.requestRender();
     }
+  }
+
+  /** Quick health score in the detail pane — the Shift+H fast path. */
+  function triggerHealth() {
+    const opt = resultsSelect.getSelectedOption();
+    const repo = opt?.value as Repo | undefined;
+    // Packages-mode selections carry Package values (no owner/fullName) —
+    // scoring them would silently fetch /repos/undefined/undefined and paint
+    // a fake 0/100.
+    if (!repo?.fullName || !repo.owner) return;
+    deepDiveActive = false;
+    const epoch = ++healthEpoch;
+    detailText.content = "  Scoring health...";
+    renderer.requestRender();
+    fetchHealth(repo, githubToken)
+      .then((score) => {
+        if (epoch !== healthEpoch) return;
+        detailText.content = buildHealthText(score);
+        renderer.requestRender();
+      })
+      .catch(() => {
+        if (epoch !== healthEpoch) return;
+        detailText.content = "  Failed to score health";
+        renderer.requestRender();
+      });
   }
 
   // ── Org profile overlay ─────────────────────────────────────
@@ -3114,6 +3214,14 @@ ${pack.description ?? ""}`;
         renderer.requestRender();
         return;
       }
+      case "themes": {
+        const sel = themesSelect.getSelectedOption();
+        const name = sel?.value as string | undefined;
+        if (name) applyTheme(name);
+        showOverlay("none");
+        if (name) setStatus(`Theme: ${name}`);
+        return;
+      }
       case "share": {
         const sel = shareSelect.getSelectedOption();
         if (sel?.value) {
@@ -3169,6 +3277,7 @@ ${pack.description ?? ""}`;
   attachOverlayMouse(savedBox, savedSelect);
   attachOverlayMouse(topicsBox, topicsSelect);
   attachOverlayMouse(exportBox, exportSelect);
+  attachOverlayMouse(themesBox, themesSelect);
   attachOverlayMouse(shareBox, shareSelect);
 
   // Read-only overlays have no rows to click, so the panel itself is the
@@ -3391,6 +3500,15 @@ ${pack.description ?? ""}`;
         return;
       }
 
+      // Theme picker overlay
+      if (currentOverlay === "themes") {
+        if (key.name === "enter" || key.name === "return") {
+          activateOverlaySelection();
+          return;
+        }
+        return;
+      }
+
       // Compare overlay: Esc/q closes
       if (currentOverlay === "compare") {
         return;
@@ -3548,24 +3666,12 @@ ${pack.description ?? ""}`;
       }
     }
 
-    // 't' toggles theme and persists to config
+    // 't' cycles themes and persists to config
     if (key.name === "t" && !searchInput.focused) {
-      const current = config.theme;
       const themes = listThemes();
-      const idx = themes.indexOf(current);
+      const idx = themes.indexOf(config.theme);
       const next = themes[(idx + 1) % themes.length];
-      const nextTheme = loadTheme(next);
-      Object.assign(colors, nextTheme);
-      // Keep the terminal-matched backdrop and blended layers across theme
-      // switches (fall back to the new theme's own layers when no detection).
-      if (terminalBg) {
-        colors.bg = terminalBg;
-        Object.assign(colors, deriveSurfaceLayers(terminalBg));
-      }
-      renderer.setBackgroundColor(colors.bg);
-      config.theme = next;
-      saveConfig(config);
-      renderer.requestRender();
+      applyTheme(next);
       return;
     }
 
@@ -3574,6 +3680,15 @@ ${pack.description ?? ""}`;
       toggleCompareOnSelected();
       refreshCompare();
       showOverlay("compare");
+      return;
+    }
+
+    // Shift+H scores the selected repo's health into the detail pane
+    if (
+      (key.name === "H" || (key.name === "h" && key.shift)) &&
+      !searchInput.focused
+    ) {
+      triggerHealth();
       return;
     }
 
