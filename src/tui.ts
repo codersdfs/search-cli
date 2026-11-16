@@ -144,6 +144,13 @@ import {
   landingKeysActive,
   moveSelection,
 } from "./landing";
+import {
+  panelsFor,
+  setMode,
+  type OverlayId,
+  type ViewMode,
+  type ViewState,
+} from "./view-state";
 const colors: Record<string, string> = {
   bg: "#3D3B3B",
   surface: "#4a4848",
@@ -300,7 +307,7 @@ export async function launchBrowser(
   let currentLimit = session?.limit ?? config.defaultLimit;
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
-  let currentMode: "landing" | "search" | "trending" | "packages" =
+  let currentMode: ViewMode =
     session?.mode === "trending" || session?.mode === "packages"
       ? session.mode
       : "search";
@@ -319,23 +326,9 @@ export async function launchBrowser(
   let trendingPeriod = "this week";
   let graphFullscreen = false;
   let chartCommitData: number[] = [];
-  let currentOverlay:
-    | "none"
-    | "history"
-    | "bookmarks"
-    | "saved"
-    | "help"
-    | "topics"
-    | "export"
-    | "themes"
-    | "compare"
-    | "notifications"
-    | "share"
-    | "leader"
-    | "readme"
-    | "org"
-    | "update"
-    | "landing" = "none";
+  // The overlay dimension of the view machine (src/view-state.ts). `landing`
+  // is a mode, never an overlay.
+  let currentOverlay: OverlayId = "none";
   let currentPage = 1;
   let totalCount = 0;
   // False when the active package registry reported no total and totalCount is
@@ -606,14 +599,17 @@ export async function launchBrowser(
   landingBox.add(landingHint);
 
   function showLanding(visible: boolean) {
-    landingBox.visible = visible;
-    if (visible) {
-      currentMode = "landing";
-      hideMainContent();
-      landingSelected = 0;
-      updateLandingCards();
+    if (!visible) {
+      landingBox.visible = false;
       renderer.requestRender();
+      return;
     }
+    // One transition paints the panels: the menu owns all of them, so there is
+    // no "reveal the menu, then hide it again" ordering to get wrong.
+    enterMode("landing");
+    landingSelected = 0;
+    updateLandingCards();
+    renderer.requestRender();
   }
 
   function updateLandingCards() {
@@ -694,22 +690,41 @@ export async function launchBrowser(
     if (landingConsumesKey(key.name)) key.stopPropagation();
   });
 
+  // ── View machine application ────────────────────────────────────────
+  // The panel matrix lives in src/view-state.ts. `applyView` is the only
+  // writer of main-view visibility: it used to be copied into six functions,
+  // and a copy that drifts is how a panel gets shown but never reset.
+
+  /** The shell's view, as the machine sees it. */
+  function currentView(): ViewState {
+    return { mode: currentMode, overlay: currentOverlay };
+  }
+
+  /** Paint every main-view panel from the machine's state. */
+  function applyView(): void {
+    const panels = panelsFor(currentView());
+    landingBox.visible = panels.landing;
+    searchBox.visible = panels.search;
+    toolbarText.visible = panels.toolbar;
+    body.visible = panels.body;
+    trendingTabBox.visible = panels.trendingTabs;
+    renderer.requestRender();
+  }
+
+  /** Transition: enter a mode (the overlay and its key routing are unchanged). */
+  function enterMode(mode: ViewMode): void {
+    const next = setMode(currentView(), mode);
+    currentMode = next.mode;
+    currentOverlay = next.overlay;
+    applyView();
+  }
+
   // Hide main content so overlays can take 100% of the content area
   function hideMainContent() {
     trendingTabBox.visible = false;
     searchBox.visible = false;
     toolbarText.visible = false;
     body.visible = false;
-  }
-
-  function showMainContent() {
-    if (currentMode === "trending") {
-      trendingTabBox.visible = true;
-    } else {
-      searchBox.visible = true;
-      toolbarText.visible = true;
-    }
-    body.visible = true;
   }
 
   /** Apply + persist a theme by name (shared by the `t` cycle and the picker). */
@@ -757,7 +772,7 @@ export async function launchBrowser(
         searchBox.visible = false;
         toolbarText.visible = false;
       } else {
-        showMainContent();
+        applyView();
       }
       renderer.requestRender();
       return;
@@ -2752,13 +2767,9 @@ export async function launchBrowser(
   }
 
   async function loadTrending() {
-    currentMode = "trending";
+    enterMode("trending");
     isLoading = true;
     errorHint = null;
-    searchBox.visible = false;
-    toolbarText.visible = false;
-    trendingTabBox.visible = true;
-    body.visible = true;
     renderTrendingTabs();
     resultsSelect.options = [
       { name: "  Loading trending...", description: "", value: null },
@@ -2817,11 +2828,7 @@ export async function launchBrowser(
   }
 
   function showSearchMode() {
-    currentMode = "search";
-    trendingTabBox.visible = false;
-    searchBox.visible = true;
-    toolbarText.visible = true;
-    body.visible = true;
+    enterMode("search");
     searchInput.placeholder =
       "Search GitHub repos (e.g. rust cli, or language:Rust stars:>100)";
     searchInput.focus();
@@ -2829,11 +2836,7 @@ export async function launchBrowser(
   }
 
   function showPackagesMode() {
-    currentMode = "packages";
-    trendingTabBox.visible = false;
-    searchBox.visible = true;
-    toolbarText.visible = true;
-    body.visible = true;
+    enterMode("packages");
     searchInput.placeholder = `Search ${registryLabel()} packages`;
     searchInput.focus();
     packages = [];

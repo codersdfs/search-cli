@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.14.1] — 2026-11-16 (released)
+
+### Changed
+
+- **The TUI's screen state is one explicit machine (`src/view-state.ts`).**
+  Mode (`landing` / `search` / `trending` / `packages`) × overlay (fifteen ids
+  or `none`) is projected onto the five main-view panels by `panelsFor()`, and
+  the shell's `applyView` is the only writer of their visibility. Six
+  hand-copied versions of that matrix — `showLanding`, `showMainContent`,
+  `showSearchMode`, `showPackagesMode`, `loadTrending` and the overlay reset
+  path — are gone, so adding a panel or an overlay can no longer be done in one
+  place and forgotten in another (the drift that once left `orgBox` on screen
+  until restart). No behaviour is meant to change; 14 new tests pin the matrix
+  and assert that `src/tui.ts` paints from it rather than re-implementing it.
+- **`docs/state-machines.md` inventories the app's state machines** — the two
+  explicit ones, the latent ones with frequency × severity ratings (so a
+  borderline bug is filed as an issue instead of engineered around), and the
+  ones that were checked and are already guarded.
+
 ## [9.14.0] — 2026-11-13 (released)
 
 ### Added

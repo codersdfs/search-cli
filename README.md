@@ -377,14 +377,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 933 tests
+bun test         # 947 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 933 tests
+npm test         # 947 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -418,22 +418,19 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.14.1
+
+- **The TUI's mode × overlay state is one explicit machine** — the five main-view panels now come from `panelsFor()` in `src/view-state.ts` instead of six hand-copied matrices, so a panel can no longer be shown in one path and forgotten in another; 14 tests pin the matrix and the shell's use of it. No behaviour change
+
+### v9.14.0
+
+- **A four-dimension repo health score** — `ghfind health a/b` weighs maintenance (30%), issue responsiveness (25%), release cadence (25%) and community breadth (20%); each fetch degrades independently instead of scoring a missing signal 0, archived repos cap at 40, and a full page reports as `100+`. Compare, deep-dive, MCP and `Shift+H` all carry it
+- **Dracula joins the themes, with a picker** — `--theme dracula`, `t` to cycle, or Menu → Theme (Enter applies and persists); the help row, init wizard and picker all read from one registry
+
 ### v9.13.0
 
 - **`ghfind similar <owner/repo>` finds repos like one you already know** — topics first, then primary language, merged and de-duplicated across widening queries; forks, archived repos and the source repo itself are excluded, and a star floor scales with the source's popularity
 - **MCP `ghfind_similar_repos` gives agents the same discovery** — rendered list plus a structured `{ repo, count, repos, queries }` payload showing which searches produced the answer
-
-### v9.12.1
-
-- **One-shot CLI search honors `ghfind login`'s saved token** — every surface now resolves flag > state > config (env wins over the file), and the config file's `githubTokens` rotation list actually works; previously only the env var was read, silently capping at 60/hr
-- **GitHub 403s carry GitHub's own reason** — one seam classifies 401/403/rate-limit/forbidden with the reset time and GitHub's message, replacing nine drifted header builders and raw `error 403` dumps
-- **`ghfind pkg` totals admit when unknown** — npm, crates.io, NuGet and Maven Central print a bound (`30+`) like RubyGems instead of passing off the page length as an exact count
-
-### v9.12.0
-
-- **`ghfind pkg` searches five package registries** — `--registry npm|crates|rubygems|nuget|maven` selects one (npm default), every download figure is labelled with the window its registry actually publishes (`/mo`, `/90d`, ` total`, `n/a`), and an unparseable 200 is an error instead of zero results
-- **`ghfind release run --tag <v>` dispatches the Release workflow** — the CLI equivalent of `gh workflow run release --ref <v>`, with `--dry-run` to rehearse
-- **`--registry` now belongs to `ghfind pkg` alone** — elsewhere it is rejected instead of silently ignored, and `--sort` is validated against the chosen registry on every path including the browser
 
 ## License
 
