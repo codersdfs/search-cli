@@ -45,6 +45,7 @@ _ghfind() {
     'clone[Clone a repo to disk]:owner/repo:'
     'pkg[Search packages]:query:'
     'trending[Trending repos, optionally by language]'
+    'hn[Hacker News stories]:feed:(top new best ask show job)'
     'deep-dive[Repo deep-dive: languages, contributors, README]:owner/repo:'
     'similar[Repos like this one (shared topics + language)]:owner/repo:'
     'mcp[Run the MCP server for AI agents (stdio)]'

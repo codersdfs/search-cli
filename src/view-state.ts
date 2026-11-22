@@ -25,6 +25,7 @@ export const VIEW_MODES = [
   "search",
   "trending",
   "packages",
+  "hn",
 ] as const;
 export type ViewMode = (typeof VIEW_MODES)[number];
 
@@ -78,7 +79,7 @@ export interface MainPanels {
   toolbar: boolean;
   /** The results + detail split. */
   body: boolean;
-  /** The trending tab bar (trending mode only). */
+  /** The feed tab bar (trending periods, or Hacker News feeds). */
   trendingTabs: boolean;
 }
 
@@ -97,9 +98,9 @@ const NO_PANELS: MainPanels = {
  *  - A full-screen overlay hides every main panel (it owns the content area).
  *  - A floating overlay leaves the panels beneath it visible, but the landing
  *    menu always steps aside for any overlay.
- *  - Otherwise the mode decides: landing shows only the menu; search and
- *    packages share the query row + toolbar + body; trending swaps the query
- *    row for the tab bar.
+ *  - Otherwise the mode decides: landing shows only the menu; search,
+ *    packages and HN share the body; search/packages also own the query row +
+ *    toolbar; trending and HN swap the query row for their feed tab bar.
  */
 export function panelsFor(state: ViewState): MainPanels {
   if (state.overlay !== "none" && !isFloatingOverlay(state.overlay)) {
@@ -114,7 +115,7 @@ export function panelsFor(state: ViewState): MainPanels {
     search: queryRow,
     toolbar: queryRow,
     body: !landing,
-    trendingTabs: state.mode === "trending",
+    trendingTabs: state.mode === "trending" || state.mode === "hn",
   };
 }
 

@@ -122,6 +122,14 @@ import {
 import { formatShare, copyToClipboard, type ShareFormat } from "./share";
 import { nextTip } from "./tips";
 import { openUrl } from "./open-url";
+import {
+  HN_FEEDS,
+  HN_FEED_LABELS,
+  fetchHnStories,
+  relativeTime,
+  type HnFeed,
+  type HnStory,
+} from "./hn";
 import { getVersion } from "./version";
 
 let cachedVersion: string | null = null;
@@ -308,10 +316,17 @@ export async function launchBrowser(
   let currentQueryInput = session?.query ?? "";
   let isLoading = false;
   let currentMode: ViewMode =
-    session?.mode === "trending" || session?.mode === "packages"
+    session?.mode === "trending" ||
+    session?.mode === "packages" ||
+    session?.mode === "hn"
       ? session.mode
       : "search";
   let packages: Package[] = [];
+  // Hacker News mode: active feed, its stories, and a guard so a slow feed
+  // switch cannot repaint the list under the new feed's tab.
+  let hnFeed: HnFeed = "top";
+  let hnStories: HnStory[] = [];
+  let hnEpoch = 0;
   let currentPackageSort: PackageSortMode = "best-match";
   let packageResultsRaw: Package[] = [];
   // Bumped whenever a package search is superseded, so a cycle during an
@@ -386,6 +401,42 @@ export async function launchBrowser(
       trendingTabTexts.push(tt);
       trendingTabBox.add(tt);
       if (i < TAB_NAMES.length - 1) {
+        const sp = new TextRenderable(renderer, {
+          ...NON_INTERACTIVE_TEXT,
+          content: "  ",
+          fg: colors.muted,
+          bg: colors.bg,
+          height: 1,
+        });
+        trendingTabTexts.push(sp);
+        trendingTabBox.add(sp);
+      }
+    });
+  }
+  /** Paint the HN feed tabs into the same bar trending uses (one tab bar). */
+  function renderHnTabs() {
+    for (const t of trendingTabTexts) trendingTabBox.remove(t);
+    trendingTabTexts.length = 0;
+    HN_FEEDS.forEach((id, i) => {
+      const isActive = id === hnFeed;
+      const tt = new TextRenderable(renderer, {
+        ...NON_INTERACTIVE_TEXT,
+        content: ` ${HN_FEED_LABELS[id]} `,
+        fg: isActive ? colors.bg : colors.muted,
+        bg: isActive ? colors.orange : colors.bg,
+        height: 1,
+      });
+      tt.onMouseDown = (event) => {
+        event.stopPropagation();
+        if (id === hnFeed) return;
+        hnFeed = id;
+        void loadHnFeed(id);
+      };
+      tt.onMouseOver = () => renderer.setMousePointer("pointer");
+      tt.onMouseOut = () => renderer.setMousePointer("default");
+      trendingTabTexts.push(tt);
+      trendingTabBox.add(tt);
+      if (i < HN_FEEDS.length - 1) {
         const sp = new TextRenderable(renderer, {
           ...NON_INTERACTIVE_TEXT,
           content: "  ",
@@ -519,7 +570,6 @@ export async function launchBrowser(
     height: 6,
   });
   landingBox.add(landingBanner);
-  // Three option cards
   const landingOptions = [
     {
       icon: "\u{1F50D}",
@@ -554,6 +604,14 @@ export async function launchBrowser(
         currentMode = "trending";
         showLanding(false);
         loadTrending();
+      },
+    },
+    {
+      icon: "\u{1F7E0}",
+      title: "Hacker News",
+      desc: "Top, new, best, Ask, Show, and job stories from Hacker News",
+      action: () => {
+        showHnMode();
       },
     },
   ];
@@ -708,6 +766,10 @@ export async function launchBrowser(
     toolbarText.visible = panels.toolbar;
     body.visible = panels.body;
     trendingTabBox.visible = panels.trendingTabs;
+    resultsBox.title =
+      currentMode === "hn"
+        ? ` Hacker News · ${HN_FEED_LABELS[hnFeed]} `
+        : " Results ";
     renderer.requestRender();
   }
 
@@ -1761,6 +1823,12 @@ export async function launchBrowser(
       },
       {
         type: "action",
+        name: "Hacker News",
+        description: "Top, new, best, Ask, Show, and job stories",
+        action: () => showHnMode(),
+      },
+      {
+        type: "action",
         name: "Org profile",
         description: "Look up any GitHub organization",
         action: () => {
@@ -2476,7 +2544,9 @@ export async function launchBrowser(
         ? "trending"
         : currentMode === "packages"
           ? "packages"
-          : "search";
+          : currentMode === "hn"
+            ? "hn"
+            : "search";
     return {
       mode,
       query: currentQueryInput,
@@ -2764,6 +2834,109 @@ export async function launchBrowser(
     const arrow = r.score > 0 ? "▲" : r.score < 0 ? "▼" : "—";
     const growth = `${arrow} ${fmtStars(r.score)} ${trendingPeriod}`;
     return `[${rankStr}] ${name} ${lang} ${stars} ${growth}`;
+  }
+
+  // ── Hacker News mode ────────────────────────────────────────────────
+  /**
+   * One line per story. The results pane is half the terminal, so trim the
+   * title before the metadata instead of letting SelectRenderable wrap it.
+   */
+  function formatHnStoryLine(story: HnStory, rank: number): string {
+    const meta = ` · ${story.score} pts · ${story.comments}c`;
+    const width = Math.max(
+      40,
+      Math.floor((process.stdout.columns ?? 100) / 2) - 6,
+    );
+    const domain = story.domain ? ` (${story.domain})` : "";
+    const title = `${String(rank).padStart(2)}. ${story.title}${domain}`;
+    const room = width - meta.length;
+    const clipped =
+      title.length <= room
+        ? title
+        : `${title.slice(0, Math.max(1, room - 1))}…`;
+    return `${clipped}${meta}`;
+  }
+
+  function updateHnDetail(story: HnStory | null | undefined): void {
+    if (!story) {
+      detailText.content = "";
+      return;
+    }
+    detailText.content = [
+      `  ${story.title}`,
+      "",
+      `  ${story.domain ?? "news.ycombinator.com"} · by ${story.author ?? "unknown"} · ${relativeTime(story.createdAt) || "unknown time"}`,
+      `  ${story.score} points · ${story.comments} comments`,
+      "",
+      `  ${story.url ?? story.hnUrl}`,
+      "",
+      `  Discussion  ${story.hnUrl}`,
+    ].join("\n");
+  }
+
+  function cycleHnFeed(delta: number): void {
+    const idx = HN_FEEDS.indexOf(hnFeed);
+    const next = HN_FEEDS[(idx + delta + HN_FEEDS.length) % HN_FEEDS.length];
+    if (next !== hnFeed) void loadHnFeed(next);
+  }
+
+  async function loadHnFeed(feed: HnFeed = hnFeed): Promise<void> {
+    hnFeed = feed;
+    const epoch = ++hnEpoch;
+    enterMode("hn");
+    renderHnTabs();
+    errorHint = null;
+    resultsSelect.focus();
+    hnStories = [];
+    resultsSelect.options = [
+      {
+        name: `  Loading ${HN_FEED_LABELS[feed]} stories...`,
+        description: "",
+        value: null,
+      },
+    ];
+    detailText.content = "";
+    statusMgr.set("loading", `Loading Hacker News ${HN_FEED_LABELS[feed]}...`);
+    renderer.requestRender();
+
+    try {
+      const stories = await fetchHnStories(feed, { limit: currentLimit });
+      if (epoch !== hnEpoch || currentMode !== "hn") return;
+      hnStories = stories;
+      if (stories.length === 0) {
+        resultsSelect.options = [
+          { name: "  No stories right now", description: "", value: null },
+        ];
+        statusMgr.set("idle", `No ${HN_FEED_LABELS[feed]} stories right now`);
+        return;
+      }
+      resultsSelect.options = stories.map((story, i) => ({
+        name: `  ${formatHnStoryLine(story, i + 1)}`,
+        description: "",
+        value: story,
+      }));
+      resultsSelect.setSelectedIndex(0);
+      updateHnDetail(stories[0]);
+      statusMgr.set(
+        "success",
+        `${stories.length} Hacker News ${HN_FEED_LABELS[feed]} stories`,
+      );
+    } catch (err) {
+      if (epoch !== hnEpoch || currentMode !== "hn") return;
+      const msg = err instanceof Error ? err.message : String(err);
+      resultsSelect.options = [
+        { name: " (error)", description: "", value: null },
+      ];
+      statusMgr.set("error", msg.slice(0, 60));
+    } finally {
+      renderer.requestRender();
+    }
+  }
+
+  function showHnMode(): void {
+    enterMode("hn");
+    resultsSelect.focus();
+    void loadHnFeed(hnFeed);
   }
 
   async function loadTrending() {
@@ -3101,7 +3274,9 @@ export async function launchBrowser(
   // Navigate results → update detail pane
   resultsSelect.on("selectionChanged", () => {
     const opt = resultsSelect.getSelectedOption();
-    if (currentMode === "packages") {
+    if (currentMode === "hn") {
+      updateHnDetail(opt?.value as HnStory | undefined);
+    } else if (currentMode === "packages") {
       const pack = opt?.value as Package | undefined;
       if (pack) {
         detailText.content = `Package: ${pack.name}@${pack.version}  [${registryMeta(pack.registry).label}]
@@ -3122,7 +3297,10 @@ ${pack.description ?? ""}`;
   // Enter on a result → open URL
   resultsSelect.on("itemSelected", () => {
     const opt = resultsSelect.getSelectedOption();
-    if (currentMode === "packages") {
+    if (currentMode === "hn") {
+      const story = opt?.value as HnStory | undefined;
+      if (story) openUrl(story.url ?? story.hnUrl);
+    } else if (currentMode === "packages") {
       const pack = opt?.value as Package | undefined;
       if (pack?.url) openUrl(pack.url);
     } else {
@@ -3641,6 +3819,12 @@ ${pack.description ?? ""}`;
       return;
     }
 
+    // Hacker News: refresh the active feed outside the query input.
+    if (key.name === "r" && !searchInput.focused && currentMode === "hn") {
+      void loadHnFeed(hnFeed);
+      return;
+    }
+
     // Error-hint keys — active only while a status-bar error that advertises
     // them ([r]etry / [t]oken / [u]nset / [c]ycle) is on screen; the next
     // search clears the state, returning t/c to their normal roles.
@@ -3678,8 +3862,14 @@ ${pack.description ?? ""}`;
       return;
     }
 
-    // 'c' toggles compare on selected repo (when not typing in search)
+    // 'c' opens the selected HN story's comments, or toggles compare on a repo.
     if (key.name === "c" && !searchInput.focused) {
+      if (currentMode === "hn") {
+        const story = resultsSelect.getSelectedOption()?.value as
+          HnStory | undefined;
+        if (story) openUrl(story.hnUrl);
+        return;
+      }
       toggleCompareOnSelected();
       refreshCompare();
       showOverlay("compare");
@@ -3752,19 +3942,23 @@ ${pack.description ?? ""}`;
       return;
     }
 
-    // Number keys 1-5 switch trending tabs (only in trending mode)
-    if (/^[1-5]$/.test(key.name)) {
-      if (currentMode === "trending") {
-        const idx = parseInt(key.name, 10) - 1;
-        if (idx >= 0 && idx < TAB_NAMES.length) {
-          trendingTab = TAB_NAMES[idx];
-          loadTrending();
+    // Number keys 1-6 switch HN feeds (6) or trending tabs (1-5).
+    if (/^[1-6]$/.test(key.name)) {
+      const idx = parseInt(key.name, 10) - 1;
+      if (currentMode === "hn") {
+        const next = HN_FEEDS[idx];
+        if (next) {
+          hnFeed = next;
+          void loadHnFeed(next);
         }
+      } else if (currentMode === "trending" && idx < TAB_NAMES.length) {
+        trendingTab = TAB_NAMES[idx];
+        loadTrending();
       }
       return;
     }
 
-    // Left/right arrows (and h/l) switch trending tabs
+    // Left/right arrows (and h/l) switch trending periods or HN feeds.
     if (key.name === "left" || key.name === "h") {
       if (currentMode === "trending") {
         const idx = TAB_NAMES.indexOf(trendingTab);
@@ -3772,6 +3966,8 @@ ${pack.description ?? ""}`;
           trendingTab = TAB_NAMES[idx - 1];
           loadTrending();
         }
+      } else if (currentMode === "hn") {
+        cycleHnFeed(-1);
       }
       return;
     }
@@ -3782,6 +3978,8 @@ ${pack.description ?? ""}`;
           trendingTab = TAB_NAMES[idx + 1];
           loadTrending();
         }
+      } else if (currentMode === "hn") {
+        cycleHnFeed(1);
       }
       return;
     }
@@ -3797,11 +3995,14 @@ ${pack.description ?? ""}`;
 
     // PageUp — scroll to top of results
     if (key.name === "pageup") {
-      if (currentRepos.length > 0) {
+      if (currentMode === "hn" && hnStories.length > 0) {
+        resultsSelect.setSelectedIndex(0);
+        updateHnDetail(hnStories[0]);
+      } else if (currentRepos.length > 0) {
         resultsSelect.setSelectedIndex(0);
         updateDetail(currentRepos[0]);
-        renderer.requestRender();
       }
+      renderer.requestRender();
       return;
     }
   });

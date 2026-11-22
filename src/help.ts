@@ -68,6 +68,22 @@ export function buildHelpSections(): HelpSection[] {
       note: "Tabs are also clickable.",
     },
     {
+      title: " Hacker News Mode ",
+      titleColor: "orange",
+      rows: [
+        {
+          keys: "1-6",
+          action: "Switch feed: Top → New → Best → Ask → Show → Jobs",
+        },
+        { keys: "← → / h l", action: "Cycle feeds" },
+        { keys: "↑ ↓ / j k", action: "Move selection" },
+        { keys: "Enter", action: "Open story in browser" },
+        { keys: "c", action: "Open Hacker News discussion" },
+        { keys: "r", action: "Refresh the active feed" },
+      ],
+      note: "Tabs are also clickable. Stories come from the public HN API.",
+    },
+    {
       title: " Packages Mode ",
       titleColor: "cyan",
       rows: [
@@ -95,6 +111,10 @@ export function buildHelpSections(): HelpSection[] {
         { keys: "Compare", action: "Add to / remove from comparison" },
         { keys: "Trending", action: "Switch to trending browser" },
         { keys: "Packages", action: "Switch to package registries" },
+        {
+          keys: "Hacker News",
+          action: "Browse top, new, and Ask/Show stories",
+        },
         { keys: "Export", action: "Export results to file" },
         { keys: "Share", action: "Share repo as text" },
         {

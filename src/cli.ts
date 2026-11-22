@@ -105,6 +105,17 @@ import {
   searchSkills,
   type SkillSource,
 } from "./skill-finder";
+import {
+  fetchHnStories,
+  formatHnCsv,
+  formatHnJson,
+  formatHnMarkdown,
+  formatHnText,
+  HN_FEEDS,
+  resolveHnFeed,
+  type HnFeed,
+} from "./hn";
+import { launchHnBrowser } from "./hn-browser";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = join(__dirname, "..");
@@ -160,6 +171,8 @@ interface CLIFlags {
   release?: string; // release workflow dispatch (ghfind release run --tag <v>)
   releaseTag?: string; // --tag <v> for the release workflow dispatch
   releaseDryRun?: boolean; // --dry-run for the release workflow dispatch
+  hn: boolean; // Hacker News viewer / listing (ghfind hn [feed])
+  hnFeed?: HnFeed; // validated feed id from `ghfind hn <feed>`
   skillSearch?: string; // skill search query (ghfind skill search <query>)
   sharedAs?: string; // --as <format> for share
   remote: boolean; // skill search: hit skills.sh instead of this machine
@@ -233,6 +246,7 @@ function parseArgs(args: string[]): CLIFlags {
     history: false,
     topics: false,
     saved: false,
+    hn: false,
     remote: false,
     local: false,
     copy: false,
@@ -445,6 +459,23 @@ function parseArgs(args: string[]): CLIFlags {
       case "saved":
         flags.saved = true;
         break;
+      case "hn": {
+        // `ghfind hn [feed]` — a feed word is validated here, before any fetch.
+        flags.hn = true;
+        const next = args[i + 1];
+        if (next && !next.startsWith("-")) {
+          const feed = resolveHnFeed(next);
+          if (!feed) {
+            console.error(
+              `Invalid feed: "${next}" (use ${HN_FEEDS.join("|")}).`,
+            );
+            process.exit(1);
+          }
+          flags.hnFeed = feed;
+          i++;
+        }
+        break;
+      }
       case "readme": {
         // Single repo ref; a following flag means none was given.
         const next = args[i + 1];
@@ -640,6 +671,8 @@ Usage:
   ghfind bookmarks [query]         Saved repos, newest first
   ghfind history [query]           Past searches, newest first
   ghfind topics                    Browse popular GitHub topics
+  ghfind hn [feed]                 Hacker News: top|new|best|ask|show|job
+  ghfind hn --json                 Hacker News as JSON|CSV|Markdown
   ghfind saved                     Named searches saved in the TUI
   ghfind readme <owner/repo>       Print a repository README
   ghfind clone <owner/repo>        Clone a repo to disk (HTTPS; --ssh = git@github.com)
@@ -801,6 +834,20 @@ Options:
       : flags.markdown
         ? "markdown"
         : undefined;
+
+  // Hacker News — bare `ghfind hn` opens the viewer; a feed word prints a list
+  if (flags.hn) {
+    const feed = flags.hnFeed ?? "top";
+    if (flags.hnFeed === undefined && !outputFormat && !flags.count) {
+      await launchHnBrowser(
+        feed,
+        flags.limitExplicit ? { limit: flags.limit } : {},
+      );
+    } else {
+      await runHn(flags, feed, outputFormat);
+    }
+    return;
+  }
 
   // Repo deep-dive — parity with the MCP ghfind_deep_dive tool
   if (flags.deepDive !== undefined) {
@@ -1210,6 +1257,31 @@ function plainText(html: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** `ghfind hn [feed]` — Hacker News stories as text/JSON/CSV/Markdown/count. */
+async function runHn(
+  flags: CLIFlags,
+  feed: HnFeed,
+  outputFormat?: ExportFormat,
+): Promise<void> {
+  try {
+    const stories = await fetchHnStories(feed, { limit: flags.limit });
+    if (flags.count) {
+      console.log(stories.length);
+    } else if (outputFormat === "json") {
+      console.log(formatHnJson(stories));
+    } else if (outputFormat === "csv") {
+      console.log(formatHnCsv(stories));
+    } else if (outputFormat === "markdown") {
+      console.log(formatHnMarkdown(stories, feed));
+    } else {
+      console.log(formatHnText(stories, feed));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
 }
 
 /** `ghfind topics` — popular GitHub topics. */

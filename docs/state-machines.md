@@ -16,7 +16,7 @@ it, don't design for it. Above 5 means it is worth code.
 
 ### View / screen (`src/view-state.ts`) — freq 6 × sev 5 = 30
 
-`mode` is one of `landing` / `search` / `trending` / `packages`; `overlay` is
+`mode` is one of `landing` / `search` / `trending` / `packages` / `hn`; `overlay` is
 one of the fifteen overlay ids or `none`. `panelsFor(state)` is the single
 projection of that pair onto the main-view panels, and the shell's `applyView`
 is the only writer of their visibility.

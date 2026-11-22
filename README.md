@@ -77,6 +77,9 @@ ghfind --trending --json --since weekly
 ghfind login                    # import the gh CLI token or paste one
 ghfind org vercel               # org profile: repos, stars, top languages
 ghfind user torvalds            # user profile: repos, stars, followers
+ghfind hn                       # browse Hacker News in the terminal (also a main-TUI card)
+ghfind hn top --json            # top stories as JSON
+ghfind hn new --limit 10        # first 10 new stories
 ```
 
 ### Non-interactive
@@ -186,6 +189,7 @@ ghfind --completion fish | source
 <table>
 <tr><td><b>Search</b></td><td>Free-text + qualifiers (<code>language:</code>, <code>stars:</code>, <code>topic:</code>), sort by stars/updated/forks</td></tr>
 <tr><td><b>Trending</b></td><td>Today, week, month, year — filter by language</td></tr>
+<tr><td><b>Hacker News</b></td><td><code>ghfind hn [feed]</code> — top, new, best, Ask HN, Show HN, jobs; a mode in the main TUI, an interactive viewer, or JSON/CSV/Markdown</td></tr>
 <tr>
   <td><b>Packages</b></td>
   <td>
@@ -377,14 +381,14 @@ cd ghfind
 # With Bun (recommended for TUI)
 bun install
 bun start        # TUI
-bun test         # 947 tests
+bun test         # 976 tests
 bun run check    # format check + tests — the green gate
 bun run build    # build dist/
 
 # Or with npm
 npm install
 npm start        # TUI (requires Node 20+)
-npm test         # 947 tests
+npm test         # 976 tests
 npm run build    # build dist/
 
 > Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md) for commands,
@@ -418,6 +422,10 @@ for the architecture, measurements, and remaining work.
 
 Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+### v9.15.0
+
+- **`ghfind hn` browses Hacker News** — top, new, best, Ask HN, Show HN, and jobs feeds from the public HN API; an interactive viewer or JSON/CSV/Markdown/count output, and a Hacker News card in the main TUI with feed tabs and a results/detail split
+
 ### v9.14.1
 
 - **The TUI's mode × overlay state is one explicit machine** — the five main-view panels now come from `panelsFor()` in `src/view-state.ts` instead of six hand-copied matrices, so a panel can no longer be shown in one path and forgotten in another; 14 tests pin the matrix and the shell's use of it. No behaviour change
@@ -426,11 +434,6 @@ Recent releases (full history in [CHANGELOG.md](CHANGELOG.md)):
 
 - **A four-dimension repo health score** — `ghfind health a/b` weighs maintenance (30%), issue responsiveness (25%), release cadence (25%) and community breadth (20%); each fetch degrades independently instead of scoring a missing signal 0, archived repos cap at 40, and a full page reports as `100+`. Compare, deep-dive, MCP and `Shift+H` all carry it
 - **Dracula joins the themes, with a picker** — `--theme dracula`, `t` to cycle, or Menu → Theme (Enter applies and persists); the help row, init wizard and picker all read from one registry
-
-### v9.13.0
-
-- **`ghfind similar <owner/repo>` finds repos like one you already know** — topics first, then primary language, merged and de-duplicated across widening queries; forks, archived repos and the source repo itself are excluded, and a star floor scales with the source's popularity
-- **MCP `ghfind_similar_repos` gives agents the same discovery** — rendered list plus a structured `{ repo, count, repos, queries }` payload showing which searches produced the answer
 
 ## License
 

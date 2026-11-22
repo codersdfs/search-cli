@@ -67,6 +67,16 @@ describe("panelsFor", () => {
     });
   });
 
+  test("HN shows the body and its feed tab bar, without a query row", () => {
+    expect(panelsFor({ mode: "hn", overlay: "none" })).toEqual({
+      landing: false,
+      search: false,
+      toolbar: false,
+      body: true,
+      trendingTabs: true,
+    });
+  });
+
   test("every full-screen overlay hides every main panel", () => {
     for (const overlay of OVERLAY_IDS) {
       if (overlay === "none" || isFloatingOverlay(overlay)) continue;
@@ -139,7 +149,7 @@ describe("the shell paints from the machine (source contract)", () => {
 
   test("each mode switch is one transition, not a hand-written matrix", () => {
     const src = readSource("src/tui.ts");
-    for (const mode of ["landing", "search", "packages", "trending"]) {
+    for (const mode of ["landing", "search", "packages", "trending", "hn"]) {
       expect(src, `missing enterMode("${mode}")`).toContain(
         `enterMode("${mode}")`,
       );

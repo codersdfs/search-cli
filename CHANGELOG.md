@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Publish
 
 ---
 
+## [9.15.0] — 2026-11-22 (released)
+
+### Added
+
+- **`ghfind hn` browses Hacker News** — top, new, best, Ask HN, Show HN, and jobs
+  feeds from the public HN API, as `ghfind hn [feed]` with text/JSON/CSV/Markdown/count
+  output or an interactive viewer (`ghfind hn`) with feed tabs, `j`/`k` navigation,
+  `Enter`/`o` to open, `c` for the discussion, and `r` to refresh. HN is also a
+  mode in the main TUI: a landing card, clickable feed tabs, a results/detail split,
+  and the same keys. Requests time out after 10s, dead stories are skipped, and feed
+  failures surface their HTTP status or network error.
+
+### Changed
+
+- **The main TUI now has five modes** — `landing` / `search` / `trending` /
+  `packages` / `hn`; the view-state machine and its panel projection cover the new
+  mode, and the Esc menu gains a Hacker News entry.
+
 ## [9.14.1] — 2026-11-16 (released)
 
 ### Changed

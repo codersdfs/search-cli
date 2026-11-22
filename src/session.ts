@@ -40,6 +40,7 @@ export function sanitizeSession(
   const mode =
     state.mode === "trending" ||
     state.mode === "packages" ||
+    state.mode === "hn" ||
     state.mode === "search"
       ? state.mode
       : "search";

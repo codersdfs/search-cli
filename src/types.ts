@@ -140,7 +140,7 @@ export interface SavedSearch {
 
 /** Session state restored on startup. */
 export interface SessionState {
-  mode: "search" | "trending" | "packages" | "bookmarks";
+  mode: "search" | "trending" | "packages" | "bookmarks" | "hn";
   query: string;
   sort: SortStrategy;
   limit: number;
